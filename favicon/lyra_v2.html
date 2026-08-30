@@ -1,0 +1,3092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lyra : An AI agent for your wallet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS same palette as the Lyra wallet app
+============================================================ */
+:root {
+  --void: #150E20;
+  --panel: #221735;
+  --panel2: #2C1F45;
+  --panel3: #362854;
+  --line: #3D2C5B;
+  --line-soft: rgba(167, 139, 250, 0.14);
+
+  --accent: #A78BFA;
+  --accent-strong: #C4B0FF;
+  --accent-deep: #6D4FD1;
+  --accent-soft: rgba(167, 139, 250, 0.14);
+
+  --beige: #F3E7D0;
+  --beige-dim: #D8C9A8;
+  --beige-soft: rgba(243, 231, 208, 0.08);
+
+  --muted: #9C8FBE;
+  --muted-dim: #6E6291;
+
+  --danger: #F2A0A0;
+  --success: #B9E3B0;
+  --warning: #E3C27E;
+
+  --display: "Space Grotesk", sans-serif;
+  --body: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: var(--body);
+  color: var(--beige);
+  background:
+    radial-gradient(circle at 20% -10%, #3A2A5E 0%, transparent 45%),
+    radial-gradient(circle at 85% 0%, #4A2F5C 0%, transparent 40%),
+    radial-gradient(circle at 15% 70%, #2C1F45 0%, transparent 50%),
+    var(--void);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--accent-soft); color: var(--beige); }
+
+#bgCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+a { color: inherit; }
+button { font: inherit; cursor: pointer; }
+
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border: 1px solid var(--line-soft);
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+}
+.eyebrow .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(185, 227, 176, 0.18);
+}
+
+/* ============================================================
+   NAV
+============================================================ */
+.nav {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: min(980px, 94vw);
+  border-radius: 999px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(28, 19, 44, 0.62);
+  border: 1px solid var(--line-soft);
+  box-shadow: 0 12px 34px rgba(0,0,0,0.28);
+  transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, top 0.25s ease;
+
+.logo-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+}
+}
+.nav.scrolled {
+  top: 12px;
+  background: rgba(21, 14, 32, 0.86);
+  border-color: var(--line);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+}
+.nav-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 58px;
+  padding: 0 10px 0 20px;
+  gap: 18px;
+}
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+.nav-mark {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent-deep));
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--void);
+}
+.nav-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  font-size: 13.5px;
+  color: var(--muted);
+  flex: 1;
+}
+.nav-links a { text-decoration: none; transition: color 0.15s ease; white-space: nowrap; }
+.nav-links a:hover { color: var(--beige); }
+
+.nav-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+
+@media (max-width: 720px) { .nav-links { display: none; } }
+
+/* ---- Mobile-only hamburger: hidden on desktop (nav-links cover
+   that), appears under 720px to give access to the same tabs the
+   inline nav-links provide on wider screens. ---- */
+.nav-menu-switch { position: relative; display: none; }
+@media (max-width: 720px) { .nav-menu-switch { display: block; } }
+
+.nav-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--beige);
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.nav-menu-btn:hover { border-color: var(--accent-deep); color: var(--accent-strong); }
+.nav-menu-switch.open .nav-menu-btn {
+  border-color: var(--accent-deep);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.nav-menu-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translate(-50%, -6px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 190px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 50;
+}
+.nav-menu-panel a {
+  font-size: 13.5px;
+  color: var(--beige-dim);
+  text-decoration: none;
+  padding: 9px 10px;
+  border-radius: 9px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.nav-menu-panel a:hover { color: var(--beige); background: var(--accent-soft); }
+.nav-menu-switch.open .nav-menu-panel {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+@media (max-width: 560px) { .ask-lyra-sub { display: none; } }
+
+/* ---- Ask Lyra: same pill + dropdown pattern as the network
+   switch, deliberately not a floating chat bubble, so it reads as
+   part of the nav rather than a persistent chatbot widget. ---- */
+.ask-lyra-switch { position: relative; }
+.ask-lyra-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--beige);
+  background: transparent;
+  border: 1px solid var(--line);
+  padding: 7px 12px;
+  border-radius: 999px;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.ask-lyra-btn:hover { border-color: var(--accent-deep); color: var(--accent-strong); }
+.ask-lyra-switch.open .ask-lyra-btn {
+  border-color: var(--accent-deep);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.ask-lyra-spark { color: var(--accent-strong); font-size: 12px; line-height: 1; }
+
+.ask-lyra-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  width: 320px;
+  max-width: min(320px, calc(100vw - 40px));
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.4);
+  opacity: 0;
+  transform: translate(-50%, -6px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 50;
+}
+.ask-lyra-switch.open .ask-lyra-panel {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.ask-lyra-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.ask-lyra-head .ask-lyra-spark {
+  font-size: 15px;
+  margin-top: 1px;
+}
+.ask-lyra-title {
+  font-family: var(--display);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--beige);
+}
+.ask-lyra-sub {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.ask-lyra-answer {
+  display: none;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--beige-dim);
+  background: var(--panel3);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 13px;
+  margin-bottom: 12px;
+}
+.ask-lyra-answer.show { display: block; }
+.ask-lyra-answer .who {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 5px;
+  display: block;
+}
+
+.ask-lyra-suggested-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.ask-lyra-suggested { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
+.ask-lyra-q {
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--beige-dim);
+  font-size: 12.5px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.ask-lyra-q:hover { border-color: var(--accent-deep); color: var(--beige); background: var(--accent-soft); }
+
+.ask-lyra-form {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+}
+.ask-lyra-input {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--beige);
+  font-size: 12.5px;
+  font-family: var(--body);
+  padding: 9px 11px;
+  border-radius: 10px;
+}
+.ask-lyra-input::placeholder { color: var(--muted-dim); }
+.ask-lyra-input:focus { outline: none; border-color: var(--accent-deep); }
+.ask-lyra-send {
+  flex: 0 0 auto;
+  width: 34px;
+  border: 1px solid var(--line);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.15s ease;
+}
+.ask-lyra-send:hover { border-color: var(--accent-deep); }
+
+@media (max-width: 720px) {
+  .ask-lyra-sub { display: none; }
+}
+
+.network-switch { position: relative; }
+.network-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  padding: 7px 12px;
+  border-radius: 999px;
+  transition: border-color 0.15s ease;
+}
+.network-btn:hover { border-color: var(--accent-deep); }
+.network-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex: 0 0 auto;
+}
+.network-dot.muted { background: var(--muted-dim); }
+.network-chevron { transition: transform 0.2s ease; flex: 0 0 auto; }
+.network-switch.open .network-chevron { transform: rotate(180deg); }
+
+@media (max-width: 720px) {
+  .network-switch {
+    display: none !important;
+  }
+}
+
+.network-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  min-width: 190px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.4);
+  opacity: 0;
+  transform: translate(-50%, -6px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.network-switch.open .network-menu {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.network-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--beige-dim);
+}
+.network-item.active { background: var(--accent-soft); color: var(--beige); }
+.network-item.disabled { color: var(--muted); }
+.network-item .net-name { flex: 1; }
+.network-item .net-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.network-item.active .net-tag { color: var(--success); }
+.network-item.disabled .net-tag { color: var(--muted-dim); }
+
+/* ============================================================
+   HERO
+============================================================ */
+.hero {
+  padding: 128px 0 88px;
+  position: relative;
+  overflow: hidden;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 56px;
+  align-items: center;
+}
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; }
+}
+
+.hero h1 {
+  font-family: var(--display);
+  font-size: clamp(38px, 5vw, 58px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  margin: 22px 0 20px;
+}
+.hero h1 em {
+  font-style: normal;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero p.lead {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--muted);
+  max-width: 480px;
+  margin: 0 0 32px;
+}
+.hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 44px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 22px;
+  border-radius: 12px;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--beige), var(--beige-dim));
+  color: #241735;
+}
+.btn-primary:hover { transform: translateY(-1px); }
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--beige);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent-strong); }
+
+.hero-stats {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.hero-stat { }
+.hero-stat .n {
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--beige);
+  letter-spacing: -0.01em;
+}
+.hero-stat .l {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* --- hero demo card (mirrors the real app UI) --- */
+.demo-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.35);
+  position: relative;
+}
+.demo-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 22px;
+  padding: 1px;
+  background: linear-gradient(160deg, var(--accent-soft), transparent 40%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.demo-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.demo-chat-msg {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  color: var(--beige-dim);
+  margin-bottom: 14px;
+}
+.demo-chat-msg .who {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 5px;
+  font-family: var(--mono);
+}
+.demo-ticket {
+  background: var(--panel3);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.demo-ticket-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.demo-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.demo-row:last-child { border-bottom: none; }
+.demo-row span { color: var(--muted); }
+.demo-row strong { color: var(--beige); font-weight: 600; }
+.demo-row strong.risk-low { color: var(--success); }
+
+.hold-btn {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  padding: 15px;
+  border-radius: 13px;
+  border: none;
+  background: linear-gradient(135deg, var(--beige), var(--beige-dim));
+  color: #241735;
+  font-weight: 600;
+  font-size: 14px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.hold-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  background: transparent;
+  transition: width 0.02s linear;
+}
+.hold-dots {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.hold-btn.dots-cover .hold-content {
+  color: var(--beige);
+  transition: color 0.15s ease;
+}
+.hold-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.demo-caption {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 14px;
+}
+.demo-success {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--success);
+  background: rgba(185, 227, 176, 0.1);
+  border: 1px solid rgba(185, 227, 176, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 14px;
+}
+.demo-success.show { display: flex; }
+
+/* ============================================================
+   SECTION SHELL
+============================================================ */
+section { padding: 88px 0; }
+.section-head {
+  max-width: 620px;
+  margin: 0 0 52px;
+}
+.section-head h2 {
+  font-family: var(--display);
+  font-size: clamp(28px, 3.6vw, 38px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin: 14px 0 14px;
+}
+.section-head p {
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ============================================================
+   COMPARE
+============================================================ */
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  align-items: stretch;
+}
+@media (max-width: 800px) { .compare-grid { grid-template-columns: 1fr; } }
+
+.compare-col {
+  border-radius: 20px;
+  padding: 26px 24px 24px;
+  border: 1px solid var(--line);
+}
+.compare-col.manual { background: var(--panel); }
+.compare-col.lyra {
+  background: linear-gradient(165deg, var(--panel2), var(--panel));
+  border-color: var(--accent-deep);
+  position: relative;
+}
+.compare-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+.compare-head h3 {
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+.compare-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.compare-col.lyra .compare-tag {
+  color: var(--accent-strong);
+  border-color: var(--accent-deep);
+  background: var(--accent-soft);
+}
+
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.steps li {
+  counter-increment: step;
+  display: flex;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--beige-dim);
+}
+.steps li:last-child { border-bottom: none; }
+.steps li::before {
+  content: counter(step);
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 1px;
+}
+.compare-col.manual .steps li::before {
+  background: var(--panel3);
+  color: var(--muted);
+}
+.compare-col.lyra .steps li::before {
+  background: var(--accent-deep);
+  color: #150E20;
+}
+.compare-col.lyra .steps li { color: var(--beige); }
+
+.compare-foot {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+  font-size: 12.5px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.compare-col.lyra .compare-foot { color: var(--accent-strong); }
+
+/* ============================================================
+   FEATURES
+============================================================ */
+.feat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+@media (max-width: 860px) { .feat-grid { grid-template-columns: 1fr; } }
+
+.feat-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 26px 22px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.feat-card:hover { border-color: var(--accent-deep); transform: translateY(-2px); }
+
+.feat-icon {
+  width: 42px; height: 42px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  margin-bottom: 18px;
+}
+.feat-card h3 {
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.feat-platform {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.feat-card p {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--beige-dim);
+  margin: 0 0 16px;
+}
+.feat-check {
+  font-size: 12.5px;
+  color: var(--muted);
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+.feat-check svg { flex: 0 0 auto; margin-top: 1px; color: var(--success); }
+
+/* ============================================================
+   FEATURES : scroll-scrubbed wallet
+============================================================ */
+#walletScroll[hidden] { display: none; }
+
+.wallet-scroll-track {
+  position: relative;
+  height: 640vh;
+}
+.wallet-scroll-pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.wallet-stage {
+  position: relative;
+  width: min(620px, 92vw);
+  height: min(440px, 72vh);
+}
+
+.wallet-hint {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 6%;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.wallet-shell { position: absolute; top: 50%; left: 50%; width: 320px; height: 220px; transform: translate(-50%, -50%); z-index: 3; }
+
+.wallet-body { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 168px; border-radius: 22px; background: linear-gradient( 155deg, var(--beige) 0%, var(--beige-dim) 100% ); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); z-index: 3; }
+.wallet-stripe {
+  position: absolute;
+  left: 26px; bottom: 30px;
+  width: 74px; height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.16);
+}
+.wallet-clasp {
+  position: absolute;
+  top: 50%; right: -14px;
+  width: 40px; height: 40px;
+  margin-top: -20px;
+  border-radius: 50%;
+  background: linear-gradient(155deg, var(--beige) 0%, var(--beige-dim) 100%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  display: flex; align-items: center; justify-content: center;
+  transition: box-shadow 0.4s ease;
+}
+.wallet-clasp::after {
+  content: "";
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: var(--accent-deep);
+  transition: background 0.4s ease, box-shadow 0.4s ease;
+}
+.wallet-clasp.active {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 4px var(--accent-soft);
+}
+.wallet-clasp.active::after {
+  background: var(--accent-strong);
+  box-shadow: 0 0 10px var(--accent-strong);
+}
+
+.wallet-card { position: absolute; left: 50%; top: 50%; width: min(300px, 78vw); margin: -175px 0 0 -150px; pointer-events: none; z-index: 1; transition: none; will-change: transform;  border: 3px solid var(--beige);
+  box-sizing: border-box;} .wallet-card:hover { transform: none !important; }
+.wallet-card:hover { transform: none !important; }
+.wallet-dots {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: -6%;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.wallet-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background 0.4s ease, transform 0.4s ease;
+}
+.wallet-dot.active {
+  background: var(--accent-strong);
+  transform: scale(1.4);
+}
+
+@media (max-width: 640px) {
+  .wallet-scroll-track { height: 520vh; }
+  .wallet-card { margin: -130px 0 0 -140px; }
+}
+
+
+/* ============================================================
+   AGENT how it thinks
+============================================================ */
+.agent-section {
+  background: var(--panel);
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.agent-frame {
+  position: relative;
+  border: 1px solid var(--accent-deep);
+  border-radius: 20px;
+  padding: 36px 30px 30px;
+  background: var(--panel2);
+  overflow: hidden;
+  margin-top: 8px;
+}
+.agent-frame::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent-strong));
+}
+.agent-flow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  position: relative;
+}
+@media (max-width: 860px) { .agent-flow { grid-template-columns: 1fr; gap: 28px; } }
+
+.agent-step { padding: 0 26px; position: relative; }
+.agent-step:first-child { padding-left: 0; }
+.agent-step:last-child { padding-right: 0; }
+.agent-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 22px; right: 0;
+  width: 26px; height: 1px;
+  background: var(--line);
+}
+@media (max-width: 860px) { .agent-step:not(:last-child)::after { display: none; } }
+
+.agent-num {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent-strong);
+  border: 1px solid var(--accent-deep);
+  background: var(--accent-soft);
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 18px;
+}
+.agent-step h3 {
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.agent-step p {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ============================================================
+   ASK ANYTHING
+============================================================ */
+.ask-demo-wrap { max-width: 440px; margin: 0 auto; }
+.ask-demo-card { min-height: 300px; display: flex; flex-direction: column; }
+.ask-demo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: opacity 0.28s ease;
+}
+.ask-demo-body.fading { opacity: 0; }
+.ask-demo-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 1px;
+  background: currentColor;
+  vertical-align: -2px;
+  animation: ask-caret 0.9s step-end infinite;
+}
+@keyframes ask-caret { 50% { opacity: 0; } }
+
+.ask-reveal {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.ask-reveal.in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ask-demo-dots { display: flex; justify-content: center; gap: 8px; margin-top: 18px; }
+.ask-demo-dots .wallet-dot { cursor: pointer; }
+
+.ask-bubble {
+  align-self: flex-end;
+  max-width: 88%;
+  background: linear-gradient(135deg, var(--beige), var(--beige-dim));
+  color: #241735;
+  font-weight: 500;
+  font-size: 13.5px;
+  padding: 11px 15px;
+  border-radius: 15px;
+  border-bottom-right-radius: 4px;
+  min-height: 1.4em;
+}
+.ask-answer {
+  max-width: 100%;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--beige-dim);
+}
+.ask-answer .who {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.ask-risk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin-top: 8px;
+  background: rgba(185, 227, 176, 0.1);
+  color: var(--success);
+  border: 1px solid rgba(185, 227, 176, 0.25);
+}
+
+/* ============================================================
+   SECURITY
+============================================================ */
+.sec-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+@media (max-width: 900px) { .sec-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .sec-grid { grid-template-columns: 1fr; } }
+
+.sec-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px 20px;
+  background: var(--panel);
+}
+.sec-card svg { color: var(--accent-strong); margin-bottom: 14px; }
+.sec-card h3 { font-family: var(--display); font-size: 15.5px; font-weight: 600; margin: 0 0 8px; }
+.sec-card p { font-size: 13px; line-height: 1.6; color: var(--muted); margin: 0; }
+
+.sec-note {
+  margin-top: 28px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  display: flex;
+  gap: 12px;
+}
+.sec-note svg { flex: 0 0 auto; color: var(--warning); margin-top: 2px; }
+.sec-note strong { color: var(--beige-dim); }
+
+/* ============================================================
+   DOWNLOAD
+============================================================ */
+.download-section {
+  background: var(--panel);
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+.download-head {
+  text-align: center;
+  max-width: 560px;
+  margin: 0 auto 40px;
+}
+.download-head .eyebrow { margin: 0 auto 14px; }
+.download-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.download-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 26px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  text-decoration: none;
+  color: var(--beige);
+  min-width: 220px;
+  transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+.download-btn:hover {
+  border-color: var(--accent-deep);
+  transform: translateY(-2px);
+  background: var(--panel3);
+}
+.download-btn .dl-icon {
+  width: 40px; height: 40px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  display: flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.download-btn .dl-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.download-btn .dl-platform {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 1px;
+}
+.download-note {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 22px;
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+footer {
+  border-top: 1px solid var(--line-soft);
+  padding: 48px 0 40px;
+}
+.footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 16px;
+}
+.footer-tag {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.footer-social {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.footer-social-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.footer-social-link:hover {
+  border-color: var(--accent-deep);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.footer-links {
+  display: flex;
+  gap: 22px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.footer-links a { text-decoration: none; }
+.footer-links a:hover { color: var(--beige); }
+
+.footer-legal {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--muted-dim);
+}
+
+/* ============================================================
+   FAQ VIEW
+============================================================ */
+#viewFaq[hidden] { display: none; }
+
+.nav-links a.current { color: var(--beige); }
+.footer-links a.current { color: var(--beige); }
+
+.faq-hero {
+  padding: 140px 0 40px;
+  position: relative;
+}
+.faq-hero h1 {
+  font-family: var(--display);
+  font-size: clamp(34px, 4.6vw, 50px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  margin: 20px 0 16px;
+  max-width: 640px;
+}
+.faq-hero h1 em {
+  font-style: normal;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.faq-hero p {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--muted);
+  max-width: 540px;
+  margin: 0 0 30px;
+}
+
+.faq-filter {
+  position: relative;
+  max-width: 460px;
+}
+.faq-filter input {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--beige);
+  font-size: 14px;
+  font-family: var(--body);
+  padding: 13px 16px 13px 44px;
+  border-radius: 13px;
+  transition: border-color 0.15s ease;
+}
+.faq-filter input::placeholder { color: var(--muted-dim); }
+.faq-filter input:focus { outline: none; border-color: var(--accent-deep); }
+.faq-filter svg {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+.faq-no-results {
+  display: none;
+  font-size: 13.5px;
+  color: var(--muted);
+  padding: 30px 0 6px;
+}
+.faq-no-results.show { display: block; }
+
+.faq-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 30px;
+}
+.faq-chip {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 7px 13px;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.faq-chip:hover, .faq-chip.active {
+  border-color: var(--accent-deep);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.faq-section { padding: 30px 0 100px; }
+
+.faq-group { margin-bottom: 44px; }
+.faq-group:last-child { margin-bottom: 0; }
+.faq-group-label {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+  margin-bottom: 14px;
+  padding-left: 2px;
+}
+
+.faq-list {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.faq-item {
+  border-bottom: 1px solid var(--line-soft);
+}
+.faq-item:last-child { border-bottom: none; }
+.faq-item[hidden] { display: none; }
+
+.faq-q {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--beige);
+  padding: 20px 24px;
+  font-family: var(--display);
+  font-size: 15.5px;
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+.faq-q:hover { background: var(--beige-soft); }
+.faq-q .qtext { flex: 1; }
+.faq-q .qicon {
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  color: var(--accent-strong);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.25s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.faq-item.open .faq-q .qicon {
+  transform: rotate(45deg);
+  border-color: var(--accent-deep);
+  background: var(--accent-soft);
+}
+
+.faq-a {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+.faq-item.open .faq-a { grid-template-rows: 1fr; }
+.faq-a-inner {
+  overflow: hidden;
+}
+.faq-a-inner p {
+  margin: 0;
+  padding: 0 24px 22px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--beige-dim);
+  max-width: 640px;
+}
+
+.faq-cta {
+  margin-top: 50px;
+  border: 1px solid var(--accent-deep);
+  border-radius: 20px;
+  background: linear-gradient(165deg, var(--panel2), var(--panel));
+  padding: 32px 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.faq-cta h3 {
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.faq-cta p {
+  font-size: 13.5px;
+  color: var(--muted);
+  margin: 0;
+  max-width: 420px;
+}
+.faq-cta-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas" aria-hidden="true"></canvas>
+
+<nav class="nav" id="mainNav">
+  <div class="nav-pill">
+    <a href="#top" class="nav-brand" data-view-link="home">
+      <img src="public/logo.png" alt="Lyra" class="logo-img">
+      Lyra
+    </a>
+
+    <div class="nav-links">
+      <a href="#compare" data-view-link="home">Why an agent</a>
+      <a href="#features" data-view-link="home">What it does</a>
+      <a href="#agent" data-view-link="home">How it thinks</a>
+      <a href="#security" data-view-link="home">Security</a>
+      <a href="#download" data-view-link="home">Download</a>
+      <a href="#faq" data-view-link="faq" id="navFaqLink">FAQ</a>
+    </div>
+
+    <div class="nav-right">
+      <div class="nav-menu-switch" id="navMenuSwitch">
+        <button class="nav-menu-btn" id="navMenuBtn" aria-expanded="false" aria-haspopup="true" aria-label="Menu">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="nav-menu-panel" id="navMenuPanel" role="menu">
+          <a href="#compare" data-view-link="home">Why an agent</a>
+          <a href="#features" data-view-link="home">What it does</a>
+          <a href="#agent" data-view-link="home">How it thinks</a>
+          <a href="#security" data-view-link="home">Security</a>
+          <a href="#download" data-view-link="home">Download</a>
+          <a href="#faq" data-view-link="faq">FAQ</a>
+        </div>
+      </div>
+
+      <div class="ask-lyra-switch" id="askLyraSwitch">
+        <button class="ask-lyra-btn" id="askLyraBtn" aria-expanded="false" aria-haspopup="true">
+          <span class="ask-lyra-spark">✦</span>
+          Ask Lyra
+        </button>
+        <div class="ask-lyra-panel" id="askLyraPanel" role="dialog" aria-label="Ask Lyra">
+          <div class="ask-lyra-head">
+            <span class="ask-lyra-spark">✦</span>
+            <div>
+              <div class="ask-lyra-title">Ask Lyra</div>
+              <div class="ask-lyra-sub">Quick answers about the wallet. For anything else, the real agent is inside the app.</div>
+            </div>
+          </div>
+
+          <div class="ask-lyra-answer" id="askLyraAnswer"></div>
+
+          <div class="ask-lyra-suggested">
+            <div class="ask-lyra-suggested-label">Suggested questions</div>
+            <button class="ask-lyra-q" data-q="what">What can Lyra do?</button>
+            <button class="ask-lyra-q" data-q="security_general">How is my wallet secured?</button>
+            <button class="ask-lyra-q" data-q="platforms_download">Which platforms are supported?</button>
+            <button class="ask-lyra-q" data-q="roadmap_next">What's coming next?</button>
+          </div>
+
+          <form class="ask-lyra-form" id="askLyraForm">
+            <input class="ask-lyra-input" id="askLyraInput" type="text" placeholder="Type your question…" autocomplete="off">
+            <button class="ask-lyra-send" type="submit" aria-label="Ask">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="network-switch" id="networkSwitch">
+        <button class="network-btn" id="networkBtn" aria-expanded="false" aria-haspopup="true">
+          <span class="network-dot"></span>
+          Plasma Mainnet
+          <svg class="network-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="network-menu" id="networkMenu" role="menu">
+          <div class="network-item active" role="menuitem">
+            <span class="network-dot"></span>
+            <span class="net-name">Plasma</span>
+            <span class="net-tag">Mainnet</span>
+          </div>
+          <div class="network-item disabled" role="menuitem">
+            <span class="network-dot muted"></span>
+            <span class="net-name">Ethereum</span>
+            <span class="net-tag">Soon</span>
+          </div>
+          <div class="network-item disabled" role="menuitem">
+            <span class="network-dot muted"></span>
+            <span class="net-name">Solana</span>
+            <span class="net-tag">Soon</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div id="viewHome">
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Say what you want.<br><em>Lyra</em> handles the chain.</h1>
+      <p class="lead">
+         Lyra is an iWallet (intelligent wallet) built on Plasma mainnet. Tell it what you're
+        trying to do : send, swap, bridge, stake, and it researches the
+        real rate, the real risk, and the real route before asking you to
+        hold one button to confirm the interaction. Nothing moves without your approval.
+      </p>
+      <div class="hero-ctas">
+        <a href="#download" class="btn btn-primary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0-4-4m4 4 4-4M5 21h14"/></svg>
+          Download Lyra
+        </a>
+        <a href="#compare" class="btn btn-ghost">See it next to the manual way</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="n">3</div>
+          <div class="l">protocols wired in<br>(Uniswap V3, LI.FI, Aave)</div>
+        </div>
+        <div class="hero-stat">
+          <div class="n">1</div>
+          <div class="l">button held to<br>confirm any action</div>
+        </div>
+        <div class="hero-stat">
+          <div class="n">0</div>
+          <div class="l">times Lyra ever sees<br>your private key</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="demo-card">
+        <div class="demo-label">Try the actual control</div>
+
+        <div class="demo-chat-msg">
+          <div class="who">You</div>
+          Stake 250 USDT | find the best rate.
+        </div>
+
+        <div class="demo-ticket">
+          <div class="demo-ticket-title">Staking · Aave V3</div>
+          <div class="demo-row"><span>Estimated yield</span><strong id="demoApy">checking live…</strong></div>
+          <div class="demo-row"><span>Lock</span><strong>No</strong></div>
+          <div class="demo-row"><span>Risk level</span><strong class="risk-low">Low</strong></div>
+        </div>
+
+        <button class="hold-btn" id="holdBtn">
+          <span class="hold-fill" id="holdFill"></span>
+          <span class="hold-content" id="holdLabel">Hold to Confirm</span>
+        </button>
+
+        <div class="demo-caption">This is the same control used for every transaction in Lyra.</div>
+        <div class="demo-success" id="demoSuccess">✓ Confirmed - this is exactly what signing feels like in Lyra.</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+
+<section id="compare">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">The actual difference</span>
+      <h2>The chain didn't get simpler. The interface finally caught up.</h2>
+      <p>Swapping, bridging, and staking were never hard because blockchains are complicated.
+      They're hard because doing them safely means checking rates across tabs, guessing
+      parameters, and hoping you didn't miss a step. Here's the same staking deposit, done
+      two ways.</p>
+    </div>
+
+    <div class="compare-grid">
+      <div class="compare-col manual">
+        <div class="compare-head">
+          <h3>Without an agent</h3>
+          <span class="compare-tag">manual</span>
+        </div>
+        <ol class="steps">
+          <li>Open the protocol's own site and connect your wallet</li>
+          <li>Find the right pool for your asset, out of several listed</li>
+          <li>Open another tab to check whether the rate is actually competitive</li>
+          <li>Approve the token | a separate transaction, separate gas</li>
+          <li>Set the parameters yourself and hope they're right</li>
+          <li>Sign, and wait without knowing if anything went wrong</li>
+          <li>Open an explorer afterward to confirm it actually worked</li>
+        </ol>
+        <div class="compare-foot">≈ 7 steps · 2–3 tabs · full attention required · ≈ 3 minutes</div>
+      </div>
+
+      <div class="compare-col lyra">
+        <div class="compare-head">
+          <h3>With Lyra</h3>
+          <span class="compare-tag">agent</span>
+        </div>
+        <ol class="steps">
+          <li>Say what you want, in one sentence</li>
+          <li>Lyra researches the real rate, fees, and risk, and prepares a ticket</li>
+          <li>You check it, then hold one button to confirm</li>
+        </ol>
+        <div class="compare-foot">3 steps · 1 screen · fully automated · ≈ 3 secondes</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">What it does</span>
+      <h2>Three real protocols. One agent deciding what's actually safe to sign.</h2>
+      <p>Lyra doesn't simulate DeFi. It's wired directly into real, verified contracts on
+      Plasma mainnet, and checks each one live instead of trusting a cached number.</p>
+    </div>
+
+    <div class="feat-grid" id="featGridStatic">
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M7 8l-4-4 4-4M17 21V3M17 16l4 4-4 4"/></svg>
+        </div>
+        <h3>Swap</h3>
+        <div class="feat-platform">via Uniswap V3</div>
+        <p>Lyra finds the exact pool that exists for your pair on Plasma and reads its live
+        rate before showing you a number. It never guesses a fee tier.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Rate and pool confirmed on-chain, not assumed
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M2 12l6-6M2 12l6 6M22 12l-6-6M22 12l-6 6"/></svg>
+        </div>
+        <h3>Bridge</h3>
+        <div class="feat-platform">via LI.FI</div>
+        <p>Every route is requested live from LI.FI itself, the same engine behind Jumper,
+        so what Lyra shows you is exactly what gets signed, not a hand-built guess.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Live quote per request, never hardcoded
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        </div>
+        <h3>Stake</h3>
+        <div class="feat-platform">via Aave V3</div>
+        <p>Lyra checks the real Plasma market before proposing a deposit : current yield,
+        lock status, and a plain-language risk level, not a static promise.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Withdraw anytime, same one-hold confirmation
+        </div>
+      </div>
+    </div>
+
+    <div class="wallet-scroll-track" id="walletScroll" hidden>
+      <div class="wallet-scroll-pin">
+        <div class="wallet-stage">
+
+          <div class="wallet-shell">
+            <div class="wallet-body">
+              <div class="wallet-stripe"></div>
+            </div>
+            <div class="wallet-clasp" id="walletClasp"></div>
+          </div>
+
+          <div class="wallet-card feat-card" id="walletCard0" data-index="0">
+            <div class="feat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M7 8l-4-4 4-4M17 21V3M17 16l4 4-4 4"/></svg>
+            </div>
+            <h3>Swap</h3>
+            <div class="feat-platform">via Uniswap V3</div>
+            <p>Lyra finds the exact pool that exists for your pair on Plasma and reads its live
+            rate before showing you a number. It never guesses a fee tier.</p>
+            <div class="feat-check">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+              Rate and pool confirmed on-chain, not assumed
+            </div>
+          </div>
+
+          <div class="wallet-card feat-card" id="walletCard1" data-index="1">
+            <div class="feat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M2 12l6-6M2 12l6 6M22 12l-6-6M22 12l-6 6"/></svg>
+            </div>
+            <h3>Bridge</h3>
+            <div class="feat-platform">via LI.FI</div>
+            <p>Every route is requested live from LI.FI itself, the same engine behind Jumper,
+            so what Lyra shows you is exactly what gets signed, not a hand-built guess.</p>
+            <div class="feat-check">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+              Live quote per request, never hardcoded
+            </div>
+          </div>
+
+          <div class="wallet-card feat-card" id="walletCard2" data-index="2">
+            <div class="feat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            </div>
+            <h3>Stake</h3>
+            <div class="feat-platform">via Aave V3</div>
+            <p>Lyra checks the real Plasma market before proposing a deposit : current yield,
+            lock status, and a plain-language risk level, not a static promise.</p>
+            <div class="feat-check">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+              Withdraw anytime, same one-hold confirmation
+            </div>
+          </div>
+
+          <div class="wallet-dots">
+            <span class="wallet-dot" data-dot="0"></span>
+            <span class="wallet-dot" data-dot="1"></span>
+            <span class="wallet-dot" data-dot="2"></span>
+          </div>
+
+          <div class="wallet-hint" id="walletHint">↓ keep scrolling</div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<section class="agent-section" id="agent">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">How it thinks</span>
+      <h2>It doesn't answer from memory. It goes and checks.</h2>
+      <p>Every ticket Lyra shows you comes from the same three-step loop | no cached rates,
+      no assumed contract addresses, nothing invented to fill a gap.</p>
+    </div>
+
+    <div class="agent-frame">
+      <div class="agent-flow">
+        <div class="agent-step">
+          <div class="agent-num">01</div>
+          <h3>Understand</h3>
+          <p>Lyra reads what you're asking, in plain language, and can piece it together
+          across several messages if you didn't give every detail at once.</p>
+        </div>
+        <div class="agent-step">
+          <div class="agent-num">02</div>
+          <h3>Research</h3>
+          <p>It searches the web and checks the contract directly on-chain : live, every
+          time, never from memory. If it can't find a reliable answer, it says so.</p>
+        </div>
+        <div class="agent-step">
+          <div class="agent-num">03</div>
+          <h3>Propose</h3>
+          <p>You get a ticket you can read line by line : rate, fees, risk. Nothing is
+          signed or sent until you hold the button yourself.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ask">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Beyond the buttons</span>
+      <h2>Ask it anything, not just what to click</h2>
+      <p>Lyra is also who you ask before you act. It's the same research loop :
+      real search, real contract checks. Turned toward your questions instead
+      of a transaction.</p>
+    </div>
+
+    <div class="ask-demo-wrap">
+      <div class="demo-card ask-demo-card" id="askDemoCard">
+        <div class="demo-label">Live example</div>
+        <div class="ask-demo-body" id="askDemoBody"></div>
+      </div>
+      <div class="ask-demo-dots" id="askDemoDots">
+        <span class="wallet-dot" data-dot="0"></span>
+        <span class="wallet-dot" data-dot="1"></span>
+        <span class="wallet-dot" data-dot="2"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="security">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Security model</span>
+      <h2>An agent that can propose anything and move nothing.</h2>
+      <p>Automation and custody are two different problems. Lyra solves the first,
+      your device still solves the second.</p>
+    </div>
+
+    <div class="sec-grid">
+      <div class="sec-card">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <h3>Your key stays yours</h3>
+        <p>Encrypted locally on your device. Lyra never has access to it, unlocked or not.</p>
+      </div>
+      <div class="sec-card">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 3 7v6c0 5 4 8.5 9 9 5-.5 9-4 9-9V7l-9-5Z"/></svg>
+        <h3>It never signs itself</h3>
+        <p>Every action, including withdrawing from staking, waits for you to hold the button.</p>
+      </div>
+      <div class="sec-card">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <h3>Locks itself automatically</h3>
+        <p>10 minutes of inactivity and Lyra locks, no setting to remember to turn on.</p>
+      </div>
+      <div class="sec-card">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m9 12 2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+        <h3>Verified contracts only</h3>
+        <p>If an address isn't confirmed, Lyra says so instead of guessing and signing anyway.</p>
+      </div>
+    </div>
+
+    <div class="sec-note">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <div><strong>Every transaction shown on this page is real, on Plasma mainnet.</strong>
+      Automation reduces the number of steps, not the responsibility. Always read a ticket
+      before you hold the button.</div>
+    </div>
+  </div>
+</section>
+
+<section class="download-section" id="download">
+  <div class="wrap">
+    <div class="download-head">
+      <span class="eyebrow">Get Lyra</span>
+      <h2 style="font-family:var(--display);font-size:clamp(26px,3.2vw,34px);font-weight:600;letter-spacing:-0.01em;line-height:1.2;margin:14px 0 14px;">
+        Available on desktop, to start
+      </h2>
+      <p style="font-size:15px;line-height:1.65;color:var(--muted);margin:0;">
+        Download Lyra and try the agent yourself. Every transaction shown on this
+        page is real, on Plasma mainnet.
+      </p>
+    </div>
+
+    <div class="download-buttons">
+      <a href="#" class="download-btn">
+        <span class="dl-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18M8 4v14"/></svg>
+        </span>
+        <span>
+          <span class="dl-label">Download for</span>
+          <span class="dl-platform">Chrome</span>
+        </span>
+      </a>
+      <a href="#" class="download-btn">
+        <span class="dl-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
+        </span>
+        <span>
+          <span class="dl-label">Download for</span>
+          <span class="dl-platform">Mac OS</span>
+        </span>
+      </a>
+    </div>
+
+    <div class="download-note">Other platforms are next.</div>
+  </div>
+</section>
+</div>
+
+<div id="viewFaq" hidden>
+<header class="faq-hero wrap">
+  <span class="eyebrow">Help center</span>
+  <h1>Questions people actually ask <em>before they hold the button.</em></h1>
+  <p>Fifteen straight answers about how Lyra works, what it can see, and what it can never touch. If something's missing, the real agent inside the app can look it up live.</p>
+
+  <div class="faq-filter">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="faqSearch" placeholder="Search a question — e.g. “private key”, “fees”, “Plasma”…" autocomplete="off">
+  </div>
+
+  <div class="faq-chips" id="faqChips">
+    <a href="#cat-basics" class="faq-chip" data-cat="basics">The basics</a>
+    <a href="#cat-security" class="faq-chip" data-cat="security">Security &amp; custody</a>
+    <a href="#cat-actions" class="faq-chip" data-cat="actions">Swap, bridge, stake</a>
+    <a href="#cat-practical" class="faq-chip" data-cat="practical">Access &amp; practical</a>
+  </div>
+</header>
+
+<section class="faq-section">
+  <div class="wrap">
+
+    <div class="faq-group" id="cat-basics" data-cat="basics">
+      <div class="faq-group-label">The basics</div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What exactly is Lyra?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Lyra is an iWallet (an intelligent wallet), non-custodial, built on Plasma mainnet. Instead of clicking through a protocol's own interface, you describe what you want in plain language, and Lyra researches the rate, the fees, and the risk before preparing a transaction for you to approve.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">How is this different from just using Uniswap, Aave, or LI.FI directly?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Nothing about those protocols changes. Lyra sits in front of them. Instead of opening each site, checking a rate, approving a token, and setting parameters yourself, you say what you want once and Lyra assembles the same transaction as a single ticket you review and confirm.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Do I need to know anything about DeFi to use it?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>No. You can ask in ordinary sentences | "swap 200 XPL for USDT" or "what's the safest way to earn yield on USDT right now" | and Lyra translates that into a real, verified transaction. Every ticket still shows the underlying numbers, so you can learn as you go if you want to.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Can I ask Lyra questions without making a transaction?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Yes. Lyra uses the same research loop as live web search and on-chain checks to answer questions like whether a contract looks risky, without preparing anything to sign.</p></div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="faq-group" id="cat-security" data-cat="security">
+      <div class="faq-group-label">Security &amp; custody</div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Does Lyra ever have access to my private key?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>No, never. Your key is encrypted and stored locally on your device. Lyra can propose transactions, but it has no path to your key, unlocked or not.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Is Lyra custodial? Does it ever hold my funds?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>No. Lyra is fully non-custodial. Your funds and your key stay on your device at all times Lyra's job is research and preparation, not holding anything.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Can Lyra sign or send a transaction on its own?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>No. Every single action, including withdrawing from a staking position, waits for you to hold the confirm button yourself. There's no setting that lets Lyra skip that step.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What is the "hold to confirm" button, exactly?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>It's the one control used for every transaction in Lyra, on purpose. Reading the ticket and then deliberately holding a button for a moment is harder to do by accident than a single tap, so it's the same gesture whether you're sending, swapping, bridging, or staking.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What happens if I walk away with Lyra unlocked?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Lyra locks itself automatically after 10 minutes of inactivity. It isn't a setting you have to remember to turn on, it's on by default for every account.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">How does Lyra avoid sending me to a fake or malicious contract?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Lyra only proposes addresses it can confirm are the protocol's own verified, published contracts. If it can't verify one with confidence, it tells you that directly rather than guessing and preparing a ticket anyway.</p></div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="faq-group" id="cat-actions" data-cat="actions">
+      <div class="faq-group-label">Swap, bridge, stake</div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Which protocols does Lyra actually use?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Three, today: Uniswap V3 for swaps, LI.FI for bridging (the same routing engine behind Jumper), and Aave V3 for staking. All three are verified, live contracts on Plasma mainnet. Nothing is simulated.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Are the rates Lyra shows me actually live?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Yes. Every rate, fee, and yield figure is fetched at the moment you ask, never from a cache or from memory. If Lyra can't get a reliable live number, it tells you that instead of estimating.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Can I ask for more than one action at once, like swap then stake?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Yes. You can ask for something like "swap 1,200 XPL to USDT and stake it," and Lyra will prepare each step as its own ticket, in order, you still confirm each one individually.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Can I withdraw from staking whenever I want?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Yes, staking through Aave on Lyra has no lock. You can withdraw at any time, using the same one-hold confirmation as every other action.</p></div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="faq-group" id="cat-practical" data-cat="practical">
+      <div class="faq-group-label">Access &amp; practical</div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Which networks and platforms are supported right now?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Lyra runs on Plasma Mainnet only for now, with Ethereum and Solana planned next. It's available today on Chrome and Mac, with other platforms to follow.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Does Lyra cost anything to use?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Downloading and using Lyra is free. The only cost on any transaction is the underlying network fee the chain itself charges. Lyra shows that fee plainly on the ticket and doesn't add a markup on top.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Do I need to create an account to use Lyra?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>No separate account or sign-up. Once you've set up your wallet on your device, Lyra works directly with it.</p></div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="faq-cta">
+      <div>
+        <h3>Still have a question?</h3>
+        <p>The panel in the top nav gives quick answers, and the agent inside the app can actually go and research anything this page doesn't cover.</p>
+      </div>
+      <div class="faq-cta-actions">
+        <a href="#download" class="btn btn-primary" data-view-link="home">Download Lyra</a>
+        <a href="#top" class="btn btn-ghost" data-view-link="home">Back to the overview</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-row">
+      <div>
+        <div class="footer-brand"><img src="public/logo.png" alt="Lyra" class="logo-img">Lyra</div>
+        <div class="footer-tag">An iWallet to interact in a simpler way.</div>
+        <div class="footer-social">
+          <a href="https://x.com/lyra_technology" class="footer-social-link" aria-label="Lyra on X">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2h3.3l-7.2 8.2L23.5 22h-6.6l-5.2-6.8L5.7 22H2.4l7.7-8.8L1 2h6.8l4.7 6.2L18.9 2Zm-1.2 18h1.8L7.4 3.9H5.5L17.7 20Z"/></svg>
+          </a>
+          <a href="https://discord.gg/PUCym8qCdB" class="footer-social-link" aria-label="Lyra on Discord">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M20.3 5.4A18 18 0 0 0 15.6 4l-.3.6a13.6 13.6 0 0 1 4.1 1.6 15.6 15.6 0 0 0-14.8 0 13.6 13.6 0 0 1 4.1-1.6L8.4 4a18 18 0 0 0-4.7 1.4C1 10 .3 14.5.6 19a17.8 17.8 0 0 0 5.5 2.8l.8-1.3a11.6 11.6 0 0 1-1.9-.9l.5-.4a12.9 12.9 0 0 0 11 0l.5.4a11.6 11.6 0 0 1-1.9.9l.8 1.3A17.7 17.7 0 0 0 23.4 19c.4-5.2-.9-9.6-3.1-13.6ZM8.7 15.9c-1 0-1.8-1-1.8-2.1s.8-2.1 1.8-2.1 1.9 1 1.8 2.1c0 1.2-.8 2.1-1.8 2.1Zm6.6 0c-1 0-1.8-1-1.8-2.1s.8-2.1 1.8-2.1 1.9 1 1.8 2.1c0 1.2-.8 2.1-1.8 2.1Z"/></svg>
+          </a>
+        </div>
+      </div>
+      <div class="footer-links">
+        <a href="#faq" data-view-link="faq" id="footerFaqLink">FAQ</a>
+        <a href="#">Terms of Service</a>
+        <a href="#">Privacy Policy</a>
+        <a href="#">Legal Notice</a>
+        <a href="#">Cookie Policy</a>
+        <a href="#">Contact</a>
+      </div>
+    </div>
+    <div class="footer-legal">© 2026 Lyra. Not financial advice. Lyra is non-custodial software. You remain solely responsible for your funds and for reviewing every transaction before confirming it.</div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  function setupHoldButton(btn) {
+    const fill = btn.querySelector('.hold-fill');
+    const label = btn.querySelector('.hold-content');
+    const success = btn.parentElement.querySelector('.demo-success');
+    const defaultLabel = label.textContent;
+
+    const dots = document.createElement('canvas');
+    dots.className = 'hold-dots';
+    btn.insertBefore(dots, fill.nextSibling);
+    const dctx = dots.getContext('2d');
+
+    const CELL = 9;
+    const FRONT = 0.30;
+    const dotColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--accent-deep').trim() || '#6D4FD1';
+
+    function drawDots(pct) {
+      const w = btn.clientWidth, h = btn.clientHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (dots.width !== Math.round(w * dpr) || dots.height !== Math.round(h * dpr)) {
+        dots.width = Math.round(w * dpr);
+        dots.height = Math.round(h * dpr);
+      }
+      dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      dctx.clearRect(0, 0, w, h);
+      if (pct <= 0) return;
+
+      const p = pct / 100;
+      const cols = Math.ceil(w / CELL);
+      const rows = Math.ceil(h / CELL);
+      const maxR = CELL * 1.25;
+      const half = w / 2;
+
+      dctx.fillStyle = dotColor;
+      for (let r = 0; r < rows; r++) {
+        const stagger = ((r % 3) - 1) * 0.02;
+        for (let c = 0; c < cols; c++) {
+          const cx = (c + 0.5) * CELL;
+          const cy = (r + 0.5) * CELL;
+          const dist = Math.abs(cx - half) / half + stagger;
+          const threshold = Math.max(0, Math.min(1, dist)) * (1 - FRONT);
+          let t = (p - threshold) / FRONT;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          t = t * t * (3 - 2 * t);
+          if (t <= 0.02) continue;
+          const radius = maxR * t;
+          dctx.beginPath();
+          dctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          dctx.fill();
+        }
+      }
+    }
+
+    let progress = 0;
+    let timer = null;
+    let done = false;
+
+    function reset() {
+      progress = 0;
+      fill.style.width = '0%';
+      drawDots(0);
+      btn.classList.remove('dots-cover');
+      label.textContent = defaultLabel;
+      if (success) success.classList.remove('show');
+      done = false;
+    }
+
+    function start(e) {
+      if (done) return;
+      e.preventDefault();
+      clearInterval(timer);
+      timer = setInterval(() => {
+        progress += 100 / (3600 / 16);
+        if (progress >= 100) {
+          progress = 100;
+          fill.style.width = '100%';
+          drawDots(100);
+          btn.classList.add('dots-cover');
+          clearInterval(timer);
+          finish();
+          return;
+        }
+        fill.style.width = progress + '%';
+        drawDots(progress);
+        btn.classList.toggle('dots-cover', progress > 55);
+      }, 16);
+    }
+
+    function stop() {
+      if (done) return;
+      clearInterval(timer);
+      progress = 0;
+      fill.style.width = '0%';
+      drawDots(0);
+      btn.classList.remove('dots-cover');
+    }
+
+    function finish() {
+      done = true;
+      label.textContent = 'Confirming…';
+      setTimeout(() => {
+        if (success) success.classList.add('show');
+        label.textContent = 'Confirmed';
+      }, 480);
+      setTimeout(() => {
+        reset();
+      }, 2600);
+    }
+
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('touchstart', start, { passive: false });
+    ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(evt =>
+      btn.addEventListener(evt, stop)
+    );
+  }
+
+  document.querySelectorAll('.hold-btn').forEach(setupHoldButton);
+  window.__setupHoldButton = setupHoldButton;
+
+  const apy = document.getElementById('demoApy');
+  if (apy) setTimeout(() => { apy.textContent = '≈ 4–6% APY'; }, 1400);
+})();
+
+(function () {
+  const switcher = document.getElementById('askLyraSwitch');
+  const btn = document.getElementById('askLyraBtn');
+  const answerBox = document.getElementById('askLyraAnswer');
+  const form = document.getElementById('askLyraForm');
+  const input = document.getElementById('askLyraInput');
+  if (!switcher || !btn) return;
+
+  const INTENTS = {
+    what: {
+      keywords: ['what can lyra do', 'what does lyra do', 'what is lyra', "qu'est ce que lyra", 'quest ce que lyra', 'c est quoi lyra', "c'est quoi lyra", 'a quoi sert lyra', 'what does it do'],
+      answer: "Lyra sends, swaps, bridges, and stakes for you. Say what you want in one sentence, it finds the real rate and route, then you hold one button to confirm nothing signs itself."
+    },
+    how_it_works: {
+      keywords: ['how does lyra work', 'how it works', 'comment ca marche', 'comment fonctionne', 'how do you decide', 'comment ca fonctionne'],
+      answer: "Three steps every time: understand what you're asking, research the live rate and contract on-chain, then propose a ticket you approve nothing is invented or pulled from a cache."
+    },
+    security_general: {
+      keywords: ['secure', 'security', 'securite', 'securise', 'safe', 'hack', 'hacked', 'trust', 'confiance'],
+      answer: "Your private key stays encrypted on your device, Lyra never has access to it. Every transaction needs your hold-to-confirm, and the app locks itself after 10 minutes of inactivity."
+    },
+    private_key: {
+      keywords: ['private key', 'cle privee', 'seed phrase', 'seed', 'mnemonic', 'recovery phrase'],
+      answer: "Your private key is encrypted locally on your device. Lyra never has access to it, unlocked or not it can propose transactions, it can't hold your keys."
+    },
+    custodial: {
+      keywords: ['custodial', 'custody', 'garde', 'controle mes fonds', 'controle mes cles', 'does lyra hold my funds', 'lyra hold my money'],
+      answer: "No Lyra is non-custodial. It can research and prepare transactions, but it never holds your funds or your key; your device does that."
+    },
+    can_move_funds: {
+      keywords: ['can lyra move my funds', 'move my money', 'move funds without', 'sign without me', 'signer sans moi', 'bouger mes fonds sans', 'deplacer mes fonds'],
+      answer: "No. Every action including withdrawing from staking waits for you to hold the confirm button yourself. Lyra never signs anything on its own."
+    },
+    auto_lock: {
+      keywords: ['auto lock', 'lock itself', 'lock automatically', 'se verrouille', 'verrouillage automatique', 'inactivity'],
+      answer: "Lyra locks itself after 10 minutes of inactivity, automatically there's no setting to remember to turn on."
+    },
+    hold_to_confirm: {
+      keywords: ['hold to confirm', 'hold the button', 'maintenir le bouton', 'confirm button', 'bouton de confirmation', 'how do i confirm', 'how do i sign', 'comment signer'],
+      answer: "Every transaction in Lyra uses the same control: you read the ticket, then hold one button. It's the same gesture whether you're sending, swapping, bridging, or staking."
+    },
+    verified_contracts: {
+      keywords: ['verified contract', 'contrat verifie', 'fake contract', 'scam contract', 'contract address', 'adresse du contrat'],
+      answer: "Lyra only proposes verified, published contract addresses. If it can't confirm one, it tells you instead of guessing and signing anyway."
+    },
+    blockchain_networks: {
+      keywords: ['which blockchain', 'what blockchain', 'quelle blockchain', 'sur quelle blockchain', 'which chain', 'quelle chaine', 'what network', 'quel reseau', 'ethereum', 'solana', 'plasma'],
+      answer: "Currently on Plasma Mainnet only. Ethereum and Solana are coming soon Plasma is the only network live today."
+    },
+    platforms_download: {
+      keywords: ['which platforms', 'quelles plateformes', 'available on', 'disponible sur', 'chrome', 'mac', 'android', 'ios', 'windows', 'mobile app'],
+      answer: "Lyra is available on Chrome and Mac today. Android and other platforms are next nothing else is available yet."
+    },
+    price_cost: {
+      keywords: ['is lyra free', 'lyra gratuit', 'combien ca coute', 'how much does it cost', 'price of lyra', 'prix de lyra', 'subscription', 'abonnement'],
+      answer: "Downloading and using Lyra doesn't cost anything beyond the usual on-chain network fees for whatever you send, swap, bridge, or stake."
+    },
+    fees_gas: {
+      keywords: ['fee', 'fees', 'frais', 'gas', 'network fee', 'frais de reseau', 'combien de frais'],
+      answer: "Network fees are whatever the chain charges for that transaction Lyra shows the real fee on the ticket before you confirm, it doesn't add its own markup."
+    },
+    swap_feature: {
+      keywords: ['swap', 'echange', 'exchange tokens', 'uniswap', 'trade tokens'],
+      answer: "Swaps run through Uniswap V3. Lyra finds the exact pool for your pair on Plasma and reads the live rate before showing you a number."
+    },
+    bridge_feature: {
+      keywords: ['bridge', 'pont', 'bridging', 'move between chains', 'cross chain', 'li.fi', 'lifi'],
+      answer: "Bridging runs through LI.FI, the same engine behind Jumper. Every route is requested live, so what you see is exactly what gets signed."
+    },
+    stake_feature: {
+      keywords: ['stake', 'staking', 'aave', 'yield', 'apy', 'rendement'],
+      answer: "Staking runs through Aave V3. Lyra checks the real market first current yield, lock status, and a plain-language risk level."
+    },
+    withdraw_staking: {
+      keywords: ['withdraw', 'unstake', 'retirer', 'retrait', 'sortir de staking'],
+      answer: "You can withdraw from staking anytime same one-hold confirmation as everything else, no separate flow to learn."
+    },
+    send_feature: {
+      keywords: ['send', 'envoyer', 'transfer', 'transfert', 'envoi'],
+      answer: "You can send tokens by just naming the recipient and amount Lyra prepares the transfer ticket with the network fee shown before you confirm."
+    },
+    risk_level: {
+      keywords: ['risk level', 'niveau de risque', 'how risky', 'is it risky', 'c est risque', 'quel risque'],
+      answer: "Every ticket shows a plain-language risk level (low, moderate, etc.) based on things like liquidity and contract verification not a fixed promise."
+    },
+    live_rates: {
+      keywords: ['live rate', 'real rate', 'cached rate', 'taux reel', 'taux en direct', 'up to date rate'],
+      answer: "Rates are checked live every time, never from a cache or memory if Lyra can't get a reliable number, it says so instead of guessing."
+    },
+    multi_step: {
+      keywords: ['multiple actions', 'swap and stake', 'plusieurs actions', 'en une fois', 'combine actions', 'chain actions'],
+      answer: "Yes you can ask for a multi-step action like 'swap X to USDT and stake it', and Lyra prepares each step as its own ticket before you confirm."
+    },
+    ask_anything: {
+      keywords: ['ask anything', 'ask questions', 'poser des questions', 'general questions', 'not just transactions'],
+      answer: "Beyond transactions, you can also just ask Lyra questions like whether a protocol looks risky using the same live research loop."
+    },
+    protocols_supported: {
+      keywords: ['which protocols', 'quels protocoles', 'protocols wired', 'integrations'],
+      answer: "Three protocols today: Uniswap V3 for swaps, LI.FI for bridging, and Aave V3 for staking all verified on Plasma mainnet."
+    },
+    roadmap_next: {
+      keywords: ["what's next", 'whats next', 'roadmap', 'a venir', 'prochainement', 'coming soon', 'futur', 'future plans'],
+      answer: "More networks (Ethereum, Solana) and more protocols beyond Uniswap V3, LI.FI, and Aave the roadmap grows as new ones get verified."
+    },
+    getting_started: {
+      keywords: ['how do i start', 'get started', 'comment commencer', 'comment demarrer', 'how to use lyra', 'first time'],
+      answer: "Download Lyra for Chrome or Mac, set it up, and just tell it what you want to do send, swap, bridge, or stake in plain language."
+    },
+    account_signup: {
+      keywords: ['sign up', 'create account', 'creer un compte', 'inscription', 'do i need an account'],
+      answer: "There's no separate account to create Lyra works directly with your wallet on your device once it's set up."
+    },
+    manual_vs_agent: {
+      keywords: ['why use an agent', 'why lyra instead', 'vs manual', 'pourquoi un agent', 'difference avec manuel'],
+      answer: "Doing this manually means checking rates across tabs, approving tokens separately, and guessing parameters Lyra collapses that into one ticket you approve."
+    },
+    data_privacy: {
+      keywords: ['privacy', 'confidentialite', 'my data', 'mes donnees', 'track me', 'me suivre'],
+      answer: "Lyra's research (rates, contract checks) is done live per request to answer your question it isn't used to build a profile of you."
+    }
+  };
+
+  const FALLBACK = "I don't have a canned answer for that one here this panel only covers the basics. Download Lyra and ask the real agent directly, it can actually look things up.";
+
+  function normalize(str) {
+    return (str || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  }
+
+  function matchIntent(rawQuery) {
+    const q = normalize(rawQuery);
+    if (!q) return null;
+    let best = null;
+    let bestScore = 0;
+    Object.keys(INTENTS).forEach((id) => {
+      const intent = INTENTS[id];
+      let score = 0;
+      intent.keywords.forEach((kw) => {
+        if (q.indexOf(normalize(kw)) !== -1) score += kw.split(' ').length;
+      });
+      if (score > bestScore) {
+        bestScore = score;
+        best = id;
+      }
+    });
+    return best;
+  }
+
+  function openPanel() {
+    switcher.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
+  }
+  function closePanel() {
+    switcher.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
+  }
+
+  function showAnswer(text) {
+    answerBox.innerHTML = '<span class="who">Lyra</span>' + text;
+    answerBox.classList.add('show');
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (switcher.classList.contains('open')) closePanel(); else openPanel();
+  });
+
+  document.querySelectorAll('.ask-lyra-q').forEach((qbtn) => {
+    qbtn.addEventListener('click', () => {
+      const key = qbtn.getAttribute('data-q');
+      const intent = INTENTS[key];
+      showAnswer(intent ? intent.answer : FALLBACK);
+    });
+  });
+
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const q = input.value || '';
+      if (!q.trim()) return;
+      const id = matchIntent(q);
+      showAnswer(id ? INTENTS[id].answer : FALLBACK);
+      input.value = '';
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!switcher.contains(e.target)) closePanel();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closePanel();
+  });
+})();
+
+(function () {
+  const switcher = document.getElementById('navMenuSwitch');
+  const btn = document.getElementById('navMenuBtn');
+  if (!switcher || !btn) return;
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = switcher.classList.toggle('open');
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+
+  document.querySelectorAll('.nav-menu-panel a').forEach((link) => {
+    link.addEventListener('click', () => {
+      switcher.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!switcher.contains(e.target)) {
+      switcher.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      switcher.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
+
+(function () {
+  const switcher = document.getElementById('networkSwitch');
+  const btn = document.getElementById('networkBtn');
+  if (!switcher || !btn) return;
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = switcher.classList.toggle('open');
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!switcher.contains(e.target)) {
+      switcher.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      switcher.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
+
+(function () {
+  const canvas = document.getElementById('bgCanvas');
+  if (!canvas || typeof canvas.getContext !== 'function') return;
+  const ctx = canvas.getContext('2d');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W, H, DPR;
+  let nodes = [];
+  const LINK_DIST = 130;
+  const MOUSE_RADIUS = 140;
+
+  const COOL = { r: 109, g: 79, b: 209 };
+  const WARM = { r: 243, g: 231, b: 208 };
+
+  const mouse = { x: -9999, y: -9999 };
+  let scrollProgress = 0;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function mixColor(t) {
+    return {
+      r: Math.round(lerp(COOL.r, WARM.r, t)),
+      g: Math.round(lerp(COOL.g, WARM.g, t)),
+      b: Math.round(lerp(COOL.b, WARM.b, t))
+    };
+  }
+
+  function nodeCount() {
+    const area = W * H;
+    return Math.max(28, Math.min(90, Math.round(area / 22000)));
+  }
+
+  function makeNodes() {
+    const n = nodeCount();
+    nodes = new Array(n).fill(0).map(() => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.18,
+      vy: (Math.random() - 0.5) * 0.18,
+      r: 1.1 + Math.random() * 1.6
+    }));
+  }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    makeNodes();
+  }
+
+  function updateScrollProgress() {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    scrollProgress = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+  }
+
+  function step() {
+    ctx.clearRect(0, 0, W, H);
+    const c = mixColor(scrollProgress);
+
+    nodes.forEach((n) => {
+      n.x += n.vx;
+      n.y += n.vy;
+      if (n.x < 0 || n.x > W) n.vx *= -1;
+      if (n.y < 0 || n.y > H) n.vy *= -1;
+
+      const dx = n.x - mouse.x, dy = n.y - mouse.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < MOUSE_RADIUS) {
+        const push = (1 - d / MOUSE_RADIUS) * 0.6;
+        n.x += (dx / (d || 1)) * push;
+        n.y += (dy / (d || 1)) * push;
+      }
+    });
+
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < LINK_DIST) {
+          const alpha = (1 - dist / LINK_DIST) * 0.16;
+          ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${alpha})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    nodes.forEach((n) => {
+      ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.55)`;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    requestAnimationFrame(step);
+  }
+
+  function staticFrame() {
+    ctx.clearRect(0, 0, W, H);
+    const c = mixColor(scrollProgress);
+    nodes.forEach((n) => {
+      ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.4)`;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('scroll', () => {
+    updateScrollProgress();
+    if (reducedMotion) staticFrame();
+  }, { passive: true });
+  window.addEventListener('mousemove', (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+  window.addEventListener('mouseleave', () => {
+    mouse.x = -9999;
+    mouse.y = -9999;
+  });
+
+  resize();
+  updateScrollProgress();
+  if (reducedMotion) {
+    staticFrame();
+  } else {
+    requestAnimationFrame(step);
+  }
+})();
+
+(function () {
+  const card = document.getElementById('askDemoCard');
+  const body = document.getElementById('askDemoBody');
+  const dotsWrap = document.getElementById('askDemoDots');
+  if (!card || !body || !dotsWrap) return;
+
+  const EXAMPLES = [
+    {
+      question: "Is putting my USDT in this protocol risky?",
+      answer: "I checked the contract on PlasmaScan, it's verified and matches the protocol's own published address. Liquidity is modest for a young deployment, which is the main thing to weigh here.",
+      risk: "Moderate risk"
+    },
+    {
+      question: "Send 100 XPL to Paul",
+      answer: "I'm ready to prepare the transfer of 100 XPL to Paul. Check the details, then hold the button to confirm.",
+      tickets: [
+        { title: "Transaction · Send XPL", rows: [["Recipient", "Paul"], ["Amount", "100 XPL"], ["Network fee", "≈ 0.0004 XPL"]] }
+      ],
+      success: "✓ Confirmed, sent to Paul."
+    },
+    {
+      question: "Can you swap 1,200 XPL to USDT and stake them?",
+      answer: "I'll swap 1,200 XPL to USDT on Uniswap V3, then stake the USDT on Aave. Check the details, then hold the button to confirm.",
+      tickets: [
+        { title: "Step 1 · Swap · Uniswap V3", rows: [["Rate", "1 XPL ≈ 0.08 USDT"], ["You'll receive", "≈ 96 USDT0"]] },
+        { title: "Step 2 · Stake · Aave V3", rows: [["Estimated yield", "≈ 4–6% APY"], ["Risk level", "Low"]] }
+      ],
+      success: "✓ Confirmed, swapped, then staked."
+    }
+  ];
+
+  const dots = Array.from(dotsWrap.querySelectorAll('.wallet-dot'));
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let current = 0;
+  let playing = false;
+  let paused = false;
+  let cycleToken = 0;
+
+  function setDots(i) {
+    dots.forEach((d, idx) => d.classList.toggle('active', idx === i));
+  }
+
+  function typeInto(el, text, speed, token, done) {
+    if (reducedMotion) {
+      el.textContent = text;
+      done();
+      return;
+    }
+    el.textContent = '';
+    const caret = document.createElement('span');
+    caret.className = 'ask-demo-cursor';
+    el.after(caret);
+    let i = 0;
+    (function tick() {
+      if (token !== cycleToken) { caret.remove(); return; }
+      if (i <= text.length) {
+        el.textContent = text.slice(0, i);
+        i++;
+        setTimeout(tick, speed);
+      } else {
+        caret.remove();
+        done();
+      }
+    })();
+  }
+
+  function wait(ms, token, cb) {
+    setTimeout(() => { if (token === cycleToken) cb(); }, ms);
+  }
+
+  function render(index) {
+    const token = cycleToken;
+    const ex = EXAMPLES[index];
+    setDots(index);
+
+    body.innerHTML = `
+      <div class="ask-bubble" id="askBubbleText"></div>
+      <div class="ask-answer">
+        <div class="who">Lyra</div>
+        <span id="askAnswerText"></span>
+        <div id="askExtra"></div>
+      </div>
+    `;
+
+    const bubbleEl = document.getElementById('askBubbleText');
+    const answerEl = document.getElementById('askAnswerText');
+    const extraEl = document.getElementById('askExtra');
+
+    typeInto(bubbleEl, ex.question, 22, token, () => {
+      wait(280, token, () => {
+        typeInto(answerEl, ex.answer, 12, token, () => {
+          wait(200, token, () => {
+            if (token !== cycleToken) return;
+
+            if (ex.risk) {
+              const riskWrap = document.createElement('div');
+              riskWrap.className = 'ask-reveal';
+              riskWrap.innerHTML = `<span class="ask-risk">● ${ex.risk}</span>`;
+              extraEl.appendChild(riskWrap);
+              requestAnimationFrame(() => riskWrap.classList.add('in'));
+            }
+
+            if (ex.tickets) {
+              const revealables = [];
+
+              ex.tickets.forEach((t, ti) => {
+                const el = document.createElement('div');
+                el.className = 'demo-ticket ask-reveal';
+                el.style.marginTop = (ti === 0 ? 12 : 10) + 'px';
+                el.innerHTML = `
+                  <div class="demo-ticket-title">${t.title}</div>
+                  ${t.rows.map(r => `<div class="demo-row"><span>${r[0]}</span><strong>${r[1]}</strong></div>`).join('')}
+                `;
+                extraEl.appendChild(el);
+                revealables.push(el);
+              });
+
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'hold-btn ask-reveal';
+              btn.style.marginTop = '12px';
+              btn.innerHTML = `
+                <span class="hold-fill"></span>
+                <span class="hold-content">Hold to Confirm</span>
+              `;
+              extraEl.appendChild(btn);
+              revealables.push(btn);
+              if (window.__setupHoldButton) window.__setupHoldButton(btn);
+
+              const successEl = document.createElement('div');
+              successEl.className = 'demo-success';
+              successEl.textContent = ex.success || '';
+              extraEl.appendChild(successEl);
+
+              revealables.forEach((el, i) => {
+                wait(i * 320, token, () => el.classList.add('in'));
+              });
+            }
+
+            const dwell = ex.tickets ? 3400 + ex.tickets.length * 320 : 2600;
+            wait(dwell, token, advance);
+          });
+        });
+      });
+    });
+  }
+
+  function fadeToNext(index) {
+    body.classList.add('fading');
+    const token = ++cycleToken;
+    setTimeout(() => {
+      if (!playing) return;
+      current = index;
+      render(current);
+      body.classList.remove('fading');
+    }, 280);
+  }
+
+  function advance() {
+    fadeToNext((current + 1) % EXAMPLES.length);
+  }
+
+  function start() {
+    if (playing) return;
+    playing = true;
+    cycleToken++;
+    render(current);
+  }
+
+  function stop() {
+    playing = false;
+  }
+
+  dots.forEach((dot, i) => {
+    dot.addEventListener('click', () => {
+      if (i === current) return;
+      fadeToNext(i);
+    });
+  });
+
+  card.addEventListener('mouseenter', () => { paused = true; cycleToken++; });
+  card.addEventListener('mouseleave', () => {
+    if (!paused) return;
+    paused = false;
+    if (playing) render(current);
+  });
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) start();
+      else stop();
+    });
+  }, { threshold: 0.35 });
+  io.observe(card);
+})();
+
+(function () {
+  const nav = document.getElementById('mainNav');
+  if (!nav) return;
+  function onScroll() {
+    nav.classList.toggle('scrolled', window.scrollY > 12);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+(function () {
+  const targets = document.querySelectorAll('.feat-card:not(.wallet-card), .compare-col, .agent-step, .sec-card');
+  targets.forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(14px)';
+    el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+  });
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  targets.forEach(el => io.observe(el));
+})();
+
+// --- Wallet scroll: swap/bridge/stake cards fanned out of a wallet.
+(function () {
+  const track = document.getElementById('walletScroll');
+  const staticGrid = document.getElementById('featGridStatic');
+  if (!track || !staticGrid) return;
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const tooNarrow = window.innerWidth < 640;
+
+  if (reducedMotion || tooNarrow || typeof IntersectionObserver === 'undefined') {
+    return;
+  }
+
+  staticGrid.style.display = 'none';
+  track.hidden = false;
+
+  const clasp = document.getElementById('walletClasp');
+  const hint = document.getElementById('walletHint');
+  const cards = [
+    document.getElementById('walletCard0'),
+    document.getElementById('walletCard1'),
+    document.getElementById('walletCard2')
+  ];
+  const dots = Array.from(document.querySelectorAll('.wallet-dot'));
+
+  const offsetsX = [-65, 5, 65];
+
+  const rotations = [
+    { tucked: -8, rise: -20, out: -2 },
+    { tucked:   0, rise:  0, out:  0 },
+    { tucked:  8, rise: 20, out: 2 }
+  ];
+
+  const tuckedYs = [-30, -42, -30];
+
+  const tuckedZ = [2, 1, 0];
+
+  const MID_X = (offsetsX[0] + offsetsX[2]) / 2;
+
+  const TUCKED = { y: -30, scale: 0.30 };
+  const RISE = { y: -190, scale: 0.42 };
+  const OUT = { x: 0, y: -16, scale: 1 };
+  const RISE_SPLIT = 0.55;
+
+  const timeline = [
+    [0.08, 0.22, 0.32, 0.46],
+    [0.48, 0.62, 0.72, 0.86],
+    [0.88, 0.97, 0.985, 1.00]
+  ];
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function mapRange(v, inMin, inMax) { return clamp((v - inMin) / (inMax - inMin), 0, 1); }
+  function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function cardValue(p, [enterFrom, enterTo, holdTo, exitTo]) {
+    if (p <= enterFrom) return 0;
+    if (p < enterTo) return easeInOutCubic(mapRange(p, enterFrom, enterTo));
+    if (p < holdTo) return 1;
+    if (p < exitTo) return 1 - easeInOutCubic(mapRange(p, holdTo, exitTo));
+    return 0;
+  }
+
+  function cardMetrics(value, offsetX, rot, tuckedY) {
+    if (value <= RISE_SPLIT) {
+      const t = easeInOutCubic(value / RISE_SPLIT);
+      return {
+        x: lerp(offsetX, MID_X, t),
+        y: lerp(tuckedY, RISE.y, t),
+        scale: lerp(TUCKED.scale, RISE.scale, t),
+        rotate: lerp(rot.tucked, rot.rise, t)
+      };
+    }
+    const t = easeInOutCubic((value - RISE_SPLIT) / (1 - RISE_SPLIT));
+    return {
+      x: lerp(MID_X, OUT.x, t),
+      y: lerp(RISE.y, OUT.y, t),
+      scale: lerp(RISE.scale, OUT.scale, t),
+      rotate: lerp(rot.rise, rot.out, t)
+    };
+  }
+
+  let ticking = false;
+
+  function update() {
+    ticking = false;
+
+    const rect = track.getBoundingClientRect();
+    const scrollable = track.offsetHeight - window.innerHeight;
+    const progress = scrollable > 0 ? clamp(-rect.top / scrollable, 0, 1) : 0;
+
+    let anyActive = false;
+    cards.forEach((card, i) => {
+      const value = cardValue(progress, timeline[i]);
+      const { x, y, scale, rotate } = cardMetrics(value, offsetsX[i], rotations[i], tuckedYs[i]);
+
+      card.style.transform = `translate(${x}px, ${y}px) rotate(${rotate}deg) scale(${scale})`;
+      card.style.zIndex = value > RISE_SPLIT ? "5" : String(tuckedZ[i]);
+
+      if (dots[i]) {
+        dots[i].classList.toggle("active", value > 0.5);
+      }
+
+      if (value > 0.05) {
+        anyActive = true;
+      }
+    });
+
+    if (clasp) {
+      clasp.classList.toggle("active", anyActive);
+    }
+
+    if (hint) {
+      hint.style.opacity = String(1 - mapRange(progress, 0, 0.06));
+    }
+  }
+
+  function onScroll() {
+    if (!ticking) {
+      requestAnimationFrame(update);
+      ticking = true;
+    }
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  update();
+})();
+</script>
+
+<script>
+// ---- View switch: one file, two "pages" (home / faq) ----
+(function () {
+  const viewHome = document.getElementById('viewHome');
+  const viewFaq = document.getElementById('viewFaq');
+  const navLinks = document.querySelectorAll('.nav-links a, .nav-menu-panel a');
+  if (!viewHome || !viewFaq) return;
+
+  function showView(name, opts) {
+    opts = opts || {};
+    if (name === 'faq') {
+      viewHome.hidden = true;
+      viewFaq.hidden = false;
+      navLinks.forEach((a) => a.classList.toggle('current', a.getAttribute('data-view-link') === 'faq'));
+      document.querySelectorAll('.footer-links a[data-view-link]').forEach((a) =>
+        a.classList.toggle('current', a.getAttribute('data-view-link') === 'faq')
+      );
+    } else {
+      viewHome.hidden = false;
+      viewFaq.hidden = true;
+      navLinks.forEach((a) => a.classList.remove('current'));
+      document.querySelectorAll('.footer-links a[data-view-link]').forEach((a) => a.classList.remove('current'));
+    }
+    if (!opts.keepScroll) window.scrollTo(0, 0);
+  }
+
+  document.querySelectorAll('[data-view-link]').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      const target = link.getAttribute('data-view-link');
+      const href = link.getAttribute('href') || '';
+
+      if (target === 'faq') {
+        e.preventDefault();
+        showView('faq');
+        history.replaceState(null, '', '#faq');
+        return;
+      }
+
+      // target === 'home': if it's a plain in-page anchor (e.g. #compare),
+      // switch to home first, then let the browser handle the scroll.
+      if (viewFaq.hidden === false) {
+        e.preventDefault();
+        showView('home', { keepScroll: true });
+        if (href && href !== '#top') {
+          requestAnimationFrame(() => {
+            const el = document.querySelector(href);
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          });
+          history.replaceState(null, '', href);
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          history.replaceState(null, '', '#top');
+        }
+      }
+      // else: already on home view, default anchor behavior is fine.
+    });
+  });
+
+  // Deep link on load (e.g. someone bookmarks #faq)
+  if (window.location.hash === '#faq') {
+    showView('faq');
+  }
+})();
+</script>
+
+</body>
+</html>

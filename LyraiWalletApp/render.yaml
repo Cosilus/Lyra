@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: lyra-wallet-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: qwen/qwen-2.5-7b-instruct
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: MISTRAL_MODEL
+        value: mistral-small-latest
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-4-5-20250929
+      - key: ETHERSCAN_API_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: APP_URL
+        sync: false
