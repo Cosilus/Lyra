@@ -4,7 +4,7 @@ import { Check, Copy, ExternalLink, Loader2, RefreshCw, Send, WalletCards, Menu,
 import { API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, UNISWAP_V3_FEE_TIERS, UNISWAP_V3_FACTORY_ABI, UNISWAP_V3_ROUTER_ABI, UNISWAP_V3_QUOTER_ABI, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx } from "./config";
 import QRCode from "qrcode";
 import { QRCodeDisplay } from "./QRCodeDisplay";
-import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiometricPresence, encryptWithKey, decryptWithKey } from "./biometric";
+import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiometricPresence, encryptWithKey, decryptWithKey } from "./Biometric";
 
 function shortAddress(a) {
   return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "";
