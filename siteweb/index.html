@@ -1396,6 +1396,37 @@ section { padding: 88px 0; }
   color: var(--muted);
   margin-top: 22px;
 }
+.download-btn.disabled {
+  cursor: default;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.download-btn.disabled:hover {
+  border-color: var(--line);
+  transform: none;
+  background: var(--panel2);
+}
+.download-btn .dl-soon {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+}
+.nav-soon-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--beige);
+  background: var(--void);
+  border-radius: 999px;
+  padding: 2px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
 
 /* ============================================================
    FOOTER
@@ -1771,7 +1802,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
       <a href="#features" data-view-link="home">What it does</a>
       <a href="#agent" data-view-link="home">How it thinks</a>
       <a href="#security" data-view-link="home">Security</a>
-      <a href="#download" data-view-link="home">Download</a>
+      <a href="#download" data-view-link="home">Download<span class="nav-soon-tag">Soon</span></a>
     </div>
 
     <div class="nav-right">
@@ -1784,7 +1815,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
           <a href="#features" data-view-link="home">What it does</a>
           <a href="#agent" data-view-link="home">How it thinks</a>
           <a href="#security" data-view-link="home">Security</a>
-          <a href="#download" data-view-link="home">Download</a>
+          <a href="#download" data-view-link="home">Download<span class="nav-soon-tag">Soon</span></a>
           <a href="#faq" data-view-link="faq">FAQ</a>
         </div>
       </div>
@@ -1863,7 +1894,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
       <div class="hero-ctas">
         <a href="#download" class="btn btn-primary">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0-4-4m4 4 4-4M5 21h14"/></svg>
-          Download Lyra
+          Download Lyra <span class="nav-soon-tag">Soon</span>
         </a>
         <a href="#compare" class="btn btn-ghost">See it next to the manual way</a>
       </div>
@@ -1889,7 +1920,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 
         <div class="demo-chat-msg">
           <div class="who">You</div>
-          Stake 250 USDT, find the best rate.
+          Stake 250 USDT0, find the best rate.
         </div>
 
         <div class="demo-collapsible" id="demoTicketWrap">
@@ -1917,14 +1948,14 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
             <div class="execution-checklist-substeps">
               <div class="execution-checklist-substep" id="demoSub1">
                 <span class="execution-checklist-num">1.</span>
-                <span class="execution-checklist-substep-label">Approve USDT</span>
+                <span class="execution-checklist-substep-label">Approve USDT0</span>
                 <span class="execution-checklist-dot">
                   <svg class="ec-check" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 </span>
               </div>
               <div class="execution-checklist-substep" id="demoSub2">
                 <span class="execution-checklist-num">2.</span>
-                <span class="execution-checklist-substep-label">Deposit USDT to Aave</span>
+                <span class="execution-checklist-substep-label">Deposit USDT0 to Aave</span>
                 <span class="execution-checklist-dot">
                   <svg class="ec-check" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 </span>
@@ -2226,27 +2257,29 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
     </div>
 
     <div class="download-buttons">
-      <a href="#" class="download-btn">
+      <span class="download-btn disabled" role="button" aria-disabled="true">
         <span class="dl-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18M8 4v14"/></svg>
         </span>
         <span>
-          <span class="dl-label">Download for</span>
+          <span class="dl-label">For</span>
           <span class="dl-platform">Chrome</span>
+          <span class="dl-soon">Not available yet</span>
         </span>
-      </a>
-      <a href="#" class="download-btn">
+      </span>
+      <span class="download-btn disabled" role="button" aria-disabled="true">
         <span class="dl-icon">
          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18M8 4v14"/></svg>
         </span>
         <span>
-          <span class="dl-label">Download for</span>
+          <span class="dl-label">For</span>
           <span class="dl-platform">Mac OS</span>
+          <span class="dl-soon">Not available yet</span>
         </span>
-      </a>
+      </span>
     </div>
 
-    <div class="download-note">Other platforms are next.</div>
+    <div class="download-note">Lyra isn't downloadable yet — this page shows what's coming.</div>
   </div>
 </section>
 </div>
@@ -2298,7 +2331,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
             <span class="qtext">Do I need to know anything about DeFi to use it?</span>
             <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
           </button>
-          <div class="faq-a"><div class="faq-a-inner"><p>No. You can ask in ordinary sentences | "swap 200 XPL for USDT" or "what's the safest way to earn yield on USDT right now" | and Lyra translates that into a real, verified transaction. Every ticket still shows the underlying numbers, so you can learn as you go if you want to.</p></div></div>
+          <div class="faq-a"><div class="faq-a-inner"><p>No. You can ask in ordinary sentences | "swap 200 XPL for USDT0" or "what's the safest way to earn yield on USDT0 right now" | and Lyra translates that into a real, verified transaction. Every ticket still shows the underlying numbers, so you can learn as you go if you want to.</p></div></div>
         </div>
 
         <div class="faq-item">
@@ -2400,7 +2433,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
             <span class="qtext">Can I ask for more than one action at once, like swap then stake?</span>
             <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
           </button>
-          <div class="faq-a"><div class="faq-a-inner"><p>Yes. You can ask for something like "swap 1,200 XPL to USDT and stake it," and Lyra will prepare each step as its own ticket, in order, you still confirm each one individually.</p></div></div>
+          <div class="faq-a"><div class="faq-a-inner"><p>Yes. You can ask for something like "swap 1,200 XPL to USDT0 and stake it," and Lyra will prepare each step as its own ticket, in order, you still confirm each one individually.</p></div></div>
         </div>
 
         <div class="faq-item">
@@ -2451,7 +2484,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
         <p>The panel in the top nav gives quick answers, and the agent inside the app can actually go and research anything this page doesn't cover.</p>
       </div>
       <div class="faq-cta-actions">
-        <a href="#download" class="btn btn-primary" data-view-link="home">Download Lyra</a>
+        <a href="#download" class="btn btn-primary" data-view-link="home">Download Lyra <span class="nav-soon-tag">Soon</span></a>
         <a href="#top" class="btn btn-ghost" data-view-link="home">Back to the overview</a>
       </div>
     </div>
@@ -3000,7 +3033,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
     },
     platforms_download: {
       keywords: ['which platforms', 'available on', 'chrome', 'macOS', 'android', 'ios', 'windows', 'mobile app'],
-      answer: "Lyra is available on Chrome and Mac OS today. Android and other platforms are next nothing else is available yet."
+      answer: "Chrome and Mac OS are planned first, but Lyra isn't downloadable yet on any platform this page shows what's coming."
     },
     price_cost: {
       keywords: ['is lyra free', 'how much does it cost', 'price of lyra', 'subscription'],
@@ -3040,7 +3073,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
     },
     multi_step: {
       keywords: ['multiple actions', 'swap and stake', 'combine actions', 'chain actions'],
-      answer: "Yes you can ask for a multi-step action like 'swap X to USDT and stake it', and Lyra prepares each step as its own ticket before you confirm."
+      answer: "Yes you can ask for a multi-step action like 'swap X to USDT0 and stake it', and Lyra prepares each step as its own ticket before you confirm."
     },
     ask_anything: {
       keywords: ['ask anything', 'ask questions', 'general questions', 'not just transactions'],
@@ -3056,7 +3089,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
     },
     getting_started: {
       keywords: ['how do i start', 'get started', 'how to use lyra', 'first time'],
-      answer: "Download Lyra for Chrome or Mac OS, set it up, and just tell it what you want to do send, swap, bridge, or stake in plain language."
+      answer: "Lyra isn't downloadable yet once it is, you'll set it up and just tell it what you want to do send, swap, bridge, or stake in plain language."
     },
     account_signup: {
       keywords: ['sign up', 'create account', 'do i need an account'],
@@ -3072,7 +3105,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
     }
   };
 
-  const FALLBACK = "I don't have a canned answer for that one here this panel only covers the basics. Download Lyra and ask the real agent directly, it can actually look things up.";
+  const FALLBACK = "I don't have a canned answer for that one here this panel only covers the basics. Once Lyra is downloadable, the real agent inside the app can actually look things up.";
 
   function normalize(str) {
     return (str || '')
@@ -3376,7 +3409,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 
   const EXAMPLES = [
     {
-      question: "Is putting my USDT in this protocol risky?",
+      question: "Is putting my USDT0 in this protocol risky?",
       answer: "I checked the contract on PlasmaScan, it's verified and matches the protocol's own published address. Liquidity is modest for a young deployment, which is the main thing to weigh here.",
       risk: "Moderate risk"
     },
@@ -3389,10 +3422,10 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
       success: "✓ Confirmed, sent to Paul."
     },
     {
-      question: "Can you swap 1,200 XPL to USDT and stake them?",
-      answer: "I'll swap 1,200 XPL to USDT on Uniswap V3, then stake the USDT on Aave. Check the details, then hold the button to confirm.",
+      question: "Can you swap 1,200 XPL to USDT0 and stake them?",
+      answer: "I'll swap 1,200 XPL to USDT0 on Uniswap V3, then stake the USDT0 on Aave. Check the details, then hold the button to confirm.",
       tickets: [
-        { title: "Step 1 · Swap · Uniswap V3", rows: [["Rate", "1 XPL ≈ 0.08 USDT"], ["You'll receive", "≈ 96 USDT0"]] },
+        { title: "Step 1 · Swap · Uniswap V3", rows: [["Rate", "1 XPL ≈ 0.08 USDT0"], ["You'll receive", "≈ 96 USDT0"]] },
         { title: "Step 2 · Stake · Aave V3", rows: [["Estimated yield", "≈ 4–6% APY"], ["Risk level", "Low"]] }
       ],
       success: "✓ Confirmed, swapped, then staked."
