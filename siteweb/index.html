@@ -139,10 +139,11 @@ button { font: inherit; cursor: pointer; }
   border: 1px solid var(--line-soft);
   box-shadow: 0 12px 34px rgba(0,0,0,0.28);
   transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, top 0.25s ease;
+}
 
 .logo-img {
-  width: 60px;
-  height: 60px;
+  width: 50px;
+  height: 50px;
   object-fit: contain;
   display: block;
 }
@@ -154,8 +155,6 @@ footer .footer-logo img {
   max-height: 30px !important;
   object-fit: contain !important;
   display: block !important;
-}
-
 }
 .nav.scrolled {
   top: 12px;
@@ -702,6 +701,190 @@ footer .footer-logo img {
   margin-top: 14px;
 }
 .demo-success.show { display: flex; }
+
+/* ------------------------------------------------------------------
+   Demo ticket collapse + real execution checklist — same components
+   (markup and CSS) as the actual app's ticket-collapsible-top and
+   ExecutionChecklist, so "Try the actual control" shows the real
+   post-confirm UI instead of a generic placeholder.
+------------------------------------------------------------------- */
+.demo-collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 420ms cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 420ms ease,
+              margin 420ms ease;
+  opacity: 1;
+}
+.demo-collapsible > div { overflow: hidden; min-height: 0; }
+.demo-collapsible.collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-bottom: -4px;
+}
+
+@property --border-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes border-beam-spin { to { --border-angle: 360deg; } }
+@keyframes ec-spin { to { transform: rotate(360deg); } }
+
+.execution-checklist {
+  width: 100%;
+  margin-top: 4px;
+  display: none;
+  opacity: 0;
+}
+.execution-checklist.show {
+  display: block;
+  animation: execChecklistIn 380ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes execChecklistIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.execution-checklist-card {
+  position: relative;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+.execution-checklist-card.checklist-complete::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--border-angle),
+    transparent 0deg,
+    transparent 280deg,
+    var(--accent-strong) 330deg,
+    var(--accent) 350deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: border-beam-spin 3.5s linear infinite;
+}
+.execution-checklist-header {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--muted);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.execution-checklist-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.execution-checklist-status-icon {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--line);
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+.execution-checklist-main.done .execution-checklist-status-icon {
+  background: var(--success);
+  color: #150E20;
+}
+.execution-checklist-status-icon .ec-spinner {
+  width: 10px; height: 10px;
+  border: 2px solid rgba(156,143,190,0.35);
+  border-top-color: var(--muted);
+  border-radius: 50%;
+  animation: ec-spin 0.8s linear infinite;
+}
+.execution-checklist-status-icon .ec-check {
+  position: absolute;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.execution-checklist-main.done .execution-checklist-status-icon .ec-spinner { display: none; }
+.execution-checklist-main.done .execution-checklist-status-icon .ec-check { opacity: 1; transform: scale(1); }
+.execution-checklist-main-label {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--beige);
+}
+.execution-checklist-step-count {
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.execution-checklist-substeps {
+  padding: 2px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.execution-checklist-substep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 7px;
+}
+.execution-checklist-num {
+  flex-shrink: 0;
+  min-width: 15px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  font-family: var(--mono);
+  transition: color 0.3s ease;
+}
+.execution-checklist-substep.checked .execution-checklist-num { color: var(--beige); }
+.execution-checklist-substep-label {
+  flex: 1;
+  font-size: 12px;
+  color: var(--beige-dim);
+}
+.execution-checklist-dot {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #150E20;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+.execution-checklist-substep.checked .execution-checklist-dot {
+  background: var(--success);
+  border-color: var(--success);
+}
+.execution-checklist-dot .ec-check {
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.execution-checklist-substep.checked .execution-checklist-dot .ec-check {
+  opacity: 1;
+  transform: scale(1);
+}
 
 /* ============================================================
    SECTION SHELL
@@ -1579,7 +1762,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 <nav class="nav" id="mainNav">
   <div class="nav-pill">
     <a href="#top" class="nav-brand" data-view-link="home">
-      <img src="/logo.png" alt="Lyra" class="logo-img">
+      <img src="logo.svg" alt="Lyra" class="logo-img">
       Lyra
     </a>
 
@@ -1673,7 +1856,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
       <h1>Say what you want.<br><em>Lyra</em> handles the chain.</h1>
       <p class="lead">
          Lyra is an iWallet (intelligent wallet) built on Plasma mainnet. Tell it what you're
-        trying to do : send, swap, bridge, stake, and it researches the
+        trying to do : receive, send, swap, bridge, stake, and it researches the
         real rate, the real risk, and the real route before asking you to
         hold one button to confirm the interaction. Nothing moves without your approval.
       </p>
@@ -1709,11 +1892,45 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
           Stake 250 USDT, find the best rate.
         </div>
 
-        <div class="demo-ticket">
-          <div class="demo-ticket-title">Staking · Aave V3</div>
-          <div class="demo-row"><span>Estimated yield</span><strong id="demoApy">checking live…</strong></div>
-          <div class="demo-row"><span>Lock</span><strong>No</strong></div>
-          <div class="demo-row"><span>Risk level</span><strong class="risk-low">Low</strong></div>
+        <div class="demo-collapsible" id="demoTicketWrap">
+          <div>
+            <div class="demo-ticket">
+              <div class="demo-ticket-title">Staking · Aave V3</div>
+              <div class="demo-row"><span>Estimated yield</span><strong id="demoApy">checking live…</strong></div>
+              <div class="demo-row"><span>Lock</span><strong>No</strong></div>
+              <div class="demo-row"><span>Risk level</span><strong class="risk-low">Low</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="execution-checklist" id="demoChecklist">
+          <div class="execution-checklist-card" id="demoChecklistCard">
+            <div class="execution-checklist-header">Lyra's steps</div>
+            <div class="execution-checklist-main" id="demoChecklistMain">
+              <span class="execution-checklist-status-icon">
+                <span class="ec-spinner"></span>
+                <svg class="ec-check" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </span>
+              <span class="execution-checklist-main-label">Confirm transaction in wallet</span>
+              <span class="execution-checklist-step-count">Step 1 of 1</span>
+            </div>
+            <div class="execution-checklist-substeps">
+              <div class="execution-checklist-substep" id="demoSub1">
+                <span class="execution-checklist-num">1.</span>
+                <span class="execution-checklist-substep-label">Approve USDT</span>
+                <span class="execution-checklist-dot">
+                  <svg class="ec-check" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+              </div>
+              <div class="execution-checklist-substep" id="demoSub2">
+                <span class="execution-checklist-num">2.</span>
+                <span class="execution-checklist-substep-label">Deposit USDT to Aave</span>
+                <span class="execution-checklist-dot">
+                  <svg class="ec-check" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <button class="hold-btn" id="holdBtn">
@@ -1721,7 +1938,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
           <span class="hold-content" id="holdLabel">Hold to Confirm</span>
         </button>
 
-        <div class="demo-caption">This is the same control used for every transaction in Lyra.</div>
+        <div class="demo-caption" id="demoCaption">This is the same control used for every transaction in Lyra.</div>
         <div class="demo-success" id="demoSuccess">✓ Confirmed - this is exactly what signing feels like in Lyra.</div>
       </div>
     </div>
@@ -2302,7 +2519,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 <header class="legal-hero wrap">
   <span class="eyebrow">Legal</span>
   <h1>Terms of Service</h1>
-  <p>Last updated: August 2026</p>
+  <p>Last updated: September 2026</p>
 </header>
 
 <section class="legal-section">
@@ -2319,32 +2536,56 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
     </div>
 
     <div class="legal-block">
-      <h2>3. Your responsibility</h2>
+      <h2>3. Eligibility</h2>
+      <p>You must be of legal age in your jurisdiction and legally permitted to use cryptocurrency software under the laws that apply to you to use Lyra. It is your responsibility to confirm that doing so is lawful where you live.</p>
+    </div>
+
+    <div class="legal-block">
+      <h2>4. Your responsibility</h2>
       <p>You are solely responsible for safeguarding your private key or recovery phrase, for reviewing every transaction before confirming it, and for any transaction you sign using Lyra. Once a transaction is confirmed and broadcast on-chain, it cannot be reversed.</p>
     </div>
 
     <div class="legal-block">
-      <h2>4. Third-party protocols</h2>
-      <p>Lyra interacts with third-party, independently operated protocols (currently Uniswap V3, LI.FI, and Aave V3). Lyra does not control these protocols and is not responsible for their availability, security, or performance.</p>
+      <h2>5. Third-party protocols and services</h2>
+      <p>Lyra interacts with third-party, independently operated protocols and services to prepare and execute your requests, including KyberSwap and Uniswap V3 (swaps), LI.FI (bridging), Aave V3 (staking), and blockchain explorers and RPC providers for the networks you use. Lyra does not control these services and is not responsible for their availability, accuracy, security, or performance.</p>
     </div>
 
     <div class="legal-block">
-      <h2>5. No financial advice</h2>
+      <h2>6. Risks of using Lyra</h2>
+      <p>Using Lyra involves risks inherent to cryptocurrency and DeFi that exist independently of the app, including:</p>
+      <ul>
+        <li><strong>Volatility</strong> — the value of crypto assets can change rapidly and significantly.</li>
+        <li><strong>Irreversibility</strong> — once you hold to confirm and a transaction is broadcast, it cannot be cancelled, refunded, or reversed by Lyra or anyone else.</li>
+        <li><strong>Smart contract and protocol risk</strong> — the third-party protocols Lyra interacts with may contain bugs, be exploited, or otherwise fail, independently of Lyra.</li>
+        <li><strong>Quote and slippage risk</strong> — a rate or estimated output shown before you confirm may differ slightly from the final on-chain result due to market movement or network conditions between quote and execution.</li>
+        <li><strong>Network risk</strong> — network congestion can delay a transaction or increase the gas fee required to process it.</li>
+        <li><strong>Regulatory risk</strong> — the legal treatment of cryptocurrency varies by jurisdiction and may change.</li>
+      </ul>
+      <p>You accept these risks in full when you choose to hold the confirm button.</p>
+    </div>
+
+    <div class="legal-block">
+      <h2>7. No financial advice</h2>
       <p>Nothing in Lyra, including rates, risk levels, or research shown before a transaction, constitutes financial, investment, or legal advice. You make all decisions about your funds at your own risk.</p>
     </div>
 
     <div class="legal-block">
-      <h2>6. Limitation of liability</h2>
+      <h2>8. Limitation of liability</h2>
       <p>Lyra is provided "as is" without warranties of any kind. To the maximum extent permitted by law, we are not liable for any loss of funds, data, or profits arising from your use of the application.</p>
     </div>
 
     <div class="legal-block">
-      <h2>7. Changes to these terms</h2>
+      <h2>9. Governing law</h2>
+      <p>[Insert governing jurisdiction] — to be confirmed with legal counsel before public launch.</p>
+    </div>
+
+    <div class="legal-block">
+      <h2>10. Changes to these terms</h2>
       <p>We may update these Terms from time to time. Continued use of Lyra after changes are published constitutes acceptance of the revised Terms.</p>
     </div>
 
     <div class="legal-block">
-      <h2>8. Contact</h2>
+      <h2>11. Contact</h2>
       <p>Questions about these Terms can be sent through our <a href="#contact" data-view-link="contact" style="color: var(--accent-strong);">contact page</a>.</p>
     </div>
 
@@ -2356,7 +2597,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 <header class="legal-hero wrap">
   <span class="eyebrow">Legal</span>
   <h1>Privacy Policy</h1>
-  <p>Last updated: August 2026</p>
+  <p>Last updated: September 2026</p>
 </header>
 
 <section class="legal-section">
@@ -2372,27 +2613,33 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
       <ul>
         <li>Information you provide directly, such as through our contact form (name, email, message).</li>
         <li>Basic technical data (app version, general error logs) used only to diagnose issues.</li>
+        <li>The text of what you type to the assistant, and wallet context needed to act on it — your public wallet address and displayed balance. Never your private key or recovery phrase, which stay local to your device and are never transmitted anywhere.</li>
         <li>Live queries made on your behalf to check rates, routes, or contract data, processed at the moment of your request and not used to build a profile of you.</li>
       </ul>
     </div>
 
     <div class="legal-block">
       <h2>3. How we use it</h2>
-      <p>Any data we collect is used solely to operate, maintain, and improve Lyra, and to respond to inquiries sent through our contact form. We do not sell your personal data.</p>
+      <p>Any data we collect is used solely to operate, maintain, and improve Lyra, and to respond to inquiries sent through our contact form. We do not sell your personal data. Our backend does not maintain a database of your requests: each one is processed to generate a response and is not retained afterward beyond standard, short-lived server logs used for debugging.</p>
     </div>
 
     <div class="legal-block">
-      <h2>4. Third parties</h2>
-      <p>When you use Lyra to interact with a third-party protocol (e.g. Uniswap, LI.FI, Aave), that protocol may independently process on-chain data related to your transaction. Their own privacy practices apply to that interaction.</p>
+      <h2>4. AI providers</h2>
+      <p>To understand your request and prepare a ticket, Lyra sends what you typed — and the minimal wallet context described above — to an AI provider. Depending on availability, this may be OpenRouter (routing to a Qwen model), Mistral AI, Google (Gemini), or Anthropic (Claude); only one provider handles a given request, chosen automatically as a fallback chain, never all at once. Each provider processes that request under its own privacy policy and may briefly retain it per their own data-handling terms; Lyra does not control this.</p>
     </div>
 
     <div class="legal-block">
-      <h2>5. Your rights</h2>
+      <h2>5. Other third parties</h2>
+      <p>When you use Lyra to interact with a third-party protocol or data source (currently KyberSwap and Uniswap V3, LI.FI, Aave V3, PlasmaScan/Etherscan, and CoinGecko), that service may independently process data related to your request, such as your wallet address for an on-chain quote or transaction. Their own privacy practices apply to that interaction.</p>
+    </div>
+
+    <div class="legal-block">
+      <h2>6. Your rights</h2>
       <p>Depending on your jurisdiction, you may have rights to access, correct, or request deletion of any personal data we hold about you (for example, contact form submissions). Reach out through our <a href="#contact" data-view-link="contact" style="color: var(--accent-strong);">contact page</a> to exercise these rights.</p>
     </div>
 
     <div class="legal-block">
-      <h2>6. Changes to this policy</h2>
+      <h2>7. Changes to this policy</h2>
       <p>We may update this Privacy Policy periodically. We encourage you to review it occasionally for changes.</p>
     </div>
 
@@ -2404,7 +2651,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 <header class="legal-hero wrap">
   <span class="eyebrow">Legal</span>
   <h1>Legal Notice</h1>
-  <p>Last updated: August 2026</p>
+  <p>Last updated: September 2026</p>
 </header>
 
 <section class="legal-section">
@@ -2419,6 +2666,11 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
     <div class="legal-block">
       <h2>Nature of the service</h2>
       <p>Lyra is non-custodial software. Lyra Technology does not hold, custody, or have access to user funds or private keys at any time, and does not act as a financial intermediary, broker, or custodian.</p>
+    </div>
+
+    <div class="legal-block">
+      <h2>Hosting</h2>
+      <p>The Lyra application interface is hosted by Vercel Inc. The backend service that classifies requests and prepares tickets is hosted by Render Services, Inc. Neither host has access to your private key, which never leaves your device.</p>
     </div>
 
     <div class="legal-block">
@@ -2444,25 +2696,25 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 <header class="legal-hero wrap">
   <span class="eyebrow">Legal</span>
   <h1>Cookie Policy</h1>
-  <p>Last updated: August 2026</p>
+  <p>Last updated: September 2026</p>
 </header>
 
 <section class="legal-section">
   <div class="wrap legal-wrap">
 
     <div class="legal-block">
-      <h2>1. What are cookies</h2>
-      <p>Cookies are small text files stored on your device that help websites function and remember certain information across visits.</p>
+      <h2>1. This site doesn't actually use cookies</h2>
+      <p>To be precise: this website doesn't set any HTTP cookies at all. It uses your browser's local storage instead — a similar, device-local mechanism — for one thing only: remembering that you've dismissed the cookie notice below, under the key <code>lyra_cookie_consent</code>, so it doesn't reappear on every visit.</p>
     </div>
 
     <div class="legal-block">
-      <h2>2. How we use cookies</h2>
-      <p>This website uses only essential cookies required for basic functionality (such as remembering your current view). We do not use cookies for advertising or third-party tracking.</p>
+      <h2>2. No tracking, no advertising</h2>
+      <p>Nothing on this website is used for advertising, analytics, or third-party tracking of any kind. We don't use Google Analytics, ad pixels, or similar tools.</p>
     </div>
 
     <div class="legal-block">
-      <h2>3. Managing cookies</h2>
-      <p>You can control or delete cookies through your browser settings at any time. Disabling essential cookies may affect how parts of this website function.</p>
+      <h2>3. Managing this storage</h2>
+      <p>You can clear this at any time through your browser's site settings ("Clear site data" or similar) — the cookie notice will then show again on your next visit. Nothing else on this website depends on it.</p>
     </div>
 
     <div class="legal-block">
@@ -2478,7 +2730,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
   <div class="wrap">
     <div class="footer-row">
       <div>
-        <div class="footer-logo"><img src="/logo.png" alt="Lyra"></div>
+        <div class="footer-logo"><img src="logo.svg" alt="Lyra"></div>
         <div class="footer-tag">An iWallet to interact in a simpler way.</div>
         <div class="footer-social">
           <a href="https://x.com/lyra_technology" class="footer-social-link" aria-label="Lyra on X">
@@ -2504,7 +2756,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 </footer>
 
 <div class="cookie-banner" id="cookieBanner">
-  <p>We use only essential cookies to make Lyra's website work. No tracking, no ads. See our <a href="#cookies" data-view-link="cookies">Cookie Policy</a>.</p>
+  <p>This site doesn't use tracking cookies — just a bit of local storage to remember you've seen this notice. No ads, no analytics. See our <a href="#cookies" data-view-link="cookies">Cookie Policy</a>.</p>
   <div class="cookie-banner-actions">
     <button type="button" class="btn btn-primary" id="cookieAccept">Got it</button>
   </div>
@@ -2522,12 +2774,18 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
     btn.insertBefore(dots, fill.nextSibling);
     const dctx = dots.getContext('2d');
 
-    const CELL = 9;
-    const FRONT = 0.30;
     const dotColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--accent-deep').trim() || '#6D4FD1';
 
-    function drawDots(pct) {
+    // Same math as the app's HoldSquares: a true 45°-rotated square
+    // (raw Manhattan distance, normalized once by half+halfH so it
+    // hits 1 exactly at the button's corners) grows from the center
+    // at a uniform rate in every diagonal direction. A spatial ripple
+    // plus a slow time drift break up the front so it reads as one
+    // fluid wave, and a small time-based "breathe" on already-grown
+    // dots keeps the whole thing from ever looking frozen.
+    function drawDots(pct, now) {
+      now = now || 0;
       const w = btn.clientWidth, h = btn.clientHeight;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       if (dots.width !== Math.round(w * dpr) || dots.height !== Math.round(h * dpr)) {
@@ -2539,24 +2797,30 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
       if (pct <= 0) return;
 
       const p = pct / 100;
+      const CELL = 4;
+      const FRONT = 0.55;
       const cols = Math.ceil(w / CELL);
       const rows = Math.ceil(h / CELL);
       const maxR = CELL * 1.25;
       const half = w / 2;
+      const halfH = h / 2;
 
       dctx.fillStyle = dotColor;
-      for (let r = 0; r < rows; r++) {
-        const stagger = ((r % 3) - 1) * 0.02;
-        for (let c = 0; c < cols; c++) {
-          const cx = (c + 0.5) * CELL;
-          const cy = (r + 0.5) * CELL;
-          const dist = Math.abs(cx - half) / half + stagger;
-          const threshold = Math.max(0, Math.min(1, dist)) * (1 - FRONT);
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const cx = (col + 0.5) * CELL;
+          const cy = (row + 0.5) * CELL;
+          const dx = Math.abs(cx - half);
+          const dy = Math.abs(cy - halfH);
+          const dist = (dx + dy) / (half + halfH);
+          const ripple = Math.sin(row * 0.9 + col * 0.35 + now * 0.0035) * 0.055;
+          const threshold = Math.max(0, Math.min(1, dist + ripple)) * (1 - FRONT);
           let t = (p - threshold) / FRONT;
           t = t < 0 ? 0 : t > 1 ? 1 : t;
           t = t * t * (3 - 2 * t);
           if (t <= 0.02) continue;
-          const radius = maxR * t;
+          const breathe = 1 + Math.sin(now * 0.005 + col * 0.6 + row * 0.4) * 0.12 * t;
+          const radius = maxR * t * breathe;
           dctx.beginPath();
           dctx.arc(cx, cy, radius, 0, Math.PI * 2);
           dctx.fill();
@@ -2581,35 +2845,86 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
     function start(e) {
       if (done) return;
       e.preventDefault();
-      clearInterval(timer);
-      timer = setInterval(() => {
-        progress += 100 / (3600 / 16);
+      cancelAnimationFrame(timer);
+      const duration = 3600;
+      const startTime = performance.now();
+
+      function tick(now) {
+        const elapsed = now - startTime;
+        progress = Math.min((elapsed / duration) * 100, 100);
+
         if (progress >= 100) {
-          progress = 100;
           fill.style.width = '100%';
-          drawDots(100);
+          drawDots(100, now);
           btn.classList.add('dots-cover');
-          clearInterval(timer);
+          timer = null;
           finish();
           return;
         }
+
         fill.style.width = progress + '%';
-        drawDots(progress);
+        drawDots(progress, now);
         btn.classList.toggle('dots-cover', progress > 55);
-      }, 16);
+        timer = requestAnimationFrame(tick);
+      }
+
+      timer = requestAnimationFrame(tick);
     }
 
     function stop() {
       if (done) return;
-      clearInterval(timer);
+      cancelAnimationFrame(timer);
       progress = 0;
       fill.style.width = '0%';
       drawDots(0);
       btn.classList.remove('dots-cover');
     }
 
+    // "Try the actual control" is the only hold button wired to a real
+    // execution checklist (id="demoChecklist") — every other .hold-btn
+    // on the page (e.g. the FAQ demo) keeps the simple Confirming/
+    // Confirmed text below.
+    const checklist = btn.parentElement.querySelector('#demoChecklist');
+    const ticketWrap = btn.parentElement.querySelector('#demoTicketWrap');
+    const caption = btn.parentElement.querySelector('#demoCaption');
+
     function finish() {
       done = true;
+
+      if (checklist) {
+        const main = checklist.querySelector('.execution-checklist-main');
+        const card = checklist.querySelector('.execution-checklist-card');
+        const sub1 = checklist.querySelector('#demoSub1');
+        const sub2 = checklist.querySelector('#demoSub2');
+
+        label.textContent = 'Confirming…';
+        if (ticketWrap) ticketWrap.classList.add('collapsed');
+        btn.style.display = 'none';
+        if (caption) caption.style.display = 'none';
+        checklist.classList.add('show');
+
+        setTimeout(() => sub1 && sub1.classList.add('checked'), 550);
+        setTimeout(() => sub2 && sub2.classList.add('checked'), 1400);
+        setTimeout(() => {
+          if (main) main.classList.add('done');
+          if (card) card.classList.add('checklist-complete');
+          if (success) success.classList.add('show');
+        }, 2200);
+
+        setTimeout(() => {
+          checklist.classList.remove('show');
+          if (sub1) sub1.classList.remove('checked');
+          if (sub2) sub2.classList.remove('checked');
+          if (main) main.classList.remove('done');
+          if (card) card.classList.remove('checklist-complete');
+          if (ticketWrap) ticketWrap.classList.remove('collapsed');
+          btn.style.display = '';
+          if (caption) caption.style.display = '';
+          reset();
+        }, 5200);
+        return;
+      }
+
       label.textContent = 'Confirming…';
       setTimeout(() => {
         if (success) success.classList.add('show');
@@ -2644,11 +2959,11 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 
   const INTENTS = {
     what: {
-      keywords: ['what can lyra do', 'what does lyra do', 'what is lyra', "qu'est ce que lyra", 'quest ce que lyra', 'c est quoi lyra', "c'est quoi lyra", 'a quoi sert lyra', 'what does it do'],
+      keywords: ['what can lyra do', 'what does lyra do', 'what is lyra', 'what does it do'],
       answer: "Lyra sends, swaps, bridges, and stakes for you. Say what you want in one sentence, it finds the real rate and route, then you hold one button to confirm nothing signs itself."
     },
     how_it_works: {
-      keywords: ['how does lyra work', 'how it works', 'comment ca marche', 'comment fonctionne', 'how do you decide', 'comment ca fonctionne'],
+      keywords: ['how does lyra work', 'how it works', 'how do you decide'],
       answer: "Three steps every time: understand what you're asking, research the live rate and contract on-chain, then propose a ticket you approve nothing is invented or pulled from a cache."
     },
     security_general: {
@@ -2660,99 +2975,99 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
       answer: "Your private key is encrypted locally on your device. Lyra never has access to it, unlocked or not it can propose transactions, it can't hold your keys."
     },
     custodial: {
-      keywords: ['custodial', 'custody', 'garde', 'controle mes fonds', 'controle mes cles', 'does lyra hold my funds', 'lyra hold my money'],
+      keywords: ['custodial', 'custody', 'does lyra hold my funds', 'lyra hold my money'],
       answer: "No Lyra is non-custodial. It can research and prepare transactions, but it never holds your funds or your key; your device does that."
     },
     can_move_funds: {
-      keywords: ['can lyra move my funds', 'move my money', 'move funds without', 'sign without me', 'signer sans moi', 'bouger mes fonds sans', 'deplacer mes fonds'],
+      keywords: ['can lyra move my funds', 'move my money', 'move funds without', 'sign without me'],
       answer: "No. Every action including withdrawing from staking waits for you to hold the confirm button yourself. Lyra never signs anything on its own."
     },
     auto_lock: {
-      keywords: ['auto lock', 'lock itself', 'lock automatically', 'se verrouille', 'verrouillage automatique', 'inactivity'],
+      keywords: ['auto lock', 'lock itself', 'lock automatically', 'inactivity'],
       answer: "Lyra locks itself after 10 minutes of inactivity, automatically there's no setting to remember to turn on."
     },
     hold_to_confirm: {
-      keywords: ['hold to confirm', 'hold the button', 'maintenir le bouton', 'confirm button', 'bouton de confirmation', 'how do i confirm', 'how do i sign', 'comment signer'],
+      keywords: ['hold to confirm', 'hold the button', 'confirm button', 'how do i confirm', 'how do i sign'],
       answer: "Every transaction in Lyra uses the same control: you read the ticket, then hold one button. It's the same gesture whether you're sending, swapping, bridging, or staking."
     },
     verified_contracts: {
-      keywords: ['verified contract', 'contrat verifie', 'fake contract', 'scam contract', 'contract address', 'adresse du contrat'],
+      keywords: ['verified contract', 'fake contract', 'scam contract', 'contract address'],
       answer: "Lyra only proposes verified, published contract addresses. If it can't confirm one, it tells you instead of guessing and signing anyway."
     },
     blockchain_networks: {
-      keywords: ['which blockchain', 'what blockchain', 'quelle blockchain', 'sur quelle blockchain', 'which chain', 'quelle chaine', 'what network', 'quel reseau', 'ethereum', 'Base', 'plasma'],
+      keywords: ['which blockchain', 'what blockchain', 'which chain', 'what network', 'ethereum', 'Base', 'plasma'],
       answer: "Currently on Plasma Mainnet only. Ethereum and Base are coming soon Plasma is the only network live today."
     },
     platforms_download: {
-      keywords: ['which platforms', 'quelles plateformes', 'available on', 'disponible sur', 'chrome', 'macOS', 'android', 'ios', 'windows', 'mobile app'],
+      keywords: ['which platforms', 'available on', 'chrome', 'macOS', 'android', 'ios', 'windows', 'mobile app'],
       answer: "Lyra is available on Chrome and Mac OS today. Android and other platforms are next nothing else is available yet."
     },
     price_cost: {
-      keywords: ['is lyra free', 'lyra gratuit', 'combien ca coute', 'how much does it cost', 'price of lyra', 'prix de lyra', 'subscription', 'abonnement'],
+      keywords: ['is lyra free', 'how much does it cost', 'price of lyra', 'subscription'],
       answer: "Downloading and using Lyra doesn't cost anything beyond the usual on-chain network fees for whatever you send, swap, bridge, or stake."
     },
     fees_gas: {
-      keywords: ['fee', 'fees', 'frais', 'gas', 'network fee', 'frais de reseau', 'combien de frais'],
+      keywords: ['fee', 'fees', 'gas', 'network fee'],
       answer: "Network fees are whatever the chain charges for that transaction Lyra shows the real fee on the ticket before you confirm, it doesn't add its own markup."
     },
     swap_feature: {
-      keywords: ['swap', 'echange', 'exchange tokens', 'uniswap', 'trade tokens'],
+      keywords: ['swap', 'exchange tokens', 'uniswap', 'trade tokens'],
       answer: "Swaps run through Uniswap V3. Lyra finds the exact pool for your pair on Plasma and reads the live rate before showing you a number."
     },
     bridge_feature: {
-      keywords: ['bridge', 'pont', 'bridging', 'move between chains', 'cross chain', 'li.fi', 'lifi'],
+      keywords: ['bridge', 'bridging', 'move between chains', 'cross chain', 'li.fi', 'lifi'],
       answer: "Bridging runs through LI.FI, the same engine behind Jumper. Every route is requested live, so what you see is exactly what gets signed."
     },
     stake_feature: {
-      keywords: ['stake', 'staking', 'aave', 'yield', 'apy', 'rendement'],
+      keywords: ['stake', 'staking', 'aave', 'yield', 'apy'],
       answer: "Staking runs through Aave V3. Lyra checks the real market first current yield, lock status, and a plain-language risk level."
     },
     withdraw_staking: {
-      keywords: ['withdraw', 'unstake', 'retirer', 'retrait', 'sortir de staking'],
+      keywords: ['withdraw', 'unstake'],
       answer: "You can withdraw from staking anytime same one-hold confirmation as everything else, no separate flow to learn."
     },
     send_feature: {
-      keywords: ['send', 'envoyer', 'transfer', 'transfert', 'envoi'],
+      keywords: ['send', 'transfer'],
       answer: "You can send tokens by just naming the recipient and amount Lyra prepares the transfer ticket with the network fee shown before you confirm."
     },
     risk_level: {
-      keywords: ['risk level', 'niveau de risque', 'how risky', 'is it risky', 'c est risque', 'quel risque'],
+      keywords: ['risk level', 'how risky', 'is it risky'],
       answer: "Every ticket shows a plain-language risk level (low, moderate, etc.) based on things like liquidity and contract verification not a fixed promise."
     },
     live_rates: {
-      keywords: ['live rate', 'real rate', 'cached rate', 'taux reel', 'taux en direct', 'up to date rate'],
+      keywords: ['live rate', 'real rate', 'cached rate', 'up to date rate'],
       answer: "Rates are checked live every time, never from a cache or memory if Lyra can't get a reliable number, it says so instead of guessing."
     },
     multi_step: {
-      keywords: ['multiple actions', 'swap and stake', 'plusieurs actions', 'en une fois', 'combine actions', 'chain actions'],
+      keywords: ['multiple actions', 'swap and stake', 'combine actions', 'chain actions'],
       answer: "Yes you can ask for a multi-step action like 'swap X to USDT and stake it', and Lyra prepares each step as its own ticket before you confirm."
     },
     ask_anything: {
-      keywords: ['ask anything', 'ask questions', 'poser des questions', 'general questions', 'not just transactions'],
+      keywords: ['ask anything', 'ask questions', 'general questions', 'not just transactions'],
       answer: "Beyond transactions, you can also just ask Lyra questions like whether a protocol looks risky using the same live research loop."
     },
     protocols_supported: {
-      keywords: ['which protocols', 'quels protocoles', 'protocols wired', 'integrations'],
+      keywords: ['which protocols', 'protocols wired', 'integrations'],
       answer: "Three protocols today: Uniswap V3 for swaps, LI.FI for bridging, and Aave V3 for staking all verified on Plasma mainnet."
     },
     roadmap_next: {
-      keywords: ["what's next", 'whats next', 'roadmap', 'a venir', 'prochainement', 'coming soon', 'futur', 'future plans'],
+      keywords: ["what's next", 'whats next', 'roadmap', 'coming soon', 'future plans'],
       answer: "More networks (Ethereum, Base) and more protocols beyond Uniswap V3, LI.FI, and Aave the roadmap grows as new ones get verified."
     },
     getting_started: {
-      keywords: ['how do i start', 'get started', 'comment commencer', 'comment demarrer', 'how to use lyra', 'first time'],
+      keywords: ['how do i start', 'get started', 'how to use lyra', 'first time'],
       answer: "Download Lyra for Chrome or Mac OS, set it up, and just tell it what you want to do send, swap, bridge, or stake in plain language."
     },
     account_signup: {
-      keywords: ['sign up', 'create account', 'creer un compte', 'inscription', 'do i need an account'],
+      keywords: ['sign up', 'create account', 'do i need an account'],
       answer: "There's no separate account to create Lyra works directly with your wallet on your device once it's set up."
     },
     manual_vs_agent: {
-      keywords: ['why use an agent', 'why lyra instead', 'vs manual', 'pourquoi un agent', 'difference avec manuel'],
+      keywords: ['why use an agent', 'why lyra instead', 'vs manual'],
       answer: "Doing this manually means checking rates across tabs, approving tokens separately, and guessing parameters Lyra collapses that into one ticket you approve."
     },
     data_privacy: {
-      keywords: ['privacy', 'confidentialite', 'my data', 'mes donnees', 'track me', 'me suivre'],
+      keywords: ['privacy', 'my data', 'track me'],
       answer: "Lyra's research (rates, contract checks) is done live per request to answer your question it isn't used to build a profile of you."
     }
   };
@@ -3454,8 +3769,8 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
         return;
       }
 
-      // target === 'home': si on quitte une sous-vue, on bascule
-      // d'abord, puis on laisse l'ancre (ex. #features) scroller.
+      // target === 'home': if we're leaving a sub-view, switch back
+      // first, then let the anchor (e.g. #features) scroll.
       if (currentView !== 'home') {
         e.preventDefault();
         showView('home', { keepScroll: true });
@@ -3483,7 +3798,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
   const form = document.getElementById('contactForm');
   if (!form) return;
 
-  const CONTACT_EMAIL = 'hello@lyra.xyz'; // à remplacer par la vraie adresse
+  const CONTACT_EMAIL = 'hello@lyra.xyz'; // to replace with the real address
   const TOPIC_LABELS = { general: 'General question', feedback: 'Feedback', partnerships: 'Partnerships' };
 
   const statusEl = document.getElementById('contactStatus');
