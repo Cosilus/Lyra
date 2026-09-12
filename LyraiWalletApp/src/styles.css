@@ -21,7 +21,10 @@
   --danger: #F2A0A0;
   --success: #B9E3B0;
 
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  --sans: "Inter", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+
+  font-family: var(--sans);
   color: var(--beige);
   background: var(--void);
 }
@@ -44,7 +47,7 @@ button { cursor: pointer; }
 ::selection { background: var(--accent-soft); color: var(--beige); }
 
 /* ================================
-   SCROLLBARS — match the app palette
+   SCROLLBARS, match the app palette
    instead of the OS default (white)
 ================================ */
 * {
@@ -128,81 +131,39 @@ button { cursor: pointer; }
 }
 
 .header-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  z-index: 55;
 }
 
 /* ================================
-   NETWORK SWITCH
+   NETWORK, nested inside the header menu (see MENU below)
 ================================ */
-
-.network-switch { position: relative; }
-.network-btn {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-  border: 1px solid var(--line);
-  padding: 7px 12px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-.network-btn:hover { border-color: var(--accent-deep); }
-.network-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--success);
-  flex: 0 0 auto;
-}
-.network-dot.muted { background: var(--muted-dim); }
-.network-chevron { transition: transform 0.2s ease; flex: 0 0 auto; }
-.network-switch.open .network-chevron { transform: rotate(180deg); }
-
-.network-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  min-width: 220px;
-  background: var(--panel2);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 10px;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
-  z-index: 60;
-  animation: menuAppear 0.14s ease-out;
-}
-.network-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 9px;
-  font-size: 14px;
-  color: var(--beige-dim);
-}
-.network-item.active { background: var(--accent-soft); color: var(--beige); }
-.network-item.disabled { color: var(--muted); cursor: not-allowed; }
-.network-item .net-name { flex: 1; }
-.network-item .net-tag {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.network-item.active .net-tag { color: var(--success); }
-.network-item.disabled .net-tag { color: var(--muted-dim); }
 
 .balance-label, .ticket-title, .ai-label {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 10px;
+  font-weight: 600;
+}
+
+.ticket-fullscreen-panel .ticket-title {
+  margin-bottom: 8px;   
+}
+
+.balance-card {
+  margin-top: 6px;
+  padding: 14px 26px 12px;
+  border-radius: 24px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow:
+    0 50px 100px -30px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(167, 139, 250, 0.06),
+    0 0 60px -20px rgba(167, 139, 250, 0.25);
+  animation: frame-aura-breathe 6s ease-in-out infinite;
 }
 
 .balance-label-row {
@@ -226,9 +187,9 @@ button { cursor: pointer; }
 .balance-refresh:hover { color: var(--accent-strong); border-color: var(--accent); }
 .balance-refresh:active { transform: scale(0.9) rotate(90deg); }
 
-.balance { font: 600 36px "Inter", sans-serif; letter-spacing: -0.02em; color: var(--beige); }
-.balance-row { display: flex; gap: 9px; align-items: baseline; margin-top: 4px; }
-.balance-usd { font: 600 36px "Inter", sans-serif; letter-spacing: -0.02em; color: var(--beige); }
+.balance { font: 600 40px/1 var(--mono); letter-spacing: -0.02em; color: var(--beige); font-variant-numeric: tabular-nums; }
+.balance-row { display: flex; gap: 8px; align-items: baseline; margin-top: 6px; }
+.balance-usd { font: 600 18px var(--mono); color: var(--muted); }
 
 .network-switch {
   position: relative;
@@ -361,7 +322,7 @@ button { cursor: pointer; }
   color: var(--muted-dim);
 }
 
-.address-row { display: flex; gap: 7px; align-items: center; margin-top: 8px; font: 11px monospace; }
+.address-row { display: flex; gap: 7px; align-items: center; margin-top: 8px; font: 11px var(--mono); }
 .address-row a, .txlink { color: var(--accent-strong); text-decoration: none; }
 
 .connect-wallet {
@@ -389,10 +350,23 @@ button { cursor: pointer; }
    CHAT
 ================================ */
 
-.chat { flex: 1; overflow: auto; padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; position: relative; }
-.msg { max-width: 86%; }
+.chat { flex: 1; min-height: 0; overflow: auto; padding: 10px 16px; display: flex; flex-direction: column; gap: 14px; position: relative; }
+/* Without this, .chat's own flex children (message bubbles, tickets)
+   default to flex-shrink: 1 too, so once .chat itself is squeezed
+   short by the balance card/chart above it, they shrink to fit instead
+   of keeping their real size, and anything with overflow:hidden (like
+   .ticket) just gets visibly cropped rather than making .chat overflow
+   and scroll. Forcing them to keep their natural height is what makes
+   there be real content to scroll to. */
+.chat > * { flex-shrink: 0; }
+.msg { max-width: 86%; animation: bubbleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .msg.user { align-self: flex-end; }
 .msg.ai { align-self: stretch; max-width: 100%; }
+
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
 
 .bubble { font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 
@@ -429,16 +403,83 @@ button { cursor: pointer; }
   50% { opacity: 0; }
 }
 
-@property --border-angle {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
+/* "Lyra is thinking…", a soft highlight sweeps left to right through the
+   text on a loop, same idea as Claude's own thinking indicator. */
+.thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%, var(--muted) 45%,
+    var(--beige) 50%,
+    var(--muted) 55%, var(--muted) 100%
+  );
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: thinking-wave 4.25s linear infinite;
+}
+
+@keyframes thinking-wave {
+  /* The travel distance (from - to) must be an exact multiple of half
+     the background-size (300% / 2 = 150%) for the loop to restart
+     seamlessly, otherwise the highlight jumps at the seam instead of
+     looping smoothly. 125% -> -25% is a 150% sweep that also lands the
+     loop point squarely in the dark stretch of the gradient, so the
+     restart is invisible. */
+  from { background-position: 125% 0; }
+  to { background-position: -25% 0; }
+}
+
+/* Traveling border light, same mechanic as the reference star-button:
+   a big soft glow rides the element's exact pixel outline via offset-path
+   (see useBorderPath in App.jsx), sitting BEHIND an opaque cover
+   (.border-light-mask) that's inset by the ring width, so the glow only
+   ever shows through that thin gap right at the border, never washing
+   over the content. Both sit at z-index:-1, and the card needs
+   isolation:isolate so that negative z-index stays local to the card
+   instead of dropping behind the page. */
+.border-light {
+  position: absolute;
+  top: 0;
+  left: 0;
+  aspect-ratio: 1;
+  width: var(--light-width, 150px);
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, var(--beige), var(--accent-strong) 35%, transparent 68%);
+  offset-path: var(--path);
+  offset-distance: 0%;
+  animation: border-light-travel 3.5s linear infinite;
+}
+
+@keyframes border-light-travel {
+  to { offset-distance: 100%; }
+}
+
+.border-light-mask {
+  position: absolute;
+  inset: 1.5px;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--mask-bg, var(--panel2));
+  pointer-events: none;
+  /* Scattered pinhole "stars" punched through the cover, biased toward the
+     edges, the traveling light behind only lights the ones it currently
+     passes near, same twinkle as the reference StarBackground SVG. */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Crect width='100' height='100' fill='white'/%3E%3Ccircle cx='6' cy='16' r='1' fill='black'/%3E%3Ccircle cx='14' cy='84' r='0.8' fill='black'/%3E%3Ccircle cx='26' cy='7' r='0.7' fill='black'/%3E%3Ccircle cx='34' cy='93' r='1' fill='black'/%3E%3Ccircle cx='50' cy='6' r='0.8' fill='black'/%3E%3Ccircle cx='50' cy='94' r='0.9' fill='black'/%3E%3Ccircle cx='68' cy='8' r='0.7' fill='black'/%3E%3Ccircle cx='76' cy='90' r='1' fill='black'/%3E%3Ccircle cx='92' cy='22' r='0.8' fill='black'/%3E%3Ccircle cx='88' cy='78' r='0.9' fill='black'/%3E%3Ccircle cx='4' cy='50' r='0.7' fill='black'/%3E%3Ccircle cx='96' cy='48' r='0.8' fill='black'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Crect width='100' height='100' fill='white'/%3E%3Ccircle cx='6' cy='16' r='1' fill='black'/%3E%3Ccircle cx='14' cy='84' r='0.8' fill='black'/%3E%3Ccircle cx='26' cy='7' r='0.7' fill='black'/%3E%3Ccircle cx='34' cy='93' r='1' fill='black'/%3E%3Ccircle cx='50' cy='6' r='0.8' fill='black'/%3E%3Ccircle cx='50' cy='94' r='0.9' fill='black'/%3E%3Ccircle cx='68' cy='8' r='0.7' fill='black'/%3E%3Ccircle cx='76' cy='90' r='1' fill='black'/%3E%3Ccircle cx='92' cy='22' r='0.8' fill='black'/%3E%3Ccircle cx='88' cy='78' r='0.9' fill='black'/%3E%3Ccircle cx='4' cy='50' r='0.7' fill='black'/%3E%3Ccircle cx='96' cy='48' r='0.8' fill='black'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
 .chat-empty-card {
   position: relative;
+  overflow: hidden;
+  isolation: isolate;
   margin: auto 4px;
-  padding: 30px 22px 24px;
+  padding: 16px 20px 14px;
   border-radius: 18px;
   text-align: center;
   background:
@@ -448,35 +489,10 @@ button { cursor: pointer; }
   animation: hint-fade-in 0.4s ease;
 }
 
-.chat-empty-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: conic-gradient(
-    from var(--border-angle),
-    transparent 0deg,
-    transparent 280deg,
-    var(--accent-strong) 330deg,
-    var(--accent) 350deg,
-    transparent 360deg
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  animation: border-beam-spin 3.5s linear infinite;
-}
-
-@keyframes border-beam-spin {
-  to { --border-angle: 360deg; }
-}
-
 .chat-empty-icon {
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 16px;
+  width: 34px;
+  height: 34px;
+  margin: 0 auto 8px;
   border-radius: 14px;
   display: flex;
   align-items: center;
@@ -485,7 +501,7 @@ button { cursor: pointer; }
   background: linear-gradient(160deg, var(--accent-soft), transparent);
   border: 1px solid var(--line);
 }
-.chat-empty-icon svg { width: 22px; height: 22px; }
+.chat-empty-icon svg { width: 16px; height: 16px; }
 
 .chat-empty-title {
   font-size: 17px;
@@ -548,7 +564,7 @@ button { cursor: pointer; }
   position: relative;
   overflow: hidden;
   margin-top: 4px;
-  background: var(--panel2);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 16px;
@@ -780,14 +796,13 @@ textarea { min-height: 90px; resize: vertical; }
   gap: 16px; padding: 7px 0; font-size: 13px;
 }
 .transaction-row span { color: var(--muted); }
-.transaction-row strong { text-align: right; font-weight: 600; color: var(--beige); }
-.recipient-row strong { font-family: monospace; }
+.transaction-row strong { text-align: right; font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--beige); }
 
 .details-toggle {
   width: 100%;
   margin-top: 8px;
   padding: 9px 2px;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: center;
   background: none; border: none; color: var(--muted);
   cursor: pointer; font-size: 12px;
   transition: color 0.15s ease;
@@ -816,8 +831,8 @@ textarea { min-height: 90px; resize: vertical; }
   gap: 18px; padding: 7px 0; font-size: 11px;
 }
 .detail-row span:first-child { color: var(--muted-dim); }
-.detail-row span:last-child { text-align: right; max-width: 65%; color: var(--beige-dim); }
-.detail-address { font-family: monospace; word-break: break-all; }
+.detail-row span:last-child { text-align: right; max-width: 65%; font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--beige-dim); }
+.detail-address { word-break: break-all; }
 
 .warning { margin-top: 12px; color: var(--danger); }
 
@@ -839,6 +854,23 @@ textarea { min-height: 90px; resize: vertical; }
   transition: all 0.2s ease;
 }
 .save-contact:hover { background: var(--panel3); border-color: var(--accent); }
+.save-contact:disabled { opacity: 0.5; cursor: not-allowed; }
+.save-contact:disabled:hover { background: var(--panel); border-color: var(--line); }
+
+.contact-name-edit-row { display: flex; align-items: center; gap: 6px; }
+.contact-name-input {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--beige);
+  font-size: 12px;
+  font-family: inherit;
+  width: 140px;
+  max-width: 40vw;
+}
+.contact-name-input:focus { outline: none; border-color: var(--accent); }
+.contact-name-input::placeholder { color: var(--muted); }
 
 .contact-saved {
   display: flex; align-items: center; gap: 7px;
@@ -857,66 +889,196 @@ textarea { min-height: 90px; resize: vertical; }
 }
 
 /* ================================
-   HEADER MENU
+   HEADER MENU, CircleMenu (framer-motion)
 ================================ */
 
 .header-menu { position: relative; }
 
-.menu-button {
-  width: 36px; height: 36px;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--panel3);
-  color: var(--beige);
-  cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
-}
-
-.menu-button:hover { background: var(--accent-soft); border-color: var(--accent); }
-.menu-button:active { transform: scale(0.96); }
-.menu-button.active { background: var(--accent-soft); border-color: var(--accent); }
-
-.menu-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 50%;
-  min-width: 210px;
-  background: var(--panel2);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 10px;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.4);
-  z-index: 60;
-  animation: menuAppearCentered 0.14s ease-out forwards;
-}
-
-@keyframes menuAppearCentered {
-  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-
-.menu-item {
-  width: 100%;
+.circle-menu-root {
+  position: relative;
+  z-index: 55;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 13px 14px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
+  justify-content: center;
+}
+
+.circle-menu-trigger {
+  position: relative;
+  z-index: 2;
+  height: 38px;
+  width: auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  background: var(--panel);
   color: var(--beige);
-  font-family: inherit;
-  font-size: 14.5px;
-  font-weight: 400;
+  font: 600 12.5px var(--sans);
+  line-height: 1;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.18s ease, border-color 0.18s ease, padding 0.3s ease,
+    width 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.circle-menu-trigger:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+.circle-menu-trigger-label {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  gap: 6px;
+}
+.circle-menu-trigger-label span { line-height: 1; }
+.circle-menu-trigger-label svg { display: block; }
+
+/* Open state: the pill collapses down to a plain circle showing only the
+   cross, and nudges right, as if deploying the row had shoved it aside. */
+.circle-menu-trigger.active {
+  width: 38px;
+  padding: 0;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  transform: translateX(8px);
+}
+.circle-menu-trigger.active:active { transform: translateX(8px) scale(0.96); }
+.circle-menu-trigger:not(.active):active { transform: scale(0.96); }
+
+.circle-menu-items {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circle-menu-item {
+  position: absolute;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel2);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.circle-menu-item:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent);
+}
+
+.circle-menu-item-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 9px 0 0;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--panel2);
+  border: 1px solid var(--accent-deep);
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.circle-menu-item-label::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: var(--accent-deep);
+}
+.circle-menu-item-label::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(1px);
+  border: 4px solid transparent;
+  border-bottom-color: var(--panel2);
+}
+
+/* Full-screen network picker, same .contacts-overlay/.contacts-panel shell
+   as Contacts/Settings, so it looks and behaves like the other tabs. Each
+   network gets its own card with a short description so people know what
+   they're switching to before they do it. */
+.network-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.network-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
-.menu-item:hover {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+.network-card:hover { background: var(--panel3); border-color: var(--accent-deep); }
+.network-card:active { transform: scale(0.99); }
+.network-card.active { background: var(--accent-soft); border-color: var(--accent); }
+
+.network-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.network-card-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.network-card-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--beige);
+}
+
+.network-card-chain {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.network-card-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--void);
+  flex: 0 0 auto;
+}
+
+.network-card-desc {
+  margin: 0;
+  padding-left: 17px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
 }
 
 .menu-icon {
@@ -976,7 +1138,46 @@ textarea { min-height: 90px; resize: vertical; }
 .contacts-title { font-size: 16px; font-weight: 600; letter-spacing: -0.02em; color: var(--beige); }
 .contacts-subtitle { margin-top: 4px; font-size: 12px; color: var(--muted); }
 
+.contacts-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.contacts-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 138px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--void);
+  color: var(--muted);
+  transition: border-color 0.15s ease, width 0.15s ease;
+}
+.contacts-search:focus-within {
+  border-color: var(--accent);
+  width: 168px;
+}
+.contacts-search svg { flex: 0 0 auto; }
+.contacts-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--beige);
+  font-family: inherit;
+  font-size: 12px;
+}
+.contacts-search input::placeholder { color: var(--muted-dim); }
+
 .contacts-close {
+  flex: 0 0 auto;
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   border: 0; border-radius: 9px;
@@ -1046,6 +1247,23 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .add-contact-button:hover { color: var(--accent-strong); background: var(--accent-soft); border-color: var(--accent); }
 
+.contacts-io-row { display: flex; gap: 8px; padding: 0 4px; margin-top: 2px; }
+.contacts-io-button {
+  flex: 1;
+  height: 32px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 11.5px; font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.contacts-io-button:hover { color: var(--beige); background: var(--panel3); border-color: var(--accent); }
+.contacts-io-button:disabled { opacity: 0.4; cursor: not-allowed; }
+.contacts-io-button:disabled:hover { color: var(--muted); background: transparent; border-color: var(--line); }
+
 .add-contact-form {
   margin-top: 14px; padding: 14px;
   border: 1px solid var(--line);
@@ -1104,6 +1322,22 @@ textarea { min-height: 90px; resize: vertical; }
 .contact-cancel:hover { color: var(--beige); background: var(--panel3); }
 .contact-cancel:active { transform: scale(0.96); }
 
+.contact-delete {
+  height: 30px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 0 12px;
+  border: 1px solid rgba(242, 160, 160, 0.35);
+  border-radius: 999px;
+  color: var(--danger);
+  background: rgba(242, 160, 160, 0.08);
+  font-size: 10px; font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.contact-delete:hover { background: rgba(242, 160, 160, 0.18); border-color: var(--danger); }
+.contact-delete:active { transform: scale(0.96); }
+
 .contacts-empty {
   min-height: 180px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1155,6 +1389,23 @@ textarea { min-height: 90px; resize: vertical; }
 .backup-title { font-size: 16px; font-weight: 600; letter-spacing: -0.02em; color: var(--beige); }
 .backup-subtitle { margin-top: 4px; font-size: 12px; color: var(--muted); }
 
+/* "Back up your wallet" screen: title + subtitle share one line since the
+   confirm button moved out of the header and down to the bottom. */
+.backup-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.backup-title-row .backup-subtitle { margin-top: 0; }
+
+/* A touch more breathing room above the primary CTA in the wallet-create
+   and backup panels, so it doesn't feel glued to the content above it. */
+.modal-card .confirm,
+.backup-panel .confirm {
+  margin-top: 8px;
+}
+
 .backup-warning {
   padding: 11px 13px;
   margin-bottom: 16px;
@@ -1189,7 +1440,7 @@ textarea { min-height: 90px; resize: vertical; }
 
 .seed-display-word strong {
   color: var(--beige);
-  font-family: monospace;
+  font-family: var(--mono);
   font-size: 13px;
   font-weight: 600;
 }
@@ -1221,7 +1472,7 @@ textarea { min-height: 90px; resize: vertical; }
   border-radius: 9px;
   padding: 10px 11px;
   outline: 0;
-  font-family: monospace;
+  font-family: var(--mono);
   font-size: 13px;
   transition: border-color 0.15s ease;
 }
@@ -1351,7 +1602,7 @@ textarea { min-height: 90px; resize: vertical; }
   background: transparent;
   border: 0;
   color: var(--beige);
-  font-family: monospace;
+  font-family: var(--mono);
   font-size: 13px;
   padding: 8px 0;
   outline: 0;
@@ -1383,38 +1634,95 @@ textarea { min-height: 90px; resize: vertical; }
 ================================ */
 
 .balance-change {
-  font-size: 13px;
-  font-weight: 600;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
   padding: 2px 7px;
-  border-radius: 7px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  animation: balance-change-in 0.25s ease-out both;
 }
 .balance-change.positive { color: var(--success); background: rgba(185, 227, 176, 0.12); }
 .balance-change.negative { color: var(--danger); background: rgba(242, 160, 160, 0.12); }
 
+@keyframes balance-change-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
+}
+
 .balance-usd-value {
-  margin-top: 2px;
-  font-size: 12px;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 12.5px;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
   display: flex;
   align-items: center;
-  gap: 6px;
+}
+
+.usd-dot { color: var(--muted); white-space: pre; }
+
+.balance-usd-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--beige-dim);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Info icon + dark rounded tooltip bubble, same pattern as the (i)
+   indicators on osero.org/app, small trigger, tooltip fades in
+   below it instead of a plain browser title tooltip. */
+.info-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted-dim);
+  cursor: help;
+}
+.info-tooltip:hover,
+.info-tooltip:focus-visible { color: var(--accent-strong); }
+
+.info-tooltip-bubble {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  transform: translateY(-4px);
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--void);
+  border: 1px solid var(--line);
+  color: var(--beige);
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 20;
+  white-space: normal;
+}
+.info-tooltip-bubble strong { color: var(--accent-strong); }
+
+.info-tooltip:hover .info-tooltip-bubble,
+.info-tooltip:focus-visible .info-tooltip-bubble {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .wallet-address-inline {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 12px;
   color: var(--muted);
 }
 
-.address-dot {
-  width: 4px; height: 4px;
-  border-radius: 50%;
-  background: var(--muted-dim);
-  flex: 0 0 auto;
-}
 
 .address-copy-btn {
   display: flex;
@@ -1475,24 +1783,34 @@ textarea { min-height: 90px; resize: vertical; }
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--panel2);
+  font-family: var(--mono);
   font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
   color: var(--beige);
-}
-.token-balance-chip.staked-chip {
-  border-color: var(--accent-deep);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  animation: chip-stagger-in 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
 }
 
+@keyframes chip-stagger-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
 .token-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+
+/* Small hint inside a holdings chip that this token also has a
+   staked position, hover it for the amount + APY instead of a
+   separate chip sitting next to the holdings one. */
+.staked-info-tooltip { color: var(--accent-deep); }
+.staked-info-tooltip:hover,
+.staked-info-tooltip:focus-visible { color: var(--accent-strong); }
 
 /* ================================
    PORTFOLIO CHART
 ================================ */
 
 .portfolio-chart {
-  margin-top: 14px;
-  padding: 12px;
+  margin-top: 8px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel);
@@ -1539,8 +1857,35 @@ textarea { min-height: 90px; resize: vertical; }
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 .chart-mode-toggle:hover { color: var(--accent-strong); border-color: var(--accent); }
+.chart-mode-toggle:active { transform: scale(0.9) rotate(90deg); }
 
 .chart-svg { width: 100%; height: 90px; display: block; }
+
+.chart-mode-view { animation: chart-mode-in 350ms ease-out both; }
+
+@keyframes chart-mode-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.chart-line-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: chart-draw 900ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes chart-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.chart-area-path {
+  opacity: 0;
+  animation: chart-area-in 600ms ease-out 250ms forwards;
+}
+
+@keyframes chart-area-in {
+  to { opacity: 1; }
+}
 
 .chart-wrap { position: relative; }
 
@@ -1605,7 +1950,7 @@ textarea { min-height: 90px; resize: vertical; }
 .pie-label-text {
   font-size: 9px;
   font-weight: 600;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--mono);
 }
 
 /* ================================
@@ -1678,8 +2023,6 @@ textarea { min-height: 90px; resize: vertical; }
   cursor: pointer;
   user-select: none;
 }
-.multi-step:last-child .multi-step-head { cursor: default; }
-
 .multi-step-num {
   flex: 0 0 auto;
   width: 20px; height: 20px;
@@ -1689,7 +2032,7 @@ textarea { min-height: 90px; resize: vertical; }
   color: var(--accent-strong);
   font-size: 11px;
   font-weight: 700;
-  font-family: monospace;
+  font-family: var(--mono);
 }
 
 .multi-step-summary {
@@ -1704,9 +2047,9 @@ textarea { min-height: 90px; resize: vertical; }
 
 .multi-step-toggle {
   flex: 0 0 auto;
-  font-size: 11px;
+  display: flex;
+  align-items: center;
   color: var(--accent-strong);
-  white-space: nowrap;
 }
 
 .multi-step-body {
@@ -1771,6 +2114,25 @@ textarea { min-height: 90px; resize: vertical; }
    TRANSACTION HISTORY
 ================================ */
 
+.tx-history-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.tx-history-tabs button {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 7px 4px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.tx-history-tabs button.active { color: var(--accent-strong); border-color: var(--accent); background: var(--accent-soft); }
+
 .tx-item {
   min-height: 58px;
   display: flex; align-items: center; justify-content: space-between;
@@ -1788,13 +2150,15 @@ textarea { min-height: 90px; resize: vertical; }
   font-size: 13px; font-weight: 500; color: var(--beige);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.tx-item-date { margin-top: 4px; font-size: 11px; color: var(--muted); }
+.tx-item-date { margin-top: 4px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 
 .tx-item-amount {
   flex: 0 0 auto;
   margin-left: 10px;
+  font-family: var(--mono);
   font-size: 13px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .tx-item-amount.positive { color: var(--success); }
@@ -1811,7 +2175,13 @@ textarea { min-height: 90px; resize: vertical; }
 
 @media (max-width: 480px) {
   .page { padding: 0; }
-  .frame { height: 100vh; max-height: none; border-radius: 0; border-left: 0; border-right: 0; }
+  /* 100vh ignores the mobile browser's collapsing address bar/toolbar,
+     so it can size .frame taller than what's actually visible, pushing
+     .inputbar off-screen and making touch scroll inside .chat fight the
+     outer page instead of scrolling the intended container. 100dvh
+     tracks the real visible viewport; 100vh stays first as a fallback
+     for browsers that don't support dvh. */
+  .frame { height: 100vh; height: 100dvh; max-height: none; border-radius: 0; border-left: 0; border-right: 0; }
   .contacts-overlay, .backup-overlay { padding: 16px; }
   .contacts-panel, .backup-panel { width: 100%; }
 }
@@ -1885,7 +2255,7 @@ textarea { min-height: 90px; resize: vertical; }
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
-  font-family: monospace;
+  font-family: var(--mono);
   font-size: 12px;
   color: var(--beige);
   word-break: break-all;
@@ -1909,7 +2279,7 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .qr-image { display: block; width: 100%; height: auto; }
 .qr-address {
-  font-family: var(--mono, monospace);
+  font-family: var(--mono);
   font-size: 12px;
   color: var(--muted);
   word-break: break-all;
@@ -1971,7 +2341,7 @@ textarea { min-height: 90px; resize: vertical; }
 }
 
 /* ================================
-   UNLOCK SCREEN — redesign
+   UNLOCK SCREEN, redesign
 ================================ */
 
 .unlock-panel {
@@ -2127,28 +2497,8 @@ textarea { min-height: 90px; resize: vertical; }
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
+  isolation: isolate;
   box-shadow: 0 1px 2px rgba(0,0,0,0.15);
-}
-
-.execution-checklist-card.checklist-complete::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: conic-gradient(
-    from var(--border-angle),
-    transparent 0deg,
-    transparent 280deg,
-    var(--accent-strong) 330deg,
-    var(--accent) 350deg,
-    transparent 360deg
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  animation: border-beam-spin 3.5s linear infinite;
 }
 
 .execution-checklist-header {
@@ -2182,11 +2532,13 @@ textarea { min-height: 90px; resize: vertical; }
   background: var(--line);
   color: var(--muted);
   flex-shrink: 0;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .execution-checklist-main.done .execution-checklist-status-icon {
   background: var(--success);
   color: #150E20;
+  animation: checklist-dot-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .execution-checklist-main-label {
@@ -2228,7 +2580,7 @@ textarea { min-height: 90px; resize: vertical; }
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--mono);
 }
 
 .execution-checklist-substep.checked .execution-checklist-num {
@@ -2251,15 +2603,162 @@ textarea { min-height: 90px; resize: vertical; }
   justify-content: center;
   flex-shrink: 0;
   color: #150E20;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .execution-checklist-substep.checked .execution-checklist-dot {
   background: var(--success);
   border-color: var(--success);
+  animation: checklist-dot-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes checklist-dot-pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.execution-checklist-substep.checked .execution-checklist-substep-label {
+  color: var(--beige);
+  transition: color 0.25s ease;
 }
 
 /* ------------------------------------------------------------------
-   Ticket fullscreen overlay — the ticket now opens like your other
+   Execution done actions, once every step is checked off, the explorer
+   link and the Done button sit together in one row under the checklist
+   instead of stacked as separate elements.
+------------------------------------------------------------------- */
+
+.execution-done-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.execution-success-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+.execution-success-link:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------------
+   Multi-ticket recap, once every step in a plan has run, the last
+   step's checklist hands off to this: one big confirmation, a plain-
+   language line for each accomplished step in order, each linking to
+   its own transaction, and a single larger Done button to close it all.
+------------------------------------------------------------------- */
+
+.multi-ticket-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 26px 18px 22px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+.multi-summary-icon {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+}
+
+.multi-summary-ring {
+  fill: none;
+  stroke: var(--success);
+  stroke-width: 2.5;
+  stroke-dasharray: 183;
+  stroke-dashoffset: 183;
+  animation: multi-summary-ring-draw 0.5s ease forwards;
+}
+
+.multi-summary-check {
+  fill: none;
+  stroke: var(--success);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 39;
+  stroke-dashoffset: 39;
+  animation: multi-summary-check-draw 0.3s ease 0.4s forwards;
+}
+
+@keyframes multi-summary-ring-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes multi-summary-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.multi-summary-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.multi-summary-step {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.multi-summary-step-line {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.multi-summary-step-num {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.multi-summary-step-text {
+  font-size: 12.5px;
+  color: var(--beige);
+  line-height: 1.4;
+}
+
+.multi-summary-step-link {
+  align-self: flex-start;
+  margin-left: 19px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+.multi-summary-step-link:hover { text-decoration: underline; }
+
+.multi-summary-done {
+  width: 100%;
+  margin-top: 4px;
+  padding: 15px;
+  font-size: 14.5px;
+}
+
+/* ------------------------------------------------------------------
+   Ticket fullscreen overlay, the ticket now opens like your other
    modals (same fixed/blurred-backdrop pattern as .backup-overlay),
    instead of sitting inline in the chat feed.
 ------------------------------------------------------------------- */
@@ -2299,6 +2798,10 @@ textarea { min-height: 90px; resize: vertical; }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+.ticket-fullscreen-panel .ticket {
+  padding-top: 34px;
+}
+
 .ticket-fullscreen-close {
   position: absolute;
   top: 14px;
@@ -2322,7 +2825,7 @@ textarea { min-height: 90px; resize: vertical; }
 }
 
 /* ------------------------------------------------------------------
-   Ticket top collapse — the summary/details/warning section shrinks
+   Ticket top collapse, the summary/details/warning section shrinks
    away once the checklist takes over, like the deposit demo video's
    Before card sliding out of frame. Uses the grid-rows technique so
    the height animates smoothly without measuring anything in JS.
@@ -2371,83 +2874,130 @@ textarea { min-height: 90px; resize: vertical; }
   box-shadow: none;
 }
 
+/* This one sits ON TOP of the ticket's real content (z-index:5), so unlike
+   the .border-light-mask pattern used elsewhere (which hides a big light
+   behind text), here the wrapper itself is clipped down to a thin ring via
+   the content-box/border-box XOR trick, everywhere except that ring stays
+   fully transparent, so the ticket underneath is never obscured. */
 .ticket-transition-wave {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 5;
+  border-radius: inherit;
   overflow: hidden;
-  border-radius: inherit;
-}
-
-@property --band-a {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
-@property --band-b {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 360deg;
-}
-
-.ticket-transition-wave {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 5;
-  border-radius: inherit;
-}
-
-.wave-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
   padding: 2px;
-  opacity: 0;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
 }
 
-.wave-ring-a {
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    transparent calc(var(--band-a) - 12deg),
-    var(--accent) calc(var(--band-a) - 3deg),
-    var(--accent-strong) var(--band-a),
-    var(--accent) calc(var(--band-a) + 3deg),
-    transparent calc(var(--band-a) + 14deg),
-    transparent 360deg
-  );
-  animation: wave-ring-a-anim 2400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+.border-light.border-light-one-shot {
+  animation: border-light-one-shot-travel 2.4s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
-.wave-ring-b {
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    transparent calc(var(--band-b) - 14deg),
-    var(--accent) calc(var(--band-b) - 3deg),
-    var(--accent-strong) var(--band-b),
-    var(--accent) calc(var(--band-b) + 3deg),
-    transparent calc(var(--band-b) + 12deg),
-    transparent 360deg
-  );
-  animation: wave-ring-b-anim 2400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+@keyframes border-light-one-shot-travel {
+  0% { offset-distance: 0%; opacity: 0; }
+  8% { opacity: 1; }
+  92% { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
 }
 
-@keyframes wave-ring-a-anim {
-  0%   { opacity: 0; --band-a: 0deg; }
-  5%   { opacity: 1; }
-  95%  { opacity: 1; }
-  100% { opacity: 0; --band-a: 180deg; }
+/* Two mirrored lights instead of one lap: both start at the top-middle
+   point (offset-distance 0%) and travel outward down opposite edges,
+   meeting again at the bottom-middle point (see useSplitBorderPath). */
+.border-light-split-left { offset-path: var(--path-left); }
+.border-light-split-right { offset-path: var(--path-right); }
+
+/* ================================
+   AMBIANCE, living background + premium idle motion
+   (demo layer: ambient depth around the static frame)
+================================ */
+
+.page {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
 }
 
-@keyframes wave-ring-b-anim {
-  0%   { opacity: 0; --band-b: 360deg; }
-  5%   { opacity: 1; }
-  95%  { opacity: 1; }
-  100% { opacity: 0; --band-b: 180deg; }
+.page::before,
+.page::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+
+.page::before {
+  width: 440px;
+  height: 440px;
+  top: -14%;
+  left: -16%;
+  background: radial-gradient(circle, #6D4FD1 0%, transparent 70%);
+  animation: aurora-drift-a 20s ease-in-out infinite alternate;
+}
+
+.page::after {
+  width: 400px;
+  height: 400px;
+  bottom: -16%;
+  right: -12%;
+  background: radial-gradient(circle, #A78BFA 0%, transparent 70%);
+  animation: aurora-drift-b 24s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift-a {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(70px, 50px) scale(1.18); }
+}
+
+@keyframes aurora-drift-b {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-60px, -40px) scale(1.12); }
+}
+
+.frame {
+  z-index: 1;
+  animation: frame-aura-breathe 6s ease-in-out infinite;
+}
+
+@keyframes frame-aura-breathe {
+  0%, 100% {
+    box-shadow:
+      0 50px 100px -30px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(167, 139, 250, 0.06),
+      0 0 60px -20px rgba(167, 139, 250, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 50px 100px -30px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(167, 139, 250, 0.1),
+      0 0 90px -14px rgba(167, 139, 250, 0.42);
+  }
+}
+
+.mark {
+  animation: mark-glow-pulse 4.5s ease-in-out infinite;
+}
+
+@keyframes mark-glow-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(167, 139, 250, 0)); }
+  50% { filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.55)); }
+}
+
+.balance-refresh.spinning svg {
+  animation: spin 0.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  .page::before, .page::after { display: none; }
 }

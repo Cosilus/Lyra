@@ -1,13 +1,136 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { ethers } from "ethers";
-import { Check, Copy, ExternalLink, Loader2, RefreshCw, Send, WalletCards, Menu, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw } from "lucide-react";
-import { API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, UNISWAP_V3_FEE_TIERS, UNISWAP_V3_FACTORY_ABI, UNISWAP_V3_ROUTER_ABI, UNISWAP_V3_QUOTER_ABI, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx } from "./config";
+import { gsap } from "gsap";
+import { Check, Copy, ExternalLink, Loader2, RefreshCw, Send, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload } from "lucide-react";
+import { API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, UNISWAP_V3_FEE_TIERS, UNISWAP_V3_FACTORY_ABI, UNISWAP_V3_ROUTER_ABI, UNISWAP_V3_QUOTER_ABI, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx, KYBERSWAP_API_BASE, NATIVE_PSEUDO_ADDRESS, KYBERSWAP_CLIENT_ID } from "./config";
 import QRCode from "qrcode";
 import { QRCodeDisplay } from "./QRCodeDisplay";
 import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiometricPresence, encryptWithKey, decryptWithKey } from "./Biometric";
+import { CircleMenu } from "./CircleMenu";
 
 function shortAddress(a) {
   return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "";
+}
+
+// Traveling border light (replaces the old conic-gradient border-beam-spin):
+// measures the element and exposes its exact pixel outline as a CSS custom
+// property so a small glow can ride that path via offset-path/offset-distance.
+function useBorderPath() {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    function update() {
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      if (!w || !h) return;
+      el.style.setProperty("--path", `path('M 0 0 H ${w} V ${h} H 0 V 0')`);
+    }
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return ref;
+}
+
+// Split version of the border path above: instead of one loop starting at
+// the top-left corner, this exposes two mirrored halves that both start at
+// the top-middle point and race down to the bottom-middle point, one via
+// the left edge, one via the right, so two lights can travel outward from
+// the middle and meet again at the bottom, like the original hold-to-confirm
+// -> ticket reveal.
+function useSplitBorderPath() {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    function update() {
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      if (!w || !h) return;
+      const midX = w / 2;
+      el.style.setProperty("--path-left", `path('M ${midX} 0 H 0 V ${h} H ${midX}')`);
+      el.style.setProperty("--path-right", `path('M ${midX} 0 H ${w} V ${h} H ${midX}')`);
+    }
+
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return ref;
+}
+
+// KyberSwap deploys its MetaAggregationRouterV2 at this same address on
+// every chain it supports (CREATE2, identical bytecode/salt everywhere).
+// This is the contract executeSwapTicket actually sends to, via
+// buildData.data.routerAddress, not the Uniswap router kept in config.js
+// as a fallback. Without matching this, swap transactions never get
+// recognized and the Swap tab stays empty even after a real swap.
+const KYBERSWAP_ROUTER_V2 = "0x6131B5fae19EA4f9D964eAc0408E4408b66337b5".toLowerCase();
+
+// Buckets a raw explorer transaction into one of the tx-history tabs by
+// matching its `to` address against known DeFi contracts (KyberSwap's
+// aggregator router = swap, this network's Aave pool = stake/unstake,
+// LI.FI diamond = bridge). Anything that isn't a call into one of those
+// is a plain transfer, so it falls into "send" (which covers receives too).
+function classifyTx(tx, defi) {
+  const to = (tx.to || "").toLowerCase();
+  if (!to) return "send";
+  if (to === KYBERSWAP_ROUTER_V2) return "swap";
+  if (defi.aave?.pool && to === defi.aave.pool.toLowerCase()) return "stake";
+  if (defi.lifi?.diamond && to === defi.lifi.diamond.toLowerCase()) return "bridge";
+  return "send";
+}
+
+// The explorer backend returns up to three separate records per on-chain
+// action sharing the same hash: the "native" record is the actual call
+// (e.g. to KyberSwap's router or Aave's pool) and almost always carries
+// valueXPL: 0, since the real amount moves as an ERC-20 transfer ("token")
+// or a value returned by the contract ("internal"), rendering the native
+// leg alone for a swap/stake/bridge produces a meaningless "0 XPL sent to
+// 0x6131…" row. This groups the legs by hash, classifies each group from
+// its native leg (the one that actually reflects which contract was
+// called), and picks whichever leg carries the real, human-relevant
+// amount to display.
+function buildTxRows(list, walletAddress, defi) {
+  const addr = (walletAddress || "").toLowerCase();
+
+  const byHash = new Map();
+  for (const tx of list) {
+    if (!byHash.has(tx.hash)) byHash.set(tx.hash, []);
+    byHash.get(tx.hash).push(tx);
+  }
+
+  return Array.from(byHash.values()).map(legs => {
+    const native = legs.find(t => t.type === "native");
+    const category = classifyTx(native || legs[0], defi);
+
+    const outgoingToken = legs.find(t => t.type === "token" && t.from.toLowerCase() === addr);
+    const incomingToken = legs.find(t => t.type === "token" && t.to.toLowerCase() === addr);
+    const internalLeg = legs.find(t => t.type === "internal");
+
+    const display = outgoingToken || incomingToken || internalLeg || native || legs[0];
+    const isSent = display.from.toLowerCase() === addr;
+
+    return {
+      hash: legs[0].hash,
+      timestamp: legs[0].timestamp,
+      category,
+      display,
+      isSent,
+      counterparty: isSent ? display.to : display.from
+    };
+  }).sort((a, b) => b.timestamp - a.timestamp);
 }
 
 function fmtXpl(value, maxDecimals = 6) {
@@ -23,9 +146,33 @@ async function generateAddressQRCode(address, size = 120) {
   const output = await QRCode.toDataURL(address, {
     width: size,
     margin: 0,
-    color: { dark: "#150E20", light: "#F3E7D0" } // --void sur --beige, cohérent avec la palette
+    color: { dark: "#150E20", light: "#F3E7D0" } // --void on --beige, consistent with the palette
   });
   return { data: address, size, output };
+}
+
+// LI.FI's own short chain keys (e.g. "bas" for Base, "eth" for
+// Ethereum) are what the API needs, but they're not something a user
+// should ever see. This is display-only, never used for the actual
+// LI.FI request.
+const LIFI_CHAIN_DISPLAY_NAMES = {
+  pla: "Plasma",
+  eth: "Ethereum",
+  bas: "Base",
+  arb: "Arbitrum",
+  opt: "Optimism",
+  pol: "Polygon",
+  bsc: "BNB Chain",
+  avax: "Avalanche",
+  ftm: "Fantom",
+  gno: "Gnosis",
+  era: "zkSync Era",
+  lna: "Linea",
+  sca: "Scroll",
+};
+function lifiChainDisplayName(key) {
+  if (!key) return null;
+  return LIFI_CHAIN_DISPLAY_NAMES[key.toLowerCase()] || key;
 }
 
 function stepSummaryLine(step) {
@@ -35,13 +182,36 @@ function stepSummaryLine(step) {
     case "send":
       return `Send ${amt}${step.recipient ? ` to ${step.contactName || shortAddress(step.recipient)}` : ""}`;
     case "swap":
-      return `Swap ${amt} → ${step.ticket?.estimatedReceive || "…"} ${step.tokenOutSymbol || ""}`;
+      return `Swap ${amt} → ${step.ticket?.estimatedReceive || `… ${step.tokenOutSymbol || ""}`}`;
     case "stake":
       return `Stake ${amt} on ${step.ticket?.platform || "…"}`;
     case "unstake":
       return `Withdraw ${amt} from ${step.ticket?.platform || "…"}`;
     case "bridge":
-      return `Bridge ${amt} to ${step.destinationChainKey || "…"}`;
+      return `Bridge ${amt} to ${lifiChainDisplayName(step.destinationChainKey) || "…"}`;
+    default:
+      return amt;
+  }
+}
+
+// Past-tense counterpart to stepSummaryLine, used for the final multi-step
+// recap once every step has actually run, "Swap 1 XPL → …" (a plan, not
+// yet true) becomes "Swapped 1 XPL for 0.083 USDT0" (what happened).
+function completedSummaryLine(step) {
+  if (!step) return "";
+  const amt = `${step.amount ?? ""} ${step.asset || ""}`.trim();
+
+  switch (step.kind) {
+    case "send":
+      return `Sent ${amt}${step.recipient ? ` to ${step.contactName || shortAddress(step.recipient)}` : ""}`;
+    case "swap":
+      return `Swapped ${amt}${step.ticket?.estimatedReceive ? ` for ${step.ticket.estimatedReceive}` : ""}`;
+    case "stake":
+      return `Staked ${amt}${step.ticket?.platform ? ` on ${step.ticket.platform}` : ""}`;
+    case "unstake":
+      return `Withdrew ${amt}${step.ticket?.platform ? ` from ${step.ticket.platform}` : ""}`;
+    case "bridge":
+      return `Bridged ${amt}${step.destinationChainKey ? ` to ${lifiChainDisplayName(step.destinationChainKey)}` : ""}`;
     default:
       return amt;
   }
@@ -83,6 +253,39 @@ function saveContacts(contacts) {
     "plasma_contacts_v1",
     JSON.stringify(contacts)
   );
+}
+
+// Contacts live only in this browser's localStorage, no server sync,
+// no backup. Export/import is the only way to move them across a
+// cleared cache, a different browser, or a different device.
+function importContactsData(jsonText) {
+  const parsed = JSON.parse(jsonText);
+  if (!Array.isArray(parsed)) {
+    throw new Error("Expected a JSON array of contacts.");
+  }
+
+  const existing = loadContacts();
+  const existingAddresses = new Set(existing.map(c => c.address.toLowerCase()));
+  const seenInFile = new Set();
+  let added = 0;
+  let skipped = 0;
+
+  for (const entry of parsed) {
+    const name = typeof entry?.name === "string" ? entry.name.trim() : "";
+    const address = typeof entry?.address === "string" ? entry.address.trim() : "";
+
+    if (!name || !ethers.isAddress(address)) { skipped++; continue; }
+
+    const key = address.toLowerCase();
+    if (existingAddresses.has(key) || seenInFile.has(key)) { skipped++; continue; }
+
+    seenInFile.add(key);
+    existing.push({ name, address });
+    added++;
+  }
+
+  saveContacts(existing);
+  return { contacts: existing, added, skipped };
 }
 
 const PORTFOLIO_HISTORY_KEY = "plasma_portfolio_history_v1";
@@ -160,9 +363,9 @@ function filterHistoryByRange(history, rangeKey) {
   return filtered;
 }
 
-// Les anciens points enregistrés avant l'ajout du multi-réseau n'ont
-// pas de champ "network" — on les rattache à DEFAULT_NETWORK pour ne
-// pas les faire disparaître silencieusement de l'historique Plasma.
+// Old points saved before multi-network support was added don't have
+// a "network" field. We attach them to DEFAULT_NETWORK so they don't
+// silently disappear from the Plasma history.
 function filterHistoryByNetwork(history, networkKey) {
   return history.filter(p => (p.network || DEFAULT_NETWORK.key) === networkKey);
 }
@@ -304,60 +507,99 @@ function addContact(name, address) {
   saveContacts(contacts);
 }
 
-function HoldSquares({ progress }) {
+// Renders the center-out dot wipe used by the Hold-to-Confirm button.
+// Driven imperatively via drawRef (a plain ref the parent's
+// requestAnimationFrame loop calls directly with a 0-100 progress
+// value) instead of a `progress` prop, so a hold gesture never runs
+// through React state/re-render at all, see handleHoldStart. Passing
+// progress as normal render-driven state was forcing the entire
+// (huge) App component to re-render on every tick of the hold,
+// which is what made the animation look janky instead of fluid.
+function HoldSquares({ drawRef }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.parentElement) return;
 
-    const rect = canvas.parentElement.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = rect.width || 260;
-    const h = rect.height || 50;
-
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-
     const ctx = canvas.getContext("2d");
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
 
-    if (progress <= 0) return;
+    function draw(progress, now = 0) {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = rect.width || 260;
+      const h = rect.height || 50;
 
-    const p = progress / 100;
-    const CELL = 9;
-    const FRONT = 0.30;
-    const cols = Math.ceil(w / CELL);
-    const rows = Math.ceil(h / CELL);
-    const maxR = CELL * 1.25;
-    const half = w / 2;
+      const targetW = Math.round(w * dpr);
+      const targetH = Math.round(h * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
 
-    ctx.fillStyle = "#6D4FD1"; // --accent-deep, comme sur le site
+      if (progress <= 0) return;
 
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const cx = (col + 0.5) * CELL;
-        const cy = (row + 0.5) * CELL;
+      const p = progress / 100;
+      const CELL = 4;
+      const FRONT = 0.55;
+      const cols = Math.ceil(w / CELL);
+      const rows = Math.ceil(h / CELL);
+      const maxR = CELL * 1.25;
+      const half = w / 2;
+      const halfH = h / 2;
 
-        const dist = Math.abs(cx - half) / half;
-        const stagger = ((row % 3) - 1) * 0.02;
-        const threshold = Math.max(0, Math.min(1, dist + stagger)) * (1 - FRONT);
+      ctx.fillStyle = "#6D4FD1"; // --accent-deep, same as on the website
 
-        let t = (p - threshold) / FRONT;
-        t = Math.max(0, Math.min(1, t));
-        t = t * t * (3 - 2 * t);
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const cx = (col + 0.5) * CELL;
+          const cy = (row + 0.5) * CELL;
 
-        if (t <= 0.02) continue;
+          // A true 45°-rotated square growing from the center: raw
+          // Manhattan distance in actual pixels (not pre-stretched per
+          // axis), so it expands at the exact same rate in every
+          // diagonal direction, a genuinely regular, symmetric
+          // diamond, not an ellipse forced to fit the button's aspect
+          // ratio. Normalizing by (halfW + halfH) just makes dist hit
+          // 1 exactly at the button's real corners. Since the button
+          // is short and wide, the near top/bottom edges are reached
+          // early and the far left/right edges late, that's an
+          // honest side effect of the button's shape, not something
+          // this math tries to correct for.
+          const dx = Math.abs(cx - half);
+          const dy = Math.abs(cy - halfH);
+          const dist = (dx + dy) / (half + halfH);
+          const ripple = Math.sin(row * 0.9 + col * 0.35 + now * 0.0035) * 0.055;
+          const threshold = Math.max(0, Math.min(1, dist + ripple)) * (1 - FRONT);
 
-        const radius = maxR * t;
+          let t = (p - threshold) / FRONT;
+          t = Math.max(0, Math.min(1, t));
+          t = t * t * (3 - 2 * t);
 
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fill();
+          if (t <= 0.02) continue;
+
+          // Once a dot has grown in, it keeps a small continuous
+          // breathing pulse (scaled by t so it fades in with the dot,
+          // never affects still-hidden ones), matches the reference's
+          // shimmering halftone feel instead of freezing solid.
+          const breathe = 1 + Math.sin(now * 0.005 + col * 0.6 + row * 0.4) * 0.12 * t;
+          const radius = maxR * t * breathe;
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
-  }, [progress]);
+
+    draw(0);
+    drawRef.current = draw;
+    return () => {
+      if (drawRef.current === draw) drawRef.current = null;
+    };
+  }, [drawRef]);
 
   return <canvas ref={canvasRef} className="hold-squares" />;
 }
@@ -377,6 +619,7 @@ export default function App() {
   const [showUnlockPasswordText, setShowUnlockPasswordText] = useState(false);
   const [unlockError, setUnlockError] = useState("");
   const [balance, setBalance] = useState(0n);
+  const [balanceLoading, setBalanceLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("Ready");
   const [input, setInput] = useState("");
@@ -388,8 +631,51 @@ export default function App() {
   const [txHash, setTxHash] = useState("");
   const [sendAmountUSD, setSendAmountUSD] = useState("");
   const [sendPriceUSD, setSendPriceUSD] = useState(null);
+  // Real estimated network fee for the pending send ticket, fetched from
+  // the RPC (gas estimate x current fee-per-gas) instead of the static
+  // "Calculated when preparing" placeholder the ticket used to show.
+  const [sendFeeEstimate, setSendFeeEstimate] = useState(null); // bigint (wei) | null
+  const [sendFeeEstimateError, setSendFeeEstimateError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!showSend || !sendTo || !ethers.isAddress(sendTo) || !sendAmount || Number(sendAmount) <= 0) {
+      setSendFeeEstimate(null);
+      setSendFeeEstimateError(false);
+      return;
+    }
+
+    (async () => {
+      try {
+        const [gasEstimate, feeData] = await Promise.all([
+          RPC.estimateGas({
+            from: wallet?.address,
+            to: sendTo,
+            value: ethers.parseEther(sendAmount)
+          }),
+          RPC.getFeeData()
+        ]);
+        if (cancelled) return;
+        const feePerGas = feeData.maxFeePerGas || feeData.gasPrice || 0n;
+        setSendFeeEstimate(gasEstimate * feePerGas);
+        setSendFeeEstimateError(false);
+      } catch (e) {
+        console.error("Send fee estimate failed:", e);
+        if (cancelled) return;
+        setSendFeeEstimate(null);
+        setSendFeeEstimateError(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [showSend, sendTo, sendAmount, activeNetworkKey, wallet?.address]);
+
   const [showDetails, setShowDetails] = useState(false);
-  const [holdProgress, setHoldProgress] = useState(0);
+  // Holds the HoldSquares canvas's imperative draw(progress) function
+  // (whichever of the 3 hold buttons is currently mounted). Not
+  // useState on purpose, see the comment on HoldSquares above.
+  const holdCanvasDrawRef = useRef(null);
   const [pendingTransaction, setPendingTransaction] = useState({
   amount: null,
   recipient: null
@@ -400,9 +686,20 @@ export default function App() {
   const [contacts, setContacts] = useState(() => loadContacts());
   const [contactSavedMessage, setContactSavedMessage] = useState("");
   const [contactSaved, setContactSaved] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
+  // "Save as contact" on a ticket opens an inline name field instead of
+  // saving immediately with the placeholder name. This is that field's
+  // open/closed state and its current text, reset whenever a new
+  // suggestedContact comes in (see the useEffect near suggestedContact).
+  const [editingContactName, setEditingContactName] = useState(false);
+  const [contactNameInput, setContactNameInput] = useState("");
+  useEffect(() => {
+    setEditingContactName(false);
+    setContactNameInput("");
+  }, [suggestedContact]);
   const [showNetworkMenu, setShowNetworkMenu] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showContacts, setShowContacts] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
   const [editingContact, setEditingContact] = useState(null);
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContactName, setNewContactName] = useState("");
@@ -431,13 +728,20 @@ export default function App() {
   const holdIntervalRef = useRef(null);
   const inactivityTimerRef = useRef(null);
   const headerMenuRef = useRef(null);
-  const networkSwitchRef = useRef(null);
+  const chatEmptyPathRef = useBorderPath();
+  const chatScrollRef = useRef(null);
+  const importContactsInputRef = useRef(null);
 
-  // Historique des transactions (menu hamburger)
+  // Transaction history (hamburger menu)
   const [showTxHistory, setShowTxHistory] = useState(false);
   const [txHistoryList, setTxHistoryList] = useState([]);
   const [txHistoryLoading, setTxHistoryLoading] = useState(false);
   const [txHistoryError, setTxHistoryError] = useState("");
+  const [txHistoryTab, setTxHistoryTab] = useState("send");
+  const txHistoryRows = useMemo(
+    () => buildTxRows(txHistoryList, wallet?.address, defi).filter(r => r.category === txHistoryTab),
+    [txHistoryList, wallet?.address, defi, txHistoryTab]
+  );
 
   // Settings
   const [showSettings, setShowSettings] = useState(false);
@@ -467,30 +771,61 @@ export default function App() {
   const [portfolioHistory, setPortfolioHistory] = useState(() => loadPortfolioHistory());
   const [xplPriceUSD, setXplPriceUSD] = useState(null);
   const [tokenBalances, setTokenBalances] = useState({}); 
-  const [stakedBalances, setStakedBalances] = useState({}); 
+  const [stakedBalances, setStakedBalances] = useState({});
+  const [stakedApy, setStakedApy] = useState({});
   const [defiTicket, setDefiTicket] = useState(null); 
   const [multiTicket, setMultiTicket] = useState(null); 
-  const [collapsedTickets, setCollapsedTickets] = useState([]); 
-  const [expandedSteps, setExpandedSteps] = useState({}); 
+  const [collapsedTickets, setCollapsedTickets] = useState([]);
+  const [expandedSteps, setExpandedSteps] = useState({});
 
-  // Execution progress checklist — real progress of the on-chain
+  // Auto-scrolls the chat panel to reveal whatever just got added, a
+  // new message, the "thinking" bubble, a QR code, a collapsed-ticket
+  // chip, since nothing here did that on its own before, and new
+  // content could land below the fold with no visual cue that scrolling
+  // would reveal it.
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [messages.length, busy, qrCode, qrLoading, qrError, collapsedTickets.length]);
+
+  // Execution progress checklist, real progress of the on-chain
   // sub-actions the AI is running under a single "Hold to Confirm".
   const [executionSteps, setExecutionSteps] = useState([]); // string[]
   const [executionStepIndex, setExecutionStepIndex] = useState(-1); // -1 = none done yet
   const [executionLabel, setExecutionLabel] = useState("");
+  const [planStepIndex, setPlanStepIndex] = useState(-1); // index of the plan step currently executing
+  
 
   // Once true, the ticket's "top" (title/summary/details/warning)
   // collapses away, like the deposit demo video's Before card sliding
-  // up — leaving only the checklist, grown to fill the panel.
+  // up, leaving only the checklist, grown to fill the panel.
   const [ticketTopCollapsed, setTicketTopCollapsed] = useState(false);
 
+  // Between two plan steps (Step 1 -> Step 2 -> ...): the checklist swaps
+  // straight to the next step's content (same beat as Hold-to-Confirm ->
+  // Step 1) while the same border wave plays around the whole ticket frame
+  // on its own timer (stepSweepActive), purely decorative, never blocking
+  // the real execution underneath.
+  const [stepSweepActive, setStepSweepActive] = useState(false);
+  // Per-step tx hash (index-aligned with multiTicket.steps) so the final
+  // recap can link each accomplished step to its own transaction, and a
+  // flag that swaps the last step's checklist for that recap once
+  // everything's done.
+  const [stepTxHashes, setStepTxHashes] = useState([]);
+  const [multiTicketDone, setMultiTicketDone] = useState(false);
+
   function resetExecutionProgress() {
-    setExecutionSteps([]);
-    setExecutionStepIndex(-1);
-    setExecutionLabel("");
-    setTicketTopCollapsed(false);
-    setWaveActive(false);
-  }
+  setExecutionSteps([]);
+  setExecutionStepIndex(-1);
+  setExecutionLabel("");
+  setTicketTopCollapsed(false);
+  setWaveActive(false);
+  setPlanStepIndex(-1);
+  setStepSweepActive(false);
+  setStepTxHashes([]);
+  setMultiTicketDone(false);
+}
 
   // Guarantees the checklist stays on screen at least
   // MIN_EXECUTION_DISPLAY_MS, even if every underlying tx confirms
@@ -521,7 +856,7 @@ export default function App() {
 }, [activeNetworkKey]);
 
 // Re-fetches everything for the newly active network. Runs whenever
-// activeNetworkKey changes — RPC/tokens/defi above have already been
+// activeNetworkKey changes. RPC/tokens/defi above have already been
 // re-derived by the time this fires, since useMemo runs during render.
 useEffect(() => {
   if (wallet?.address && !locked) {
@@ -533,8 +868,15 @@ useEffect(() => {
 }, [activeNetworkKey]);
 
   // Fires the "top collapses" half of the transition shortly after
-  // the checklist first appears — mirrors the video's timing where
+  // the checklist first appears, mirrors the video's timing where
   // the Before card slides away right after the After list starts.
+  //
+  // ticketTopCollapsed is read as a guard but deliberately left out of the
+  // dependency array: this effect's own 950ms timer is what sets it, and
+  // depending on it here would make that same timer re-trigger this effect
+  // the moment it fires, cancelling the still-pending 2400ms waveTimer in
+  // the cleanup, then finding the guard now false on re-entry and never
+  // scheduling a replacement, leaving waveActive stuck true forever.
   useEffect(() => {
   if (busy && executionSteps.length > 0 && !ticketTopCollapsed) {
     setWaveActive(true);
@@ -545,7 +887,8 @@ useEffect(() => {
       clearTimeout(waveTimer);
     };
   }
-}, [busy, executionSteps.length, ticketTopCollapsed]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [busy, executionSteps.length]);
 
   useEffect(() => {
     setExpandedSteps({});
@@ -676,6 +1019,26 @@ useEffect(() => {
   );
   const result = Object.fromEntries(entries);
   setStakedBalances(result);
+
+  // Real pool APY per staked asset, read straight from Aave, same
+  // liquidityRate the AI's get_aave_apy tool reads server-side.
+  const apyEntries = await Promise.all(
+    Object.entries(tokens)
+      .filter(([symbol]) => (result[symbol] || 0n) > 0n)
+      .map(async ([symbol, token]) => {
+        try {
+          const reserve = await dataProvider.getReserveData(token.address);
+          const liquidityRateRay = reserve[5];
+          const apr = Number(liquidityRateRay) / 1e27 * 100;
+          return [symbol, apr];
+        } catch (e) {
+          console.error(`${symbol} Aave APY unavailable:`, e);
+          return [symbol, null];
+        }
+      })
+  );
+  setStakedApy(Object.fromEntries(apyEntries));
+
   return result;
 }
 
@@ -705,7 +1068,7 @@ useEffect(() => {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/transactions/${wallet.address}`
+        `${API_BASE_URL}/api/transactions/${wallet.address}?network=${activeNetworkKey}`
       );
       const data = await response.json();
 
@@ -716,7 +1079,7 @@ useEffect(() => {
       setTxHistoryList(data.transactions || []);
     } catch (e) {
       console.error(e);
-      setTxHistoryError(e.message || "Erreur lors du chargement.");
+      setTxHistoryError(e.message || "Error while loading.");
     } finally {
       setTxHistoryLoading(false);
     }
@@ -750,23 +1113,23 @@ useEffect(() => {
 
   async function fetchPrice() {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/price/xpl`);
+      const response = await fetch(`${API_BASE_URL}/api/price/xpl?network=${activeNetworkKey}`);
       const data = await response.json();
 
       if (cancelled) return;
 
       if (!response.ok) {
-        // On log désormais la vraie raison de l'échec (429 CoinGecko,
-        // backend down, etc.) au lieu de disparaître en silence.
-        console.error("XPL price endpoint error:", response.status, data?.error);
+        // Now logging the real failure reason (429 from CoinGecko,
+        // backend down, etc.) instead of silently disappearing.
+        console.error("Native price endpoint error:", response.status, data?.error);
         return;
       }
 
       setXplPriceUSD(data.priceUSD);
-      // data.stale === true si le backend sert son dernier prix connu
-      // faute d'avoir pu recontacter CoinGecko à temps.
+      // data.stale === true if the backend is serving its last known
+      // price because it couldn't reach CoinGecko in time.
     } catch (e) {
-      console.error("XPL price unavailable:", e);
+      console.error("Native price unavailable:", e);
     }
   }
 
@@ -777,7 +1140,7 @@ useEffect(() => {
     cancelled = true;
     clearInterval(interval);
   };
-}, []);
+}, [activeNetworkKey]);
 
 useEffect(() => {
   if (!wallet || locked || autoLockMinutes === 0) return;
@@ -809,20 +1172,18 @@ useEffect(() => {
 }, [autoLockMinutes]);
 
 useEffect(() => {
-  if (!showMenu && !showNetworkMenu) return;
+  if (!menuOpen) return;
 
   function handlePointerDown(e) {
-    if (showMenu && headerMenuRef.current && !headerMenuRef.current.contains(e.target)) {
-      setShowMenu(false);
-    }
-    if (showNetworkMenu && networkSwitchRef.current && !networkSwitchRef.current.contains(e.target)) {
+    if (headerMenuRef.current && !headerMenuRef.current.contains(e.target)) {
+      setMenuOpen(false);
       setShowNetworkMenu(false);
     }
   }
 
   function handleKeyDown(e) {
     if (e.key === "Escape") {
-      setShowMenu(false);
+      setMenuOpen(false);
       setShowNetworkMenu(false);
     }
   }
@@ -834,13 +1195,14 @@ useEffect(() => {
     document.removeEventListener("mousedown", handlePointerDown);
     document.removeEventListener("keydown", handleKeyDown);
   };
-}, [showMenu, showNetworkMenu]);
+}, [menuOpen]);
+
 
 function lockWallet() {
   setUnlockedPrivateKey(null);
   setLocked(true);
   setShowUnlock(true);
-  setShowMenu(false);
+  setMenuOpen(false);
   setUnlockPassword("");
 }
 
@@ -877,7 +1239,7 @@ async function unlockWallet() {
       w.address.toLowerCase() !==
       saved.address.toLowerCase()
     ) {
-      throw new Error("Wallet invalide.");
+      throw new Error("Invalid wallet.");
     }
 
     setUnlockedPrivateKey(privateKey);
@@ -1024,6 +1386,7 @@ async function unlockWithBiometric() {
 
   async function refreshBalance(address = wallet?.address) {
   if (!address) return;
+  setBalanceLoading(true);
   try {
     setStatus("Reading the network…");
     const b = await RPC.getBalance(address);
@@ -1047,7 +1410,9 @@ async function unlockWithBiometric() {
   } catch (e) {
     console.error(e);
     setStatus("RPC unavailable");
-    setToast("Network unavailable — couldn't refresh the balance.");
+    setToast("Network unavailable, couldn't refresh the balance.");
+  } finally {
+    setBalanceLoading(false);
   }
 }
 
@@ -1169,6 +1534,60 @@ async function unlockWithBiometric() {
     setStatus("Approving the token…");
     const tx = await token.approve(spender, amount);
     await tx.wait();
+
+    // Pooled RPC providers load-balance across multiple backend nodes.
+    // The node that confirmed the approve tx above isn't guaranteed to be
+    // the same one the very next call (the spend transaction's own gas
+    // estimation) lands on, and that node can still be a block behind.
+    // Re-read the allowance from this same signer/provider and give it a
+    // few short retries instead of trusting the receipt alone. This is
+    // exactly the gap that produced "transfer amount exceeds allowance"
+    // reverts on an approve that had, in fact, already gone through.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const confirmed = await token.allowance(owner, spender);
+      if (confirmed >= amount) return;
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
+
+    throw new Error("The token approval hasn't propagated yet, please try again in a moment.");
+  }
+
+  // ethers' sendTransaction() auto-runs eth_estimateGas before broadcasting
+  // unless a gasLimit is given, and that simulation is a fresh RPC call
+  // that can independently land on a pooled provider's node that's still a
+  // block behind, even after ensureAllowance() above already confirmed the
+  // approval is visible. That's what turns a real, already-succeeded
+  // approve() into a spend transaction that fails pre-flight with something
+  // like "TRANSFER_FROM_FAILED" or "transfer amount exceeds allowance".
+  // Retry the whole send a couple of times with a short delay before
+  // surfacing it as a real error. Anything that isn't this specific class
+  // of failure is rethrown immediately, no point retrying a genuine revert.
+  // Same pooled-RPC-consistency issue as above, showing up differently:
+  // eth_estimateGas can succeed (returning a gasLimit) against a node whose
+  // view of state is *slightly* behind what actually gets mined, so the
+  // real execution takes a marginally more expensive path than the one that
+  // was estimated and runs out of gas right at the end, a supply() call
+  // that consumed 97% of its estimated limit before reverting with no
+  // decodable reason is exactly that failure mode, not a genuine business
+  // logic revert. Padding the estimate gives headroom for that gap without
+  // hardcoding a flat gas number that could be wrong for an unusually
+  // complex route.
+  async function estimateGasPadded(estimateFn) {
+    const estimate = await estimateFn();
+    return (estimate * 130n) / 100n;
+  }
+
+  async function sendTxWithAllowanceRetry(sendFn) {
+    const ALLOWANCE_ERROR_PATTERN = /allowance|transfer_from_failed/i;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await sendFn();
+      } catch (e) {
+        const message = `${e?.reason || ""} ${e?.shortMessage || ""} ${e?.message || ""}`;
+        if (attempt === 2 || !ALLOWANCE_ERROR_PATTERN.test(message)) throw e;
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
   }
 
   // ---------------------------------------------------------------
@@ -1178,17 +1597,16 @@ async function unlockWithBiometric() {
   // will actually perform, so the "Confirm transaction in wallet"
   // checklist tells the truth about what's happening under the
   // single Hold-to-Confirm gesture, rather than a generic animation.
+
+  
   function buildSwapSteps(ticket) {
-    const isNativeIn = ticket.asset === activeNetwork.nativeSymbol;
-    const isNativeOut = ticket.tokenOutSymbol === activeNetwork.nativeSymbol;
-    const steps = [];
-    if (isNativeIn) steps.push(`Wrap ${activeNetwork.nativeSymbol}`);
-    steps.push(`Approve ${ticket.asset}`);
-    steps.push("Get swap quote");
-    steps.push(`Swap ${ticket.asset} → ${ticket.tokenOutSymbol || "token"}`);
-    if (isNativeOut) steps.push(`Unwrap to ${activeNetwork.nativeSymbol}`);
-    return steps;
-  }
+  const isNativeIn = ticket.asset === activeNetwork.nativeSymbol;
+  const steps = [];
+  if (!isNativeIn) steps.push(`Approve ${ticket.asset}`);
+  steps.push("Get swap route");
+  steps.push(`Swap ${ticket.asset} → ${ticket.tokenOutSymbol || "token"}`);
+  return steps;
+}
 
   function buildStakeSteps(ticket) {
     if (ticket.intent === "UNSTAKE_XPL") {
@@ -1198,11 +1616,11 @@ async function unlockWithBiometric() {
   }
 
   function buildBridgeSteps(ticket) {
-    return [
-      "Get bridge quote",
-      `Approve ${ticket.asset}`,
-      `Bridge ${ticket.asset} to ${ticket.destinationChainKey || "destination chain"}`
-    ];
+    const isNative = ticket.asset === activeNetwork.nativeSymbol;
+    const steps = ["Get bridge quote"];
+    if (!isNative) steps.push(`Approve ${ticket.asset}`);
+    steps.push(`Bridge ${ticket.asset} to ${lifiChainDisplayName(ticket.destinationChainKey) || "destination chain"}`);
+    return steps;
   }
 
   function stepsForDefiTicket(ticket) {
@@ -1225,112 +1643,105 @@ async function unlockWithBiometric() {
   }
 
   // Marks the next N sub-steps as done in one go (used when a stretch
-  // of steps — e.g. an allowance that turned out to already be
-  // sufficient — completes without its own tx to wait on).
+  // of steps, e.g. an allowance that turned out to already be
+  // sufficient, completes without its own tx to wait on).
   function advanceExecutionTo(index) {
     setExecutionStepIndex(i => Math.max(i, index));
   }
 
-  async function executeSwapTicket(signer, ticket) {
+ async function executeSwapTicket(signer, ticket) {
   const assetInSymbol = ticket.asset;
   const assetOutSymbol = ticket.tokenOutSymbol;
 
   const isNativeIn = assetInSymbol === activeNetwork.nativeSymbol;
   const isNativeOut = assetOutSymbol === activeNetwork.nativeSymbol;
 
-  const tokenIn = isNativeIn ? nativeWrapped : tokens[assetInSymbol];
-  const tokenOut = isNativeOut ? nativeWrapped : tokens[assetOutSymbol];
+  const tokenInAddress = isNativeIn ? NATIVE_PSEUDO_ADDRESS : tokens[assetInSymbol]?.address;
+  const tokenOutAddress = isNativeOut ? NATIVE_PSEUDO_ADDRESS : tokens[assetOutSymbol]?.address;
+  const tokenInDecimals = isNativeIn ? 18 : tokens[assetInSymbol]?.decimals;
 
-  if (!tokenIn?.address || tokenIn.address === ethers.ZeroAddress) {
-    throw new Error(`${assetInSymbol} is not supported for swaps yet on ${activeNetwork.name} (missing or unsupported address).`);
-  }
-  if (!tokenOut?.address || tokenOut.address === ethers.ZeroAddress) {
-    throw new Error("The output token for this swap isn't configured (missing or unsupported address).");
-  }
+  if (!tokenInAddress) throw new Error(`${assetInSymbol} isn't supported for swaps on ${activeNetwork.name}.`);
+  if (!tokenOutAddress) throw new Error("The output token isn't configured.");
 
-  // Cursor-based progress: each real action bumps the checklist by
-  // exactly one, in the same order buildSwapSteps() lists them, so
-  // the substeps and the "all done" state can never fall out of
-  // sync with however many optional steps (wrap/unwrap) this
-  // particular swap actually needs.
   const steps = buildSwapSteps(ticket);
   let stepCursor = 0;
-  const nextStep = () => {
-    advanceExecutionTo(stepCursor);
-    stepCursor += 1;
-  };
+  const nextStep = () => { advanceExecutionTo(stepCursor); stepCursor += 1; };
 
-  const amountIn = ethers.parseUnits(String(ticket.amount), tokenIn.decimals);
+  const amountIn = ethers.parseUnits(String(ticket.amount), tokenInDecimals);
+  if (amountIn <= 0n) {
+    throw new Error(`Nothing to swap, the resolved ${assetInSymbol} amount came out to 0.`);
+  }
   const signerAddress = await signer.getAddress();
+  const chainSlug = activeNetwork.kyberSlug; // to add in NETWORKS, e.g. "ethereum"
 
-  if (isNativeIn) {
-    setStatus(`Wrapping ${activeNetwork.nativeSymbol} into ${nativeWrapped.symbol}…`);
-    const wrapped = new ethers.Contract(nativeWrapped.address, WETH9_ABI, signer);
-    const wrapTx = await wrapped.deposit({ value: amountIn });
-    await wrapTx.wait();
+  // 1. Approve (if not native)
+  let routerAddress = null;
+
+  setStatus("Fetching the KyberSwap route…");
+const routeUrl = new URL(`${KYBERSWAP_API_BASE(chainSlug)}/routes`);
+routeUrl.searchParams.set("tokenIn", tokenInAddress);
+routeUrl.searchParams.set("tokenOut", tokenOutAddress);
+routeUrl.searchParams.set("amountIn", amountIn.toString());
+
+const routeRes = await fetch(routeUrl, {
+  headers: { "X-Client-Id": KYBERSWAP_CLIENT_ID }
+});
+const routeData = await routeRes.json();
+if (!routeRes.ok || !routeData.data?.routeSummary) {
+  console.error("KyberSwap route error:", routeRes.status, routeData);
+  throw new Error(routeData.message || "KyberSwap couldn't compute a route.");
+}
+nextStep();
+
+setStatus("Preparing the transaction…");
+const slippage = ticket.slippage ?? DEFAULT_SLIPPAGE;
+const buildRes = await fetch(`${KYBERSWAP_API_BASE(chainSlug)}/route/build`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Client-Id": KYBERSWAP_CLIENT_ID
+  },
+  body: JSON.stringify({
+    routeSummary: routeData.data.routeSummary,
+    sender: signerAddress,
+    recipient: signerAddress,
+    slippageTolerance: Math.round(slippage * 10000) // in bips
+  })
+});
+const buildData = await buildRes.json();
+if (!buildRes.ok || !buildData.data?.data) {
+  console.error("KyberSwap build error:", buildRes.status, buildData);
+  throw new Error(buildData.message || "KyberSwap couldn't build the transaction.");
+}
+
+  routerAddress = buildData.data.routerAddress;
+
+  if (!isNativeIn) {
+    setStatus(`Approving ${assetInSymbol}…`);
+    await ensureAllowance(signer, tokenInAddress, routerAddress, amountIn);
     nextStep();
   }
 
-  setStatus(`Approving ${assetInSymbol}…`);
-  await ensureAllowance(signer, tokenIn.address, defi.uniswapV3.router, amountIn);
-  nextStep();
-
-  setStatus("Looking up the Uniswap V3 pool…");
-  const found = await findUniswapV3Pool(tokenIn.address, tokenOut.address);
-  if (!found) {
-    throw new Error(`No Uniswap V3 pool found on ${activeNetwork.name} for ${assetInSymbol}/${assetOutSymbol}.`);
-  }
-
-  setStatus("Getting a quote…");
-  const quoter = new ethers.Contract(defi.uniswapV3.quoter, UNISWAP_V3_QUOTER_ABI, RPC);
-  const slippage = ticket.slippage ?? DEFAULT_SLIPPAGE;
-  let amountOutMinimum = 0n;
-
-  try {
-    const quoteResult = await quoter.quoteExactInputSingle.staticCall({
-      tokenIn: tokenIn.address,
-      tokenOut: tokenOut.address,
-      amountIn,
-      fee: found.fee,
-      sqrtPriceLimitX96: 0n
-    });
-    const expectedOut = quoteResult[0];
-    amountOutMinimum = expectedOut - (expectedOut * BigInt(Math.round(slippage * 10000))) / 10000n;
-  } catch (e) {
-    console.error("Uniswap quote unavailable, proceeding without a minimum:", e);
-  }
-  nextStep();
-
-  const router = new ethers.Contract(defi.uniswapV3.router, UNISWAP_V3_ROUTER_ABI, signer);
-
   setStatus("Sending the swap…");
-  const swapTx = await router.exactInputSingle({
-    tokenIn: tokenIn.address,
-    tokenOut: tokenOut.address,
-    fee: found.fee,
-    recipient: signerAddress,
-    amountIn,
-    amountOutMinimum,
-    sqrtPriceLimitX96: 0n
+  const swapTxRequest = {
+    to: buildData.data.routerAddress,
+    data: buildData.data.data,
+    value: isNativeIn ? amountIn : 0n
+  };
+  // The gas estimate and the send are retried together, if the estimate
+  // itself hits the stale-allowance read, retrying only the send would
+  // never get a chance to re-estimate against the now-current state.
+  const tx = await sendTxWithAllowanceRetry(async () => {
+    swapTxRequest.gasLimit = await estimateGasPadded(() => signer.estimateGas(swapTxRequest));
+    return signer.sendTransaction(swapTxRequest);
   });
-  await swapTx.wait();
-  nextStep();
-
-  if (!isNativeOut) {
-    advanceExecutionTo(steps.length); // sentinel: guarantees "all done" regardless of step count
-    return swapTx;
-  }
-
-  setStatus(`Unwrapping ${nativeWrapped.symbol} back into native ${activeNetwork.nativeSymbol}…`);
-  const wrappedOut = new ethers.Contract(nativeWrapped.address, WETH9_ABI, signer);
-  const receivedWrapped = await wrappedOut.balanceOf(signerAddress);
-  const unwrapTx = await wrappedOut.withdraw(receivedWrapped);
-  nextStep();
+  await tx.wait();
   advanceExecutionTo(steps.length); // sentinel
-  return unwrapTx;
+
+  return tx;
 }
 
-  async function executeStakeTicket(signer, ticket) {
+async function executeStakeTicket(signer, ticket) {
   const token = tokens[ticket.asset];
   if (!token?.address || token.address === ethers.ZeroAddress) {
     throw new Error(`${ticket.asset} isn't supported for staking yet on ${activeNetwork.name}.`);
@@ -1339,12 +1750,19 @@ async function unlockWithBiometric() {
     throw new Error(`Staking isn't configured for ${activeNetwork.name} yet.`);
   }
   const amount = ethers.parseUnits(String(ticket.amount), token.decimals);
+  if (amount <= 0n) {
+    throw new Error(`Nothing to stake, the resolved ${ticket.asset} amount came out to 0.`);
+  }
   setStatus(`Approving ${ticket.asset}…`);
   await ensureAllowance(signer, token.address, defi.aave.pool, amount);
   advanceExecutionTo(0);
   const pool = new ethers.Contract(defi.aave.pool, AAVE_POOL_ABI, signer);
   setStatus("Depositing to Aave…");
-  const tx = await pool.supply(token.address, amount, await signer.getAddress(), 0);
+  const signerAddress = await signer.getAddress();
+  const tx = await sendTxWithAllowanceRetry(async () => {
+    const gasLimit = await estimateGasPadded(() => pool.supply.estimateGas(token.address, amount, signerAddress, 0));
+    return pool.supply(token.address, amount, signerAddress, 0, { gasLimit });
+  });
   await tx.wait();
   advanceExecutionTo(buildStakeSteps(ticket).length); // sentinel: guarantees "all done"
   return tx;
@@ -1358,17 +1776,31 @@ async function executeUnstakeTicket(signer, ticket) {
   if (!defi.aave?.pool) {
     throw new Error(`Staking isn't configured for ${activeNetwork.name} yet.`);
   }
-  const amount = ethers.parseUnits(String(ticket.amount), token.decimals);
+  // Nothing that computes "how much do I actually have staked" ever
+  // fed into this ticket. Swap/bridge quotes and Aave's supply rate
+  // are the only real data the AI has tools to fetch, so an unqualified
+  // "withdraw my USDC" naturally resolves to an unusable 0 rather than
+  // a real number. Aave's own withdraw() already has a built-in "cap to
+  // whatever I actually have" mode via the max-uint256 sentinel, use
+  // it instead of failing outright, matching what Aave's own UI does
+  // for a "Withdraw Max" action.
+  const requestedAmount = ticket.amount ? ethers.parseUnits(String(ticket.amount), token.decimals) : 0n;
+  const amount = requestedAmount > 0n ? requestedAmount : ethers.MaxUint256;
   const pool = new ethers.Contract(defi.aave.pool, AAVE_POOL_ABI, signer);
   setStatus("Withdrawing from Aave…");
-  const tx = await pool.withdraw(token.address, amount, await signer.getAddress());
+  const withdrawSignerAddress = await signer.getAddress();
+  const gasLimit = await estimateGasPadded(() => pool.withdraw.estimateGas(token.address, amount, withdrawSignerAddress));
+  const tx = await pool.withdraw(token.address, amount, withdrawSignerAddress, { gasLimit });
   await tx.wait();
   advanceExecutionTo(buildStakeSteps(ticket).length); // sentinel: guarantees "all done"
   return tx;
 }
 
   async function executeBridgeTicket(signer, ticket) {
-  const token = tokens[ticket.asset];
+  const isNative = ticket.asset === activeNetwork.nativeSymbol;
+  const token = isNative
+    ? { address: NATIVE_PSEUDO_ADDRESS, decimals: 18 }
+    : tokens[ticket.asset];
   if (!token?.address || token.address === ethers.ZeroAddress) {
     throw new Error(`${ticket.asset} isn't supported for bridging on ${activeNetwork.name}.`);
   }
@@ -1380,6 +1812,9 @@ async function executeUnstakeTicket(signer, ticket) {
   }
 
   const amount = ethers.parseUnits(String(ticket.amount), token.decimals);
+  if (amount <= 0n) {
+    throw new Error(`Nothing to bridge, the resolved ${ticket.asset} amount came out to 0.`);
+  }
   const fromAddress = await signer.getAddress();
 
   setStatus("Fetching the LI.FI quote…");
@@ -1387,7 +1822,12 @@ async function executeUnstakeTicket(signer, ticket) {
   url.searchParams.set("fromChain", String(activeNetwork.chainId));
   url.searchParams.set("toChain", ticket.destinationChainKey);
   url.searchParams.set("fromToken", token.address);
-  url.searchParams.set("toToken", token.address);
+  // The destination token lives on a different chain, so it has a
+  // different contract address there, reusing the source chain's
+  // address (as before) made LI.FI look for that exact address on the
+  // destination chain and fail. LI.FI resolves a plain symbol per
+  // chain on its own, so pass the asset symbol here instead.
+  url.searchParams.set("toToken", ticket.asset);
   url.searchParams.set("fromAmount", amount.toString());
   url.searchParams.set("fromAddress", fromAddress);
   url.searchParams.set("slippage", String(ticket.slippage ?? DEFAULT_SLIPPAGE));
@@ -1398,22 +1838,29 @@ async function executeUnstakeTicket(signer, ticket) {
   if (!response.ok || !quote.transactionRequest) {
     throw new Error(quote.error || "LI.FI couldn't provide a transaction for this bridge.");
   }
-  advanceExecutionTo(0);
+  let stepCursor = 0;
+  advanceExecutionTo(stepCursor++);
 
-  setStatus(`Approving ${ticket.asset}…`);
-  await ensureAllowance(
-    signer,
-    token.address,
-    quote.estimate?.approvalAddress || defi.lifi.diamond,
-    amount
-  );
-  advanceExecutionTo(1);
+  if (!isNative) {
+    setStatus(`Approving ${ticket.asset}…`);
+    await ensureAllowance(
+      signer,
+      token.address,
+      quote.estimate?.approvalAddress || defi.lifi.diamond,
+      amount
+    );
+    advanceExecutionTo(stepCursor++);
+  }
 
   setStatus("Sending the bridge transaction…");
-  const tx = await signer.sendTransaction({
+  const bridgeTxRequest = {
     to: quote.transactionRequest.to,
     data: quote.transactionRequest.data,
     value: quote.transactionRequest.value ? BigInt(quote.transactionRequest.value) : 0n
+  };
+  const tx = await sendTxWithAllowanceRetry(async () => {
+    bridgeTxRequest.gasLimit = await estimateGasPadded(() => signer.estimateGas(bridgeTxRequest));
+    return signer.sendTransaction(bridgeTxRequest);
   });
   await tx.wait();
   advanceExecutionTo(buildBridgeSteps(ticket).length); // sentinel: guarantees "all done"
@@ -1469,12 +1916,37 @@ async function executeUnstakeTicket(signer, ticket) {
 
       await refreshBalance(signer.address);
 
-      // Ticket stays open with the checklist fully checked — the
+      // Ticket stays open with the checklist fully checked, the
       // user closes it manually (Done button) once they've seen it.
 
     } finally {
       await finishExecution();
     }
+  }
+
+  // Reads the exact amount of `tokenAddress` the receipt's logs show
+  // arriving at `ownerAddress`, the reliable way to know "how much did
+  // this step actually produce" (a swap's output, an Aave withdrawal)
+  // instead of a before/after balance diff, which a stale RPC read or
+  // unrelated wallet activity can silently turn into a wrong number.
+  // Returns null if no matching Transfer log is found (e.g. the asset
+  // is the native coin, which doesn't emit one) so the caller can fall
+  // back to a balance diff for that case.
+  function readReceivedAmount(receipt, tokenAddress, ownerAddress) {
+    if (!tokenAddress) return null;
+    const iface = new ethers.Interface(ERC20_ABI);
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== tokenAddress.toLowerCase()) continue;
+      try {
+        const parsed = iface.parseLog(log);
+        if (parsed?.name === "Transfer" && parsed.args.to.toLowerCase() === ownerAddress.toLowerCase()) {
+          return parsed.args.value;
+        }
+      } catch {
+        // Not a Transfer log (or from a different ABI), skip it.
+      }
+    }
+    return null;
   }
 
   async function executeMultiTicket() {
@@ -1506,10 +1978,29 @@ function decimalsOfAsset(asset) {
   return asset === activeNetwork.nativeSymbol ? 18 : (tokens[asset]?.decimals ?? 18);
 }
 
-      for (let i = 0; i < multiTicket.steps.length; i++) {
+            for (let i = 0; i < multiTicket.steps.length; i++) {
         const step = multiTicket.steps[i];
         const stepLabel = `Step ${i + 1}/${multiTicket.steps.length}`;
         setStatus(`${stepLabel}…`);
+
+        if (i === 0) {
+          // Very first step: transition already handled by the
+          // existing useEffect (plan -> step 1).
+          setExecutionLabel(`${stepLabel} · ${step.kind}`);
+          setExecutionSteps(stepsForPlanStep(step));
+          setExecutionStepIndex(-1);
+          setPlanStepIndex(0);
+        } else {
+          // Later steps: switch directly to this step, exactly like
+          // Hold-to-Confirm -> Step 1, the checklist is updated right
+          // below (following lines) and the light band plays on top of
+          // it on its own timer, never pausing the real execution flow.
+          // The previous step's duration therefore has no influence on
+          // it.
+          setStepSweepActive(true);
+          setTimeout(() => setStepSweepActive(false), 2400);
+        }
+        setPlanStepIndex(i);
 
         // Refresh the checklist for whichever plan step is currently
         // running, so the user always sees the real sub-actions for
@@ -1524,7 +2015,7 @@ function decimalsOfAsset(asset) {
             throw new Error(`${stepLabel}: missing or invalid recipient.`);
           }
 
-          const amountToUse = carriedAmount !== null ? carriedAmount : step.amount;
+          const amountToUse = (carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount;
           if (!amountToUse || Number(amountToUse) <= 0) {
             throw new Error(`${stepLabel}: no amount to send.`);
           }
@@ -1543,6 +2034,7 @@ function decimalsOfAsset(asset) {
           }
 
           setTxHash(tx.hash);
+          setStepTxHashes(prev => { const next = [...prev]; next[i] = tx.hash; return next; });
           setMessages(m => [...m, { role: "ai", text: `${stepLabel} sent (send). Hash: ${shortAddress(tx.hash)}` }]);
           await tx.wait();
           advanceExecutionTo(1);
@@ -1551,43 +2043,81 @@ function decimalsOfAsset(asset) {
           carriedAmount = null;
 
         } else if (step.kind === "swap") {
-          const stepTicket = { ...step.ticket, amount: carriedAmount !== null ? carriedAmount : step.amount, asset: step.asset, tokenOutSymbol: step.tokenOutSymbol };
+          const stepTicket = { ...step.ticket, amount: (carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount, asset: step.asset, tokenOutSymbol: step.tokenOutSymbol };
           const before = await balanceOfAsset(step.tokenOutSymbol);
 
           const tx = await executeSwapTicket(signer, stepTicket);
           setTxHash(tx.hash);
+          setStepTxHashes(prev => { const next = [...prev]; next[i] = tx.hash; return next; });
           setMessages(m => [...m, { role: "ai", text: `${stepLabel} sent (swap). Hash: ${shortAddress(tx.hash)}` }]);
-          await tx.wait();
+          const receipt = await tx.wait();
 
-          const after = await balanceOfAsset(step.tokenOutSymbol);
-          const received = after > before ? after - before : 0n;
+          // Prefer the exact amount from the swap's own Transfer event.
+          // A before/after balance diff is fragile (a slightly stale RPC
+          // read, or unrelated activity on the wallet in between, can
+          // silently read back 0, which then gets staked/bridged as a
+          // literal zero-amount transaction downstream). Only fall back
+          // to the balance diff when there's no ERC-20 log to read (the
+          // output is the native coin, which doesn't emit one).
+          const isNativeOut = step.tokenOutSymbol === activeNetwork.nativeSymbol;
+          const tokenOutAddress = !isNativeOut ? tokens[step.tokenOutSymbol]?.address : null;
+          let received = readReceivedAmount(receipt, tokenOutAddress, signer.address);
+
+          if (received === null) {
+            const after = await balanceOfAsset(step.tokenOutSymbol);
+            received = after > before ? after - before : 0n;
+          }
+
           carriedAmount = Number(ethers.formatUnits(received, decimalsOfAsset(step.tokenOutSymbol)));
 
           setMessages(m => [...m, { role: "ai", text: `✅ ${stepLabel} confirmed and received ${carriedAmount} ${step.tokenOutSymbol}.\n\n[View on Explorer Here](${explorerTx(tx.hash, activeNetwork)})` }]);
 
         } else if (step.kind === "stake" || step.kind === "unstake") {
-          const stepTicket = { ...step.ticket, amount: carriedAmount !== null ? carriedAmount : step.amount, asset: step.asset, intent: step.intent };
+          const stepTicket = { ...step.ticket, amount: (carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount, asset: step.asset, intent: step.intent };
           const tx = step.kind === "unstake"
             ? await executeUnstakeTicket(signer, stepTicket)
             : await executeStakeTicket(signer, stepTicket);
 
           setTxHash(tx.hash);
+          setStepTxHashes(prev => { const next = [...prev]; next[i] = tx.hash; return next; });
           setMessages(m => [...m, { role: "ai", text: `${stepLabel} sent (${step.kind}). Hash: ${shortAddress(tx.hash)}` }]);
-          await tx.wait();
+          const receipt = await tx.wait();
+
+          if (step.kind === "unstake") {
+            // No amount was necessarily specified up front (executeUnstakeTicket
+            // may have withdrawn the entire staked balance via Aave's max-uint256
+            // convention), read the real amount that actually landed in the
+            // wallet so a step chained after this one (e.g. "withdraw my USDC,
+            // then swap it") uses the real number instead of the placeholder 0.
+            const withdrawnTokenAddress = tokens[step.asset]?.address;
+            const received = readReceivedAmount(receipt, withdrawnTokenAddress, signer.address);
+            carriedAmount = received !== null ? Number(ethers.formatUnits(received, decimalsOfAsset(step.asset))) : null;
+          } else {
+            carriedAmount = null;
+          }
+
           setMessages(m => [...m, { role: "ai", text: `✅ ${stepLabel} confirmed.\n\n[View on Explorer Here](${explorerTx(tx.hash, activeNetwork)})` }]);
 
-          carriedAmount = null;
-
-        } else if (step.kind === "bridge") {
-          const stepTicket = { ...step.ticket, amount: carriedAmount !== null ? carriedAmount : step.amount, asset: step.asset, destinationChainKey: step.destinationChainKey };
+                } else if (step.kind === "bridge") {
+          const stepTicket = { ...step.ticket, amount: (carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount, asset: step.asset, destinationChainKey: step.destinationChainKey };
           const tx = await executeBridgeTicket(signer, stepTicket);
 
           setTxHash(tx.hash);
+          setStepTxHashes(prev => { const next = [...prev]; next[i] = tx.hash; return next; });
           setMessages(m => [...m, { role: "ai", text: `${stepLabel} sent (bridge). Hash: ${shortAddress(tx.hash)}` }]);
           await tx.wait();
           setMessages(m => [...m, { role: "ai", text: `✅ ${stepLabel} confirmed.\n\n[View on Explorer Here](${explorerTx(tx.hash, activeNetwork)})` }]);
 
           carriedAmount = null;
+        }
+
+        if (i < multiTicket.steps.length - 1) {
+          // The next loop iteration immediately resets executionStepIndex
+          // for the next step, with nothing async in between, that reset
+          // and this step's own advanceExecutionTo() land in the same
+          // React batch, so the just-earned checkmark never actually gets
+          // painted. This pause forces a real render in between so it does.
+          await new Promise(resolve => setTimeout(resolve, 700));
         }
       }
 
@@ -1597,8 +2127,17 @@ function decimalsOfAsset(asset) {
       await refreshBalance(signer.address);
       await refreshTokenBalances(signer.address);
 
-      // Ticket stays open with the checklist fully checked — the
-      // user closes it manually (Done button) once they've seen it.
+      // Same beat as every step-to-step handoff: let the last step's own
+      // checkmark be seen for a moment, then sweep the frame one last
+      // time and swap straight to the full-plan recap, same non-blocking
+      // pattern, the wave plays on its own timer instead of gating this.
+      await new Promise(resolve => setTimeout(resolve, 700));
+      setStepSweepActive(true);
+      setTimeout(() => setStepSweepActive(false), 2400);
+      setMultiTicketDone(true);
+
+      // Ticket stays open with the recap fully shown, the user closes it
+      // manually (Done button) once they've seen it.
 
     } finally {
       await finishExecution();
@@ -1682,7 +2221,7 @@ const signer = new ethers.Wallet(
 
     setShowDetails(false);
     // Ticket stays open (showSend stays true) with the checklist
-    // fully checked — the user closes it manually (Done button).
+    // fully checked, the user closes it manually (Done button).
 
   } finally {
     await finishExecution();
@@ -1710,14 +2249,15 @@ const signer = new ethers.Wallet(
       balance: fmtXpl(balance),
       history: messages,
       pendingTransaction,
-      contacts: loadContacts()
+      contacts: loadContacts(),
+      network: activeNetworkKey
     })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || "Erreur IA.");
+      throw new Error(data.error || "AI error.");
     }
 
     if (data.suggestedContact) {
@@ -1757,7 +2297,7 @@ await executeAIIntent(data);
       }
     ]);
 
-    setStatus("Erreur");
+    setStatus("Error");
   } finally {
     setBusy(false);
   }
@@ -1803,7 +2343,7 @@ async function checkAddressAndProceed(address, proceed) {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/address-check/${address}`);
+    const response = await fetch(`${API_BASE_URL}/api/address-check/${address}?network=${activeNetworkKey}`);
     const data = await response.json();
     if (data.suspicious && Array.isArray(data.reasons)) {
       reasons.push(...data.reasons);
@@ -1877,17 +2417,17 @@ async function executeAIIntent(action) {
 
     case "OPEN_CONTACTS":
       setContacts(loadContacts());
-      setShowMenu(false);
+      setMenuOpen(false);
       setShowContacts(true);
       break;
 
     case "OPEN_TRANSACTION_HISTORY":
-      setShowMenu(false);
+      setMenuOpen(false);
       openTxHistory();
       break;
 
     case "OPEN_SETTINGS":
-      setShowMenu(false);
+      setMenuOpen(false);
       setShowSettings(true);
       break;
 
@@ -1928,7 +2468,7 @@ async function executeAIIntent(action) {
         setStatus("Fetching transactions…");
 
         const response = await fetch(
-          `${API_BASE_URL}/api/transactions/${wallet.address}`
+          `${API_BASE_URL}/api/transactions/${wallet.address}?network=${activeNetworkKey}`
         );
 
         const data = await response.json();
@@ -1984,7 +2524,7 @@ async function executeAIIntent(action) {
           }
         ]);
 
-        setStatus("Erreur");
+        setStatus("Error");
       }
 
       break;
@@ -2147,32 +2687,25 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
 function handleHoldStart() {
   if (busy || holdIntervalRef.current) return;
 
-  setHoldProgress(0);
+  holdCanvasDrawRef.current?.(0);
 
   const duration = 2000;
-  const startTime = Date.now();
+  const startTime = performance.now();
 
-  holdIntervalRef.current = setInterval(() => {
-    const elapsed = Date.now() - startTime;
+  function tick(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min((elapsed / duration) * 100, 100);
 
-    const progress = Math.min(
-      (elapsed / duration) * 100,
-      100
-    );
-
-    setHoldProgress(progress);
+    holdCanvasDrawRef.current?.(progress, now);
 
     if (progress >= 100) {
-      clearInterval(holdIntervalRef.current);
       holdIntervalRef.current = null;
-
-      setHoldProgress(100);
 
       signAndSend()
         .catch((e) => {
           console.error(e);
 
-          setStatus("Erreur");
+          setStatus("Error");
 
           setMessages(m => [
             ...m,
@@ -2183,19 +2716,24 @@ function handleHoldStart() {
           ]);
         })
         .finally(() => {
-          setHoldProgress(0);
+          holdCanvasDrawRef.current?.(0);
         });
+      return;
     }
-  }, 20);
+
+    holdIntervalRef.current = requestAnimationFrame(tick);
+  }
+
+  holdIntervalRef.current = requestAnimationFrame(tick);
 }
 
 function handleHoldEnd() {
   if (holdIntervalRef.current) {
-    clearInterval(holdIntervalRef.current);
+    cancelAnimationFrame(holdIntervalRef.current);
     holdIntervalRef.current = null;
   }
 
-  setHoldProgress(0);
+  holdCanvasDrawRef.current?.(0);
 }
 
   return (
@@ -2208,7 +2746,7 @@ function handleHoldEnd() {
           <div className="brand">
   <img
     className="mark"
-    src="/logo.png"
+    src="/logo.svg"
     alt="Lyra"
   />
   <div className="name">Lyra</div>
@@ -2216,143 +2754,103 @@ function handleHoldEnd() {
   <div className="header-actions">
     {wallet && (
       <div className="header-menu" ref={headerMenuRef}>
-        <button
-          className={`menu-button ${showMenu ? "active" : ""}`}
-          type="button"
-          onClick={() => {
-            setShowMenu(v => !v);
-            setShowNetworkMenu(false);
-          }}
-          title="Menu"
-          aria-label="Ouvrir le menu"
-        >
-          <Menu size={15} strokeWidth={1.8} />
-        </button>
-
-        {showMenu && (
-          <div className="menu-dropdown">
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => {
+        <CircleMenu
+          open={menuOpen}
+          setOpen={setMenuOpen}
+          items={[
+            {
+              label: "Contacts",
+              icon: <UserRound size={17} strokeWidth={1.8} color="var(--beige)" />,
+              onClick: () => {
                 setContacts(loadContacts());
-                setShowMenu(false);
                 setShowContacts(true);
-              }}
-            >
-              <UserRound size={17} strokeWidth={1.8} />
-              <span>Contacts</span>
-            </button>
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => {
-                setShowMenu(false);
-                openTxHistory();
-              }}
-            >
-              <History size={17} strokeWidth={1.8} />
-              <span>Transactions history</span>
-            </button>
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => {
-                setShowMenu(false);
-                setShowSettings(true);
-              }}
-            >
-              <Settings size={17} strokeWidth={1.8} />
-              <span>Settings</span>
-            </button>
-          </div>
-        )}
+              }
+            },
+            {
+              label: "Transactions",
+              icon: <History size={17} strokeWidth={1.8} color="var(--beige)" />,
+              onClick: openTxHistory
+            },
+            {
+              label: activeNetwork.name,
+              icon: <Link size={17} strokeWidth={1.8} color="var(--beige)" />,
+              onClick: () => setShowNetworkMenu(true)
+            },
+            {
+              label: "Settings",
+              icon: <Settings size={17} strokeWidth={1.8} color="var(--beige)" />,
+              onClick: () => setShowSettings(true)
+            }
+          ]}
+        />
+
       </div>
     )}
-
-    <div
-  className={`network-switch ${showNetworkMenu ? "open" : ""}`}
-  ref={networkSwitchRef}
->
-  <button
-    type="button"
-    className="network-btn"
-    aria-haspopup="true"
-    aria-expanded={showNetworkMenu}
-    onClick={() => {
-      setShowNetworkMenu(v => !v);
-      setShowMenu(false);
-    }}
-  >
-    <span
-      className="network-dot"
-      style={{
-        background: activeNetwork.color || "var(--success)"
-      }}
-    />
-
-    {activeNetwork.name}
-
-    <svg
-      className="network-chevron"
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  </button>
-
-  {showNetworkMenu && (
-    <div className="network-menu" role="menu">
-      {NETWORKS.map(net => (
-        <button
-          key={net.key}
-          type="button"
-          className={`network-item ${
-            net.key === activeNetworkKey ? "active" : ""
-          }`}
-          role="menuitem"
-          onClick={() => {
-            switchNetwork(net.key);
-            setShowNetworkMenu(false);
-          }}
-        >
-          <span
-            className="network-dot"
-            style={{
-              background:
-                net.color || "var(--muted-dim)"
-            }}
-          />
-
-          <span className="net-name">
-            {net.name}
-          </span>
-
-        </button>
-      ))}
-    </div>
-  )}
-</div>
   </div>
 </div>
 
+{showNetworkMenu && (
+  <div
+    className="contacts-overlay"
+    onMouseDown={(e) => { if (e.target === e.currentTarget) setShowNetworkMenu(false); }}
+  >
+    <div className="contacts-panel">
+      <div className="contacts-header">
+        <div>
+          <div className="contacts-title">Network</div>
+          <div className="contacts-subtitle">Choose which chain Lyra talks to</div>
+        </div>
+        <button type="button" className="contacts-close" onClick={() => setShowNetworkMenu(false)}>
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="network-picker-list">
+        {NETWORKS.map(net => {
+          const active = net.key === activeNetworkKey;
+          return (
+            <button
+              key={net.key}
+              type="button"
+              className={`network-card ${active ? "active" : ""}`}
+              onClick={() => {
+                switchNetwork(net.key);
+                setShowNetworkMenu(false);
+              }}
+            >
+              <div className="network-card-top">
+                <span className="network-card-dot" style={{ background: net.color || "var(--muted-dim)" }} />
+                <span className="network-card-name">{net.name}</span>
+                <span className="network-card-chain">{net.nativeSymbol} · Chain {net.chainId}</span>
+                {active && (
+                  <span className="network-card-check">
+                    <Check size={13} strokeWidth={3} />
+                  </span>
+                )}
+              </div>
+              {net.description && (
+                <p className="network-card-desc">{net.description}</p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+)}
+
+            <div className="balance-card">
             <div className="balance-label-row">
             <div className="balance-label">Available balance</div>
           </div>
           <div className="balance-row">
-            <div className="balance">{fmtXpl(balance, 2)}</div>
+            <div className="balance"><AnimatedBalance value={Number(ethers.formatEther(balance || 0n))} decimals={2} /></div>
             <div className="balance-usd">{activeNetwork.nativeSymbol}</div>
             <button
               type="button"
-              className="balance-refresh"
+              className={`balance-refresh ${balanceLoading ? "spinning" : ""}`}
               onClick={() => refreshBalance()}
+              disabled={balanceLoading}
               title="Refresh"
               aria-label="Refresh balance"
             >
@@ -2367,7 +2865,7 @@ function handleHoldEnd() {
           {(xplPriceUSD || wallet?.address) && (
   <div className="balance-usd-value">
     {xplPriceUSD && (
-      <span>
+      <span className="balance-usd-total">
         ≈ {(
           Number(ethers.formatEther(balance || 0n)) * xplPriceUSD +
           Object.entries(tokens).reduce((sum, [symbol, token]) => {
@@ -2376,12 +2874,21 @@ function handleHoldEnd() {
             return sum + walletAmt + stakedAmt;
           }, 0)
         ).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 })}
+        <span className="info-tooltip">
+          <Info size={12} strokeWidth={2} />
+          <span className="info-tooltip-bubble">
+            <strong>{activeNetwork.name} network only</strong>
+          </span>
+        </span>
       </span>
+    )}
+
+    {xplPriceUSD && wallet?.address && (
+      <span className="usd-dot"> · </span>
     )}
 
     {wallet?.address && (
       <span className="wallet-address-inline">
-        <span className="address-dot" />
         {shortAddress(wallet.address)}
         <button
   type="button"
@@ -2413,26 +2920,34 @@ function handleHoldEnd() {
     )}
   </div>
 )}
+            </div>
 
           {(Object.entries(tokens).some(([symbol]) => (tokenBalances[symbol] || 0n) > 0n) ||
             Object.entries(tokens).some(([symbol]) => (stakedBalances[symbol] || 0n) > 0n)) && (
             <div className="token-balances-row">
               {Object.entries(tokens)
-                .filter(([symbol]) => (tokenBalances[symbol] || 0n) > 0n)
-                .map(([symbol, token]) => (
-                  <div className="token-balance-chip" key={symbol}>
-                    <span className="token-dot" style={{ background: token.color }} />
-                    {Number(ethers.formatUnits(tokenBalances[symbol] || 0n, token.decimals)).toLocaleString("en-US", { maximumFractionDigits: 2 })} {symbol}
-                  </div>
-                ))}
-              {Object.entries(tokens)
-                .filter(([symbol]) => (stakedBalances[symbol] || 0n) > 0n)
-                .map(([symbol, token]) => (
-                  <div className="token-balance-chip staked-chip" key={`staked-${symbol}`} title="Staked on Aave">
-                    <span className="token-dot" style={{ background: token.color }} />
-                    {Number(ethers.formatUnits(stakedBalances[symbol] || 0n, token.decimals)).toLocaleString("en-US", { maximumFractionDigits: 2 })} {symbol} staked
-                  </div>
-                ))}
+                .filter(([symbol]) => (tokenBalances[symbol] || 0n) > 0n || (stakedBalances[symbol] || 0n) > 0n)
+                .map(([symbol, token], chipIndex) => {
+                  const walletAmt = Number(ethers.formatUnits(tokenBalances[symbol] || 0n, token.decimals));
+                  const stakedAmt = Number(ethers.formatUnits(stakedBalances[symbol] || 0n, token.decimals));
+                  const hasStaked = stakedAmt > 0;
+                  const apy = stakedApy[symbol];
+                  return (
+                    <div className="token-balance-chip" key={symbol} style={{ "--i": chipIndex }}>
+                      <span className="token-dot" style={{ background: token.color }} />
+                      {walletAmt.toLocaleString("en-US", { maximumFractionDigits: 2 })} {symbol}
+                      {hasStaked && (
+                        <span className="info-tooltip staked-info-tooltip">
+                          <Coins size={11} strokeWidth={2} />
+                          <span className="info-tooltip-bubble">
+                            <strong>{stakedAmt.toLocaleString("en-US", { maximumFractionDigits: 2 })} {symbol} staked</strong> on Aave
+                            {typeof apy === "number" ? ` · ${apy.toFixed(2)}% APY` : ""}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           )}
 
@@ -2459,16 +2974,18 @@ function handleHoldEnd() {
 
         </header>
 
-        <section className="chat">
+        <section className="chat" ref={chatScrollRef}>
           {messages.length === 0 && !showSend && !defiTicket && !multiTicket && (
-  <div className="chat-empty-card">
+  <div className="chat-empty-card" ref={chatEmptyPathRef}>
+    <span className="border-light" />
+    <span className="border-light-mask" />
     <div className="chat-empty-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
         <path d="M21 11.5a8.5 8.5 0 0 1-11.8 7.8L4 21l1.7-5.2A8.5 8.5 0 1 1 21 11.5Z"/>
       </svg>
     </div>
     <div className="chat-empty-title">What would you like to do?</div>
-    <div className="chat-empty-subtitle">Send, receive, swap or stake tokens.</div>
+    <div className="chat-empty-subtitle">Send, receive, swap, bridge or stake tokens.</div>
   </div>
 )}
 
@@ -2480,6 +2997,23 @@ function handleHoldEnd() {
               </div>
             </div>
           ))}
+
+          <AnimatePresence>
+            {busy && messages.length > 0 && messages[messages.length - 1].role === "user" && (
+              <motion.div
+                className="msg ai"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+              >
+                <div className="ai-label">Lyra</div>
+                <div className="bubble">
+                  <span className="thinking-shimmer">Lyra is thinking…</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {collapsedTickets.length > 0 && (
             <div className="collapsed-tickets-row">
@@ -2533,7 +3067,7 @@ function handleHoldEnd() {
   <div className="ticket-fullscreen-overlay">
     <div className="ticket-fullscreen-panel">
 
-      {!busy && (
+      {!busy && !multiTicketDone && (
         <button
           type="button"
           className="ticket-fullscreen-close"
@@ -2547,12 +3081,7 @@ function handleHoldEnd() {
       {showSend && (
   <div className="ticket">
 
-    {waveActive && (
-  <div className="ticket-transition-wave">
-    <span className="wave-ring wave-ring-a" />
-    <span className="wave-ring wave-ring-b" />
-  </div>
-)}
+    {waveActive && <TicketTransitionWave />}
 
     <div className={`ticket-collapsible-top ${ticketTopCollapsed ? "collapsed" : ""}`}>
       <div>
@@ -2609,13 +3138,30 @@ function handleHoldEnd() {
 
       {suggestedContact && (
   <div className="contact-save-box">
-    {!contactSaved ? (
-      <button
-        type="button"
-        className="save-contact"
-        onClick={() => {
+    {contactSaved ? (
+      <div className="contact-saved">
+        ✓ Address saved as "{contactNameInput.trim() || suggestedContact.name}".
+      </div>
+    ) : editingContactName ? (
+      <div className="contact-name-edit-row">
+        <input
+          type="text"
+          className="contact-name-input"
+          value={contactNameInput}
+          onChange={e => setContactNameInput(e.target.value)}
+          placeholder="Contact name"
+          autoFocus
+          onKeyDown={e => {
+            if (e.key === "Escape") setEditingContactName(false);
+          }}
+        />
+        <button
+          type="button"
+          className="save-contact"
+          disabled={!contactNameInput.trim()}
+          onClick={() => {
   addContact(
-    suggestedContact.name,
+    contactNameInput.trim(),
     suggestedContact.address
   );
 
@@ -2627,13 +3173,21 @@ function handleHoldEnd() {
     setContactSaved(false);
   }, 3000);
 }}
-      >
-        ＋ Save as "{suggestedContact.name}"
-      </button>
-    ) : (
-      <div className="contact-saved">
-        ✓ Address saved as "{suggestedContact.name}".
+        >
+          Save
+        </button>
       </div>
+    ) : (
+      <button
+        type="button"
+        className="save-contact"
+        onClick={() => {
+          setContactNameInput(suggestedContact.name);
+          setEditingContactName(true);
+        }}
+      >
+        ＋ Save as contact
+      </button>
     )}
   </div>
 )}
@@ -2649,14 +3203,21 @@ function handleHoldEnd() {
       type="button"
       className="details-toggle"
       onClick={() => setShowDetails(v => !v)}
+      aria-label={showDetails ? "Hide details" : "Show details"}
     >
-      <span>
-        {showDetails ? "Hide details" : "Show details"}
-      </span>
-
-      <span className={showDetails ? "chevron open" : "chevron"}>
-        ↓
-      </span>
+      <svg
+        className={showDetails ? "chevron open" : "chevron"}
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="m6 9 6 6 6-6" />
+      </svg>
     </button>
 
 
@@ -2664,7 +3225,7 @@ function handleHoldEnd() {
       <div className="transaction-details">
 
         <div className="detail-row">
-          <span>Actif</span>
+          <span>Asset</span>
           <span>{activeNetwork.nativeSymbol}</span>
         </div>
 
@@ -2702,7 +3263,7 @@ function handleHoldEnd() {
 
         {sendPriceUSD && (
           <div className="detail-row">
-            <span>Taux de conversion</span>
+            <span>Conversion rate</span>
             <span>
               1 {activeNetwork.nativeSymbol} = {Number(sendPriceUSD).toFixed(6)} $
             </span>
@@ -2719,7 +3280,12 @@ function handleHoldEnd() {
         <div className="detail-row">
           <span>Estimated network fees</span>
           <span>
-            Calculated when preparing
+            {sendFeeEstimate !== null
+              ? `${fmtXpl(sendFeeEstimate, 8)} ${activeNetwork.nativeSymbol}`
+              : sendFeeEstimateError
+                ? "Couldn't estimate"
+                : "Calculating…"
+            }
           </span>
         </div>
 
@@ -2727,7 +3293,9 @@ function handleHoldEnd() {
           <span>Estimated total debited</span>
           <span>
             {sendAmount
-              ? `${fmtXpl(ethers.parseEther(sendAmount))} ${activeNetwork.nativeSymbol} + fees`
+              ? sendFeeEstimate !== null
+                ? `${fmtXpl(ethers.parseEther(sendAmount) + sendFeeEstimate, 8)} ${activeNetwork.nativeSymbol}`
+                : `${fmtXpl(ethers.parseEther(sendAmount))} ${activeNetwork.nativeSymbol} + fees`
               : "—"
             }
           </span>
@@ -2749,29 +3317,27 @@ function handleHoldEnd() {
     {/* ============================= */}
 
         {executionSteps.length > 0 ? (
+      executionStepIndex >= executionSteps.length ? (
+        <TicketDoneRecap
+          steps={[{
+            text: completedSummaryLine({ kind: "send", amount: sendAmount, asset: activeNetwork.nativeSymbol, recipient: sendTo }),
+            txUrl: txHash ? explorerTx(txHash, activeNetwork) : null
+          }]}
+          onDone={clearActiveTicket}
+        />
+      ) : (
       <div className="ticket-checklist-enter">
         <ExecutionChecklist
           label={executionLabel || "Send"}
           steps={executionSteps}
           currentIndex={executionStepIndex}
+          busy={busy}
+          txHash={txHash}
+          network={activeNetwork}
+          onDone={clearActiveTicket}
         />
-        {!busy && (
-          <button type="button" className="confirm confirm-compact" onClick={clearActiveTicket}>
-            {executionStepIndex >= executionSteps.length ? "Done" : "Close"}
-          </button>
-        )}
-        {!busy && txHash && executionStepIndex >= executionSteps.length && (
-          <a
-            className="txlink"
-            href={explorerTx(txHash, activeNetwork)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View on Explorer
-            <ExternalLink size={13} />
-          </a>
-        )}
       </div>
+      )
     ) : (
       <button
         className="confirm hold-confirm"
@@ -2784,7 +3350,7 @@ function handleHoldEnd() {
         onTouchCancel={handleHoldEnd}
       >
 
-        <HoldSquares progress={holdProgress} />
+        <HoldSquares drawRef={holdCanvasDrawRef} />
 
         <span className="hold-content">
           Hold to Confirm
@@ -2799,12 +3365,7 @@ function handleHoldEnd() {
 {defiTicket && (
   <div className="ticket defi-ticket">
 
-    {waveActive && (
-  <div className="ticket-transition-wave">
-    <span className="wave-ring wave-ring-a" />
-    <span className="wave-ring wave-ring-b" />
-  </div>
-)}
+    {waveActive && <TicketTransitionWave />}
 
     <div className={`ticket-collapsible-top ${ticketTopCollapsed ? "collapsed" : ""}`}>
       <div>
@@ -2824,7 +3385,7 @@ function handleHoldEnd() {
       <div className="transaction-summary">
 
         <div className="transaction-row">
-          <span>Plateforme</span>
+          <span>Platform</span>
           <strong>{defiTicket.platform || "—"}</strong>
         </div>
 
@@ -2835,7 +3396,7 @@ function handleHoldEnd() {
               <strong>{defiTicket.apy || "—"}</strong>
             </div>
             <div className="transaction-row">
-              <span>Verrouillage</span>
+              <span>Lock</span>
               <strong>{defiTicket.lock === null || defiTicket.lock === undefined ? "—" : (defiTicket.lock ? "Yes" : "No")}</strong>
             </div>
           </>
@@ -2844,11 +3405,11 @@ function handleHoldEnd() {
         {defiTicket.feature === "swap" && (
           <>
             <div className="transaction-row">
-              <span>Taux</span>
+              <span>Rate</span>
               <strong>{defiTicket.rate || "—"}</strong>
             </div>
             <div className="transaction-row">
-              <span>Vous recevrez environ</span>
+              <span>You'll receive approximately</span>
               <strong>{defiTicket.estimatedReceive || "—"}</strong>
             </div>
           </>
@@ -2856,7 +3417,7 @@ function handleHoldEnd() {
 
         {defiTicket.feature === "bridge" && (
           <div className="transaction-row">
-            <span>Chemin</span>
+            <span>Route</span>
             <strong>{defiTicket.route || "—"}</strong>
           </div>
         )}
@@ -2867,7 +3428,7 @@ function handleHoldEnd() {
         </div>
 
         <div className={`transaction-row risk-row risk-${defiTicket.riskLevel}`}>
-          <span>Niveau de risque</span>
+          <span>Risk level</span>
           <strong>{defiTicket.riskLevel || "unknown"}</strong>
         </div>
 
@@ -2906,18 +3467,33 @@ function handleHoldEnd() {
 
     {defiTicket.executable ? (
       executionSteps.length > 0 ? (
+        executionStepIndex >= executionSteps.length ? (
+          <TicketDoneRecap
+            steps={[{
+              text: completedSummaryLine({
+                kind: { SWAP_XPL: "swap", BRIDGE_XPL: "bridge", STAKE_XPL: "stake", UNSTAKE_XPL: "unstake" }[defiTicket.intent] || defiTicket.feature,
+                amount: defiTicket.amount,
+                asset: defiTicket.asset,
+                ticket: { estimatedReceive: defiTicket.estimatedReceive, platform: defiTicket.platform },
+                destinationChainKey: defiTicket.destinationChainKey
+              }),
+              txUrl: txHash ? explorerTx(txHash, activeNetwork) : null
+            }]}
+            onDone={clearActiveTicket}
+          />
+        ) : (
         <div className="ticket-checklist-enter">
           <ExecutionChecklist
             label={executionLabel || "Confirm"}
             steps={executionSteps}
             currentIndex={executionStepIndex}
+            busy={busy}
+            txHash={txHash}
+            network={activeNetwork}
+            onDone={clearActiveTicket}
           />
-          {!busy && (
-            <button type="button" className="confirm confirm-compact" onClick={clearActiveTicket}>
-              {executionStepIndex >= executionSteps.length ? "Done" : "Close"}
-            </button>
-          )}
         </div>
+        )
       ) : (
         <button
           className="confirm hold-confirm"
@@ -2929,7 +3505,7 @@ function handleHoldEnd() {
           onTouchEnd={handleHoldEnd}
           onTouchCancel={handleHoldEnd}
         >
-          <HoldSquares progress={holdProgress} />
+          <HoldSquares drawRef={holdCanvasDrawRef} />
           <span className="hold-content">Hold to Confirm</span>
         </button>
       )
@@ -2945,12 +3521,7 @@ function handleHoldEnd() {
 {multiTicket && (
   <div className="ticket defi-ticket multi-ticket">
 
-   {waveActive && (
-  <div className="ticket-transition-wave">
-    <span className="wave-ring wave-ring-a" />
-    <span className="wave-ring wave-ring-b" />
-  </div>
-)}
+   {(waveActive || stepSweepActive) && <TicketTransitionWave />}
 
     <div className={`ticket-collapsible-top ${ticketTopCollapsed ? "collapsed" : ""}`}>
       <div>
@@ -2958,8 +3529,7 @@ function handleHoldEnd() {
     <div className="ticket-title">Plan · {multiTicket.steps.length} steps</div>
 
     {multiTicket.steps.map((step, i) => {
-      const isLast = i === multiTicket.steps.length - 1;
-      const expanded = isLast || !!expandedSteps[i];
+      const expanded = !!expandedSteps[i];
       const t = step.ticket;
 
       return (
@@ -2967,13 +3537,25 @@ function handleHoldEnd() {
 
           <div
             className="multi-step-head"
-            onClick={() => !isLast && setExpandedSteps(s => ({ ...s, [i]: !s[i] }))}
+            onClick={() => setExpandedSteps(s => ({ ...s, [i]: !s[i] }))}
           >
             <span className="multi-step-num">{i + 1}</span>
             <span className="multi-step-summary">{stepSummaryLine(step)}</span>
-            {!isLast && (
-              <span className="multi-step-toggle">{expanded ? "Hide details" : "Show details"}</span>
-            )}
+            <span className="multi-step-toggle" aria-label={expanded ? "Hide details" : "Show details"}>
+              <svg
+                className={expanded ? "chevron open" : "chevron"}
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </span>
           </div>
 
           {expanded && (
@@ -3044,20 +3626,28 @@ function handleHoldEnd() {
       </div>
     </div>
 
-    {executionSteps.length > 0 ? (
-      <div className="ticket-checklist-enter">
-        <ExecutionChecklist
-          label={executionLabel || "Confirm"}
-          steps={executionSteps}
-          currentIndex={executionStepIndex}
-        />
-        {!busy && (
-          <button type="button" className="confirm confirm-compact" onClick={clearActiveTicket}>
-            {executionStepIndex >= executionSteps.length ? "Done" : "Close"}
-          </button>
-        )}
-      </div>
-    ) : (
+    {multiTicketDone ? (
+    <TicketDoneRecap
+      steps={multiTicket.steps.map((step, i) => ({
+        text: completedSummaryLine(step),
+        txUrl: stepTxHashes[i] ? explorerTx(stepTxHashes[i], activeNetwork) : null
+      }))}
+      onDone={clearActiveTicket}
+    />
+    ) : executionSteps.length > 0 ? (
+    <div className="ticket-checklist-enter" key={planStepIndex}>
+      <ExecutionChecklist
+        label={executionLabel || "Confirm"}
+        steps={executionSteps}
+        currentIndex={executionStepIndex}
+        busy={busy}
+        txHash={txHash}
+        network={activeNetwork}
+        onDone={clearActiveTicket}
+        hideDoneRow={planStepIndex === multiTicket.steps.length - 1}
+      />
+    </div>
+) : (
       <button
         className="confirm hold-confirm"
         disabled={busy}
@@ -3068,7 +3658,7 @@ function handleHoldEnd() {
         onTouchEnd={handleHoldEnd}
         onTouchCancel={handleHoldEnd}
       >
-        <HoldSquares progress={holdProgress} />
+        <HoldSquares drawRef={holdCanvasDrawRef} />
         <span className="hold-content">Hold to Confirm</span>
       </button>
     )}
@@ -3356,18 +3946,6 @@ function handleHoldEnd() {
             Enter the 6 requested words
           </div>
         </div>
-
-        <button
-          type="button"
-          className="contacts-close"
-          onClick={() => {
-            setShowSeedVerification(false);
-            setSeedVerificationWords({});
-            setSeedVerificationError("");
-          }}
-        >
-          <X size={18} />
-        </button>
       </div>
 
       <div className="backup-warning">
@@ -3383,14 +3961,14 @@ function handleHoldEnd() {
             key={position}
           >
             <span>
-              Mot #{position + 1}
+              Word #{position + 1}
             </span>
 
             <input
               type="text"
               autoComplete="off"
               spellCheck="false"
-              placeholder="Entrez le mot"
+              placeholder="Enter the word"
               value={
                 seedVerificationWords[position] || ""
               }
@@ -3448,7 +4026,7 @@ function handleHoldEnd() {
           setShowSeedVerification(false);
 
 setPendingPrivateKey(
-  new ethers.Wallet(pendingMnemonic).privateKey
+  ethers.Wallet.fromPhrase(pendingMnemonic).privateKey
 );
 
 setNewPassword("");
@@ -3627,17 +4205,36 @@ setShowPasswordSetup(true);
     <div className="backup-panel">
 
       <div className="backup-header">
-        <div>
-          <div className="backup-title">
+        <div className="backup-title-row">
+          <span className="backup-title">
             Back up your wallet
-          </div>
-
-          <div className="backup-subtitle">
+          </span>
+          <span className="backup-subtitle">
             Recovery phrase
-          </div>
+          </span>
         </div>
+      </div>
 
-        <button
+      <div className="backup-warning">
+        ⚠️ Write these words down somewhere safe and offline.
+        Never share them with anyone.
+      </div>
+
+      <div className="seed-display">
+        {pendingMnemonic
+          .split(/\s+/)
+          .map((word, index) => (
+            <div
+              className="seed-display-word"
+              key={index}
+            >
+              <span>{index + 1}</span>
+              <strong>{word}</strong>
+            </div>
+          ))}
+      </div>
+
+      <button
   type="button"
   className="confirm"
   onClick={() => {
@@ -3666,26 +4263,6 @@ setShowPasswordSetup(true);
 >
   I've saved my phrase
 </button>
-      </div>
-
-      <div className="backup-warning">
-        ⚠️ Write these words down somewhere safe and offline.
-        Never share them with anyone.
-      </div>
-
-      <div className="seed-display">
-        {pendingMnemonic
-          .split(/\s+/)
-          .map((word, index) => (
-            <div
-              className="seed-display-word"
-              key={index}
-            >
-              <span>{index + 1}</span>
-              <strong>{word}</strong>
-            </div>
-          ))}
-      </div>
 
     </div>
 
@@ -3917,6 +4494,7 @@ setShowPasswordSetup(true);
         setShowContacts(false);
         setShowAddContact(false);
         setEditingContact(null);
+        setContactSearch("");
       }
     }}
   >
@@ -3930,18 +4508,88 @@ setShowPasswordSetup(true);
           </div>
         </div>
 
+        <div className="contacts-header-actions">
+          <div className="contacts-search">
+            <Search size={13} />
+            <input
+              type="text"
+              value={contactSearch}
+              onChange={(e) => setContactSearch(e.target.value)}
+              placeholder="Search by name"
+              aria-label="Search contacts by name"
+            />
+          </div>
+
+          <button
+            type="button"
+            className="contacts-close"
+            onClick={() => {
+              setShowContacts(false);
+              setShowAddContact(false);
+              setEditingContact(null);
+              setContactSearch("");
+            }}
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      </div>
+
+      <div className="contacts-io-row">
         <button
           type="button"
-          className="contacts-close"
+          className="contacts-io-button"
+          disabled={contacts.length === 0}
           onClick={() => {
-            setShowContacts(false);
-            setShowAddContact(false);
-            setEditingContact(null);
+            const blob = new Blob([JSON.stringify(loadContacts(), null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "lyra-contacts.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
           }}
-          aria-label="Fermer"
         >
-          <X size={18} />
+          <Download size={13} />
+          Export
         </button>
+
+        <button
+          type="button"
+          className="contacts-io-button"
+          onClick={() => importContactsInputRef.current?.click()}
+        >
+          <Upload size={13} />
+          Import
+        </button>
+
+        <input
+          type="file"
+          accept="application/json"
+          ref={importContactsInputRef}
+          style={{ display: "none" }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (!file) return;
+            try {
+              const text = await file.text();
+              const { contacts: updated, added, skipped } = importContactsData(text);
+              setContacts(updated);
+              setToast(
+                added > 0
+                  ? `${added} contact${added === 1 ? "" : "s"} imported${skipped ? ` (${skipped} skipped)` : ""}.`
+                  : "No new contacts to import."
+              );
+            } catch (err) {
+              console.error("Contact import failed:", err);
+              setToast("Couldn't import that file, make sure it's a contacts export from Lyra.");
+            }
+          }}
+        />
       </div>
 
       <div className="contacts-list">
@@ -3950,8 +4598,15 @@ setShowPasswordSetup(true);
           <div className="contacts-empty">
             No saved contacts.
           </div>
+        ) : contacts.filter(c => c.name.toLowerCase().includes(contactSearch.trim().toLowerCase())).length === 0 ? (
+          <div className="contacts-empty">
+            No contacts match "{contactSearch.trim()}".
+          </div>
         ) : (
-          contacts.map((contact, index) => (
+          contacts
+            .map((contact, index) => ({ contact, index }))
+            .filter(({ contact }) => contact.name.toLowerCase().includes(contactSearch.trim().toLowerCase()))
+            .map(({ contact, index }) => (
             <div className="contact-item" key={index}>
 
               {editingContact === index ? (
@@ -3969,7 +4624,7 @@ setShowPasswordSetup(true);
                       };
                       setContacts(updated);
                     }}
-                    placeholder="Nom"
+                    placeholder="Name"
                     className="contact-input"
                   />
 
@@ -3999,7 +4654,7 @@ setShowPasswordSetup(true);
                       }}
                     >
                       <Check size={15} />
-                      Enregistrer
+                      Save
                     </button>
 
                     <button
@@ -4008,6 +4663,20 @@ setShowPasswordSetup(true);
                       onClick={() => setEditingContact(null)}
                     >
                       Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      className="contact-delete"
+                      onClick={() => {
+                        const updated = contacts.filter((_, i) => i !== index);
+                        setContacts(updated);
+                        saveContacts(updated);
+                        setEditingContact(null);
+                      }}
+                    >
+                      <Trash2 size={15} />
+                      Delete
                     </button>
 
                   </div>
@@ -4033,8 +4702,8 @@ setShowPasswordSetup(true);
                     type="button"
                     className="contact-edit-button"
                     onClick={() => setEditingContact(index)}
-                    aria-label={`Modifier ${contact.name}`}
-                    title="Modifier"
+                    aria-label={`Edit ${contact.name}`}
+                    title="Edit"
                   >
                     <Pencil size={15} strokeWidth={1.8} />
                   </button>
@@ -4056,7 +4725,7 @@ setShowPasswordSetup(true);
           onClick={() => setShowAddContact(true)}
         >
           <Plus size={16} />
-          Ajouter un contact
+          Add contact
         </button>
 
       ) : (
@@ -4064,14 +4733,14 @@ setShowPasswordSetup(true);
         <div className="add-contact-form">
 
           <div className="add-contact-title">
-            Nouveau contact
+            New contact
           </div>
 
           <input
             type="text"
             value={newContactName}
             onChange={(e) => setNewContactName(e.target.value)}
-            placeholder="Nom du contact"
+            placeholder="Contact name"
             className="contact-input"
             autoFocus
           />
@@ -4094,7 +4763,7 @@ setShowPasswordSetup(true);
   const address = newContactAddress.trim();
 
   if (!name) {
-    alert("Veuillez entrer un nom.");
+    alert("Please enter a name.");
     return;
   }
 
@@ -4120,7 +4789,7 @@ setShowPasswordSetup(true);
 }}
             >
               <Check size={15} />
-              Enregistrer
+              Save
             </button>
 
             <button
@@ -4168,10 +4837,28 @@ setShowPasswordSetup(true);
           type="button"
           className="contacts-close"
           onClick={() => setShowTxHistory(false)}
-          aria-label="Fermer"
+          aria-label="Close"
         >
           <X size={18} />
         </button>
+      </div>
+
+      <div className="tx-history-tabs">
+        {[
+          { key: "send", label: "Send/Receive" },
+          { key: "swap", label: "Swap" },
+          { key: "stake", label: "Stake" },
+          { key: "bridge", label: "Bridge" }
+        ].map(tab => (
+          <button
+            key={tab.key}
+            type="button"
+            className={txHistoryTab === tab.key ? "active" : ""}
+            onClick={() => setTxHistoryTab(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="contacts-list">
@@ -4186,35 +4873,40 @@ setShowPasswordSetup(true);
           <div className="contacts-empty">{txHistoryError}</div>
         )}
 
-        {!txHistoryLoading && !txHistoryError && txHistoryList.length === 0 && (
+        {!txHistoryLoading && !txHistoryError && txHistoryRows.length === 0 && (
           <div className="contacts-empty">
-            No transactions found for this wallet.
+            No transactions found for this category.
           </div>
         )}
 
-        {!txHistoryLoading && !txHistoryError && txHistoryList.map((tx) => {
-          const isSent = tx.from.toLowerCase() === wallet?.address?.toLowerCase();
-          const date = new Date(tx.timestamp * 1000);
+        {!txHistoryLoading && !txHistoryError && txHistoryRows.map((row) => {
+          const date = new Date(row.timestamp * 1000);
+
+          const direction = row.category === "send"
+            ? `${row.isSent ? "↗ Sent to" : "↙ Received from"} ${shortAddress(row.counterparty)}`
+            : row.category === "swap"
+            ? "⇄ Swap"
+            : row.category === "stake"
+            ? (row.isSent ? "◆ Staked" : "◆ Withdrawn")
+            : "⇢ Bridged";
 
           return (
             <a
-              className={`tx-item ${isSent ? "sent" : "received"}`}
-              key={tx.hash}
-              href={explorerTx(tx.hash, activeNetwork)}
+              className={`tx-item ${row.isSent ? "sent" : "received"}`}
+              key={row.hash}
+              href={explorerTx(row.hash, activeNetwork)}
               target="_blank"
               rel="noreferrer"
             >
               <div className="tx-item-main">
-                <div className="tx-item-direction">
-                  {isSent ? "↗ Sent to" : "↙ Received from"} {shortAddress(isSent ? tx.to : tx.from)}
-                </div>
+                <div className="tx-item-direction">{direction}</div>
                 <div className="tx-item-date">
                   {date.toLocaleDateString("en-US")} · {date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
                 </div>
               </div>
 
-              <div className={`tx-item-amount ${isSent ? "negative" : "positive"}`}>
-                {isSent ? "-" : "+"}{Number(tx.valueXPL).toLocaleString("en-US", { maximumFractionDigits: 6 })} {tx.symbol || "XPL"}
+              <div className={`tx-item-amount ${row.isSent ? "negative" : "positive"}`}>
+                {row.isSent ? "-" : "+"}{Number(row.display.valueXPL).toLocaleString("en-US", { maximumFractionDigits: 6 })} {row.display.symbol || "XPL"}
               </div>
             </a>
           );
@@ -4232,20 +4924,70 @@ setShowPasswordSetup(true);
 }
 
 // ---------------------------------------------------------------
-// ExecutionChecklist — the "grouped confirmation" checklist shown
+// TicketDoneRecap, the final "big check + step list" screen shown
+// once a ticket's execution is fully done. Originally built for
+// MULTI_ACTION tickets only (one line per real chained step); reused
+// here for single-action tickets (Send/Swap/Bridge/Stake) too, so
+// every ticket ends on the same recap instead of single ones just
+// leaving the checklist as their final screen.
+// ---------------------------------------------------------------
+function TicketDoneRecap({ steps, onDone }) {
+  return (
+    <div className="ticket-checklist-enter multi-ticket-summary">
+      <svg className="multi-summary-icon" viewBox="0 0 64 64" fill="none">
+        <circle className="multi-summary-ring" cx="32" cy="32" r="29" />
+        <path className="multi-summary-check" d="M19 33 L28 42 L45 22" />
+      </svg>
+
+      <div className="multi-summary-steps">
+        {steps.map((step, i) => (
+          <div className="multi-summary-step" key={i}>
+            <div className="multi-summary-step-line">
+              <span className="multi-summary-step-num">{i + 1}.</span>
+              <span className="multi-summary-step-text">{step.text}</span>
+            </div>
+            {step.txUrl && (
+              <a
+                className="multi-summary-step-link"
+                href={step.txUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View transaction
+                <ExternalLink size={11} />
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <button type="button" className="confirm multi-summary-done" onClick={onDone}>
+        Done
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+// ExecutionChecklist, the "grouped confirmation" checklist shown
 // while a ticket is executing. Real progress: `currentIndex` is the
 // number of sub-steps actually completed on-chain so far (-1 = none
 // yet), driven by the execute*Ticket functions above via
 // advanceExecutionTo(), not a fixed timer.
 // ---------------------------------------------------------------
-function ExecutionChecklist({ label, steps, currentIndex }) {
+// Only rendered while execution is still in progress now, callers
+// swap to TicketDoneRecap once currentIndex >= steps.length instead of
+// letting this reach its own done state, so mainDone/hideDoneRow below
+// only matter for the brief frame between the last step finishing and
+// that swap happening.
+function ExecutionChecklist({ label, steps, currentIndex, busy, txHash, network, onDone, hideDoneRow }) {
   const mainDone = currentIndex >= steps.length;
 
   return (
     <div className="execution-checklist">
       <div className="execution-checklist-title">{label}</div>
 
-      <div className={`execution-checklist-card ${mainDone ? "checklist-complete" : ""}`}>
+      <div className="execution-checklist-card">
         <div className="execution-checklist-header">Lyra's steps</div>
 
         <div className={`execution-checklist-main ${mainDone ? "done" : ""}`}>
@@ -4271,6 +5013,35 @@ function ExecutionChecklist({ label, steps, currentIndex }) {
           })}
         </div>
       </div>
+
+      {mainDone ? (
+        hideDoneRow ? null : (
+          <div className="execution-done-actions">
+            {txHash && (
+              <a
+                className="execution-success-link"
+                href={explorerTx(txHash, network)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View on Explorer
+                <ExternalLink size={13} />
+              </a>
+            )}
+            {!busy && (
+              <button type="button" className="confirm confirm-compact" onClick={onDone}>
+                Done
+              </button>
+            )}
+          </div>
+        )
+      ) : (
+        !busy && (
+          <button type="button" className="confirm confirm-compact" onClick={onDone}>
+            Close
+          </button>
+        )
+      )}
     </div>
   );
 }
@@ -4305,6 +5076,57 @@ function renderMessageText(text) {
   }
 
   return parts;
+}
+
+// One-shot version of the border-light effect (see useBorderPath / .border-light
+// in styles.css) for a transition moment, the light does a single lap with a
+// fade in/out envelope instead of looping, then the parent unmounts it.
+function TicketTransitionWave() {
+  const pathRef = useSplitBorderPath();
+
+  return (
+    <div className="ticket-transition-wave" ref={pathRef}>
+      <span className="border-light border-light-one-shot border-light-split-left" />
+      <span className="border-light border-light-one-shot border-light-split-right" />
+    </div>
+  );
+}
+
+function AnimatedBalance({ value, decimals = 2 }) {
+  const ref = useRef(null);
+  const prevValue = useRef(value);
+  const tweenRef = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const format = (n) => n.toLocaleString("en-US", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: decimals
+    });
+
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion || prevValue.current === value) {
+      el.textContent = format(value);
+      prevValue.current = value;
+      return;
+    }
+
+    tweenRef.current?.kill();
+    const obj = { val: prevValue.current };
+    tweenRef.current = gsap.to(obj, {
+      val: value,
+      duration: 0.7,
+      ease: "power2.out",
+      onUpdate: () => { el.textContent = format(obj.val); }
+    });
+    prevValue.current = value;
+
+    return () => tweenRef.current?.kill();
+  }, [value, decimals]);
+
+  return <span ref={ref}>{value.toLocaleString("en-US", { maximumFractionDigits: decimals })}</span>;
 }
 
 function TypewriterText({ text }) {
@@ -4391,11 +5213,13 @@ function PortfolioChart({ history, range, onRangeChange, mode, onModeChange, xpl
         </button>
       </div>
 
-      {mode === "line" ? (
-        <LineChartView points={points} nativeSymbol={nativeSymbol} />
-      ) : (
-        <PieChartView holdings={holdings} />
-      )}
+      <div className="chart-mode-view" key={`${mode}-${range}`}>
+        {mode === "line" ? (
+          <LineChartView points={points} nativeSymbol={nativeSymbol} />
+        ) : (
+          <PieChartView holdings={holdings} />
+        )}
+      </div>
     </div>
   );
 }
@@ -4509,13 +5333,16 @@ function LineChartView({ points, nativeSymbol = "XPL" }) {
   </defs>
 
   <path
+    className="chart-area-path"
     d={smoothAreaPath(coords, height)}
     fill="url(#chart-area-fill)"
     stroke="none"
   />
 
   <path
+    className="chart-line-path"
     d={path}
+    pathLength="1"
     fill="none"
     stroke={color}
     strokeWidth="2"
@@ -4671,7 +5498,7 @@ function WalletPanel({ existing, onClose, onCreate, onImport }) {
       console.error(e);
 
       setError(
-        e.message || "Erreur lors de l'importation."
+        e.message || "Error while importing."
       );
     }
   }
@@ -4741,12 +5568,12 @@ function WalletPanel({ existing, onClose, onCreate, onImport }) {
         <div className="seed-import">
 
           <div className="seed-import-title">
-            Importer un wallet
+            Import a wallet
           </div>
 
           <div className="seed-import-description">
-            Enter your full recovery phrase, dans
-            l'ordre exact.
+            Enter your full recovery phrase, in
+            the exact order.
           </div>
 
           <div className="seed-length">

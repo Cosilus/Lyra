@@ -1,24 +1,16 @@
 // Backend API base URL. In dev, Vite falls back to the local server.
 // In production, set VITE_API_URL (e.g. on Render/Vercel/Netlify) to
-// the deployed backend's URL — every fetch() in the app reads this
+// the deployed backend's URL. Every fetch() in the app reads this
 // instead of a hardcoded localhost address.
 export const API_BASE_URL =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) ||
   "http://localhost:3001";
 
+export const KYBERSWAP_CLIENT_ID = "Lyra";
+
 // ============================================================
 // NETWORKS
 // ============================================================
-export const PLASMA_TESTNET = {
-  key: "plasma_testnet",
-  name: "Plasma Testnet",
-  chainId: 9746,
-  chainIdHex: "0x2612",
-  rpcUrl: "https://testnet-rpc.plasma.to",
-  nativeSymbol: "XPL",
-  explorer: "https://testnet.plasmascan.to",
-};
-
 export const PLASMA_MAINNET = {
   key: "plasma",
   name: "Plasma",
@@ -28,35 +20,61 @@ export const PLASMA_MAINNET = {
   nativeSymbol: "XPL",
   explorer: "https://plasmascan.to",
   color: "#007e02",
+  kyberSlug: "plasma",
+  coingeckoId: "plasma",
+  description: "A purpose-built L1 for stablecoins, near-instant, low-fee USD₮ transfers with full EVM compatibility.",
 };
 
- export const ETHEREUM_MAINNET = {
-     key: "ethereum",
-     name: "Ethereum",
-     chainId: 1,
-     chainIdHex: "0x1",
-     rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_ETH_RPC_URL) || "https://eth.llamarpc.com",
-     nativeSymbol: "ETH",
-     explorer: "https://etherscan.io",
-     color: "#1436be",
-   };
+export const ETHEREUM_MAINNET = {
+  key: "ethereum",
+  name: "Ethereum",
+  chainId: 1,
+  chainIdHex: "0x1",
+  rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_ETH_RPC_URL) || "https://eth.llamarpc.com",
+  nativeSymbol: "ETH",
+  explorer: "https://etherscan.io",
+  color: "#1436be",
+  kyberSlug: "ethereum",
+  // Base's native gas token is also ETH, same CoinGecko market/price.
+  coingeckoId: "ethereum",
+  description: "The original smart-contract blockchain, the most decentralized and battle-tested, home to most of DeFi.",
+};
 
 export const BASE_MAINNET = {
-     key: "base",
-     name: "Base",
-     chainId: 8453,
-     chainIdHex: "0x2105",
-     rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_BASE_RPC_URL) || "https://mainnet.base.org",
-     nativeSymbol: "ETH",
-     explorer: "https://basescan.org",
-     color: "#0052FF",
-   };
+  key: "base",
+  name: "Base",
+  chainId: 8453,
+  chainIdHex: "0x2105",
+  rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_BASE_RPC_URL) || "https://mainnet.base.org",
+  nativeSymbol: "ETH",
+  explorer: "https://basescan.org",
+  color: "#0052FF",
+  kyberSlug: "base",
+  coingeckoId: "ethereum",
+  description: "Coinbase's Ethereum L2, fast, low-cost transactions secured by Ethereum itself.",
+};
 
-// Ordered list of supported networks — drives the network switcher UI
+export const POLYGON_MAINNET = {
+  key: "polygon",
+  name: "Polygon",
+  chainId: 137,
+  chainIdHex: "0x89",
+  rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_POLYGON_RPC_URL) || "https://polygon-rpc.com",
+  nativeSymbol: "POL",
+  explorer: "https://polygonscan.com",
+  color: "#8247E5",
+  kyberSlug: "polygon",
+  // POL replaced MATIC as Polygon's native gas token in 2024; this is
+  // CoinGecko's current id for it, not the legacy "matic-network" one.
+  coingeckoId: "polygon-ecosystem-token",
+  description: "A fast, low-cost Ethereum sidechain, home to Polymarket's prediction markets.",
+};
+
+// Ordered list of supported networks, drives the network switcher UI
 // directly. Add a network here (plus its TOKENS_BY_NETWORK and
 // DEFI_CONTRACTS_BY_NETWORK entries below) and it shows up everywhere,
 // no other hardcoded list to update.
-export const NETWORKS = [PLASMA_MAINNET, ETHEREUM_MAINNET, BASE_MAINNET];
+export const NETWORKS = [PLASMA_MAINNET, ETHEREUM_MAINNET, BASE_MAINNET, POLYGON_MAINNET];
 
 // Default network on first launch. Persisted afterward in
 // localStorage under "plasma_active_network_v1".
@@ -70,11 +88,11 @@ export function getNetworkByKey(key) {
 // PER-NETWORK ERC-20 TOKENS
 // ============================================================
 // Every address below has been individually verified against an
-// official source before being added — never guessed or assumed
+// official source before being added, never guessed or assumed
 // identical across chains, since the same token has a different
 // contract address on every network.
 //
-// Plasma: USDT verified 16.08.2026 (official Plasma/Tether docs).
+// Plasma: USDT0 verified 16.08.2026 (official Plasma/Tether docs).
 // USDC/EURC verified 28.08.2026 via Circle's official announcement
 // (circle.com/blog/now-available-usdc-eurc-cctp-and-bridge-kit-on-plasma).
 //
@@ -83,7 +101,12 @@ export function getNetworkByKey(key) {
 // verified contracts). Verified 29.08.2026.
 export const TOKENS_BY_NETWORK = {
   plasma: {
-    USDT: { symbol: "USDT", name: "Tether USD", address: "0xdAC17F958D2ee523a2206206994597C13D831ec7", decimals: 6, color: "#26A17B" },
+    // Plasma's USDT deployment is technically USDT0 (LayerZero's
+    // omnichain fungible USDT standard), not native/canonical Tether,
+    // labeled that way everywhere in the app on purpose, so the ticket
+    // a user signs matches what block explorers and other tools call
+    // this exact contract.
+    USDT0: { symbol: "USDT0", name: "USDT0", address: "0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb", decimals: 6, color: "#26A17B" },
     USDC: { symbol: "USDC", name: "USD Coin", address: "0x2d661C89D812261039AF9764eceaAee884f5F67F", decimals: 6, color: "#2775CA" },
     EURC: { symbol: "EURC", name: "Euro Coin", address: "0x3ee196e78d4d4248b849b8e1c7f44c5457fafd2c", decimals: 6, color: "#0066B3" },
   },
@@ -94,6 +117,12 @@ export const TOKENS_BY_NETWORK = {
   base: {
     USDC: { symbol: "USDC", name: "USD Coin", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6, color: "#2775CA" },
     EURC: { symbol: "EURC", name: "Euro Coin", address: "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42", decimals: 6, color: "#0066B3" },
+  },
+  polygon: {
+    // Bridged USDC (PoS), not native/canonical USDC, this is the one
+    // Polymarket actually uses as collateral for orders/positions.
+    // Verified on PolygonScan 09.09.2026.
+    USDCE: { symbol: "USDC.e", name: "Bridged USDC (PoS)", address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", decimals: 6, color: "#2775CA" },
   },
 };
 
@@ -112,7 +141,8 @@ export const ERC20_ABI = [
   "function approve(address spender, uint256 amount) returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function decimals() view returns (uint8)",
-  "function symbol() view returns (string)"
+  "function symbol() view returns (string)",
+  "event Transfer(address indexed from, address indexed to, uint256 value)"
 ];
 
 // ============================================================
@@ -148,6 +178,11 @@ export const WETH9_ABI = [
   "function allowance(address owner, address spender) view returns (uint256)"
 ];
 
+export const KYBERSWAP_API_BASE = (chainSlug) =>
+  `https://aggregator-api.kyberswap.com/${chainSlug}/api/v1`;
+
+export const NATIVE_PSEUDO_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+
 // ============================================================
 // PER-NETWORK DEFI PROTOCOLS (Uniswap V3, Aave V3)
 // ============================================================
@@ -162,6 +197,11 @@ export const WETH9_ABI = [
 
 export const DEFI_CONTRACTS_BY_NETWORK = {
   plasma: {
+    oku: {
+      enabled: true,
+    },
+
+    // Tu peux le conserver comme fallback
     uniswapV3: {
       router: "0x807F4E281B7A3B324825C64ca53c69F0b418dE40",
       quoter: "0xaa52bB8110fE38D0d2d2AF0B85C3A3eE622CA455",
@@ -187,6 +227,13 @@ export const DEFI_CONTRACTS_BY_NETWORK = {
       poolAddressesProvider: "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e",
       protocolDataProvider: "0x0a16f2FCC0D44FaE41cc54e079281D84A363bECD",
     },
+    // Same LiFiDiamond address as Base and most LI.FI-supported chains,
+    // verified via BaseScan/Etherscan's own contract name tags on
+    // 04.09.2026, not just the docs' general claim (Plasma below uses a
+    // different address, so per-chain addresses do genuinely vary).
+    lifi: {
+      diamond: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+    },
   },
   base: {
     uniswapV3: {
@@ -197,7 +244,11 @@ export const DEFI_CONTRACTS_BY_NETWORK = {
     aave: {
       pool: "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5",
       poolAddressesProvider: "0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D",
-      protocolDataProvider: "0xC4Fcf9893072d61Cc2899C0054877Cb752587981", 
+      protocolDataProvider: "0xC4Fcf9893072d61Cc2899C0054877Cb752587981",
+    },
+    // Verified via BaseScan's own contract name tag on 04.09.2026.
+    lifi: {
+      diamond: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
     },
   },
 };
@@ -206,7 +257,7 @@ export function getDefiContracts(networkKey) {
   return DEFI_CONTRACTS_BY_NETWORK[networkKey] || {};
 }
 
-// LI.FI bridge quote proxy — server-side, network-agnostic (LI.FI
+// LI.FI bridge quote proxy, server-side, network-agnostic (LI.FI
 // itself routes across chains; this endpoint doesn't need to be
 // duplicated per network).
 export const LIFI_QUOTE_API_URL = `${API_BASE_URL}/api/bridge/quote`;
@@ -231,20 +282,25 @@ export const AAVE_POOL_ABI = [
 ];
 
 // Used to read a user's real staked (aToken) balance directly, so the
-// displayed balance can reflect the full on-chain position — wallet
-// funds plus whatever is currently deposited in Aave — not just the
+// displayed balance can reflect the full on-chain position, wallet
+// funds plus whatever is currently deposited in Aave, not just the
 // liquid wallet amount.
+// getReserveData is the pool-wide reserve state (not tied to any one
+// user), its liquidityRate is the same real supply APR the AI's
+// get_aave_apy tool reads server-side, so the staked-balance chip can
+// show the actual rate instead of a static label.
 export const AAVE_DATA_PROVIDER_ABI = [
-  "function getUserReserveData(address asset, address user) view returns (uint256 currentATokenBalance, uint256 currentStableDebt, uint256 currentVariableDebt, uint256 principalStableDebt, uint256 scaledVariableDebt, uint256 stableBorrowRate, uint256 liquidityRate, uint40 stableRateLastUpdated, bool usageAsCollateralEnabled)"
+  "function getUserReserveData(address asset, address user) view returns (uint256 currentATokenBalance, uint256 currentStableDebt, uint256 currentVariableDebt, uint256 principalStableDebt, uint256 scaledVariableDebt, uint256 stableBorrowRate, uint256 liquidityRate, uint40 stableRateLastUpdated, bool usageAsCollateralEnabled)",
+  "function getReserveData(address asset) view returns (uint256 unbacked, uint256 accruedToTreasuryScaled, uint256 totalAToken, uint256 totalStableDebt, uint256 totalVariableDebt, uint256 liquidityRate, uint256 variableBorrowRate, uint256 stableBorrowRate, uint256 averageStableBorrowRate, uint256 liquidityIndex, uint256 variableBorrowIndex, uint40 lastUpdateTimestamp)"
 ];
 
-// Default slippage tolerance for swaps (0.5% — standard default for a
+// Default slippage tolerance for swaps (0.5%, standard default for a
 // liquid pair; adjustable per-operation if a specific ticket ever
 // needs a different value, e.g. a thinner pool).
 export const DEFAULT_SLIPPAGE = 0.005;
 
 // ============================================================
-// EXPLORER HELPERS — now take the network explicitly, since the app
+// EXPLORER HELPERS, now take the network explicitly, since the app
 // can point at more than one chain at a time.
 // ============================================================
 export function explorerAddress(address, network) {
@@ -259,7 +315,7 @@ export function explorerTx(hash, network) {
 // BACKEND-ONLY BACKWARD-COMPATIBLE ALIASES
 // ============================================================
 // The server/ folder only ever operates on Plasma (ACTIVE_CHAIN_ID
-// is hardcoded to 9745 in server.js) — it doesn't need the frontend's
+// is hardcoded to 9745 in server.js). It doesn't need the frontend's
 // multi-network split above. These aliases keep server/tools/*.js
 // working without rewriting them for multi-chain support they don't
 // actually need.
