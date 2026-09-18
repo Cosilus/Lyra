@@ -23,12 +23,12 @@
 <meta name="twitter:description" content="Say what you want. Lyra handles the chain. Send, swap, bridge, stake, and bet on Polymarket, across Plasma, Ethereum, Base, and Polygon.">
 <meta name="twitter:image" content="https://lyra.xyz/public/og-image.png">
 
-<link rel="icon" href="favicon.ico" sizes="32x32" />
-<link rel="icon" type="image/png" href="public/favicon-96x96.png" sizes="96x96" />
-<link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
-<link rel="shortcut icon" href="favicon.ico" />
-<link rel="apple-touch-icon" sizes="180x180" href="public/apple-touch-icon.png" />
-<link rel="manifest" href="public/site.webmanifest" />
+<link rel="icon" href="/favicon.ico" sizes="32x32" />
+<link rel="icon" type="image/png" href="/public/favicon-96x96.png" sizes="96x96" />
+<link rel="icon" type="image/svg+xml" href="/public/favicon.svg" />
+<link rel="shortcut icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" sizes="180x180" href="/public/apple-touch-icon.png" />
+<link rel="manifest" href="/public/site.webmanifest" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,7 +70,9 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+/* Native smooth-scroll is handled by Lenis instead (see the GSAP/Lenis
+   wiring script) — leaving this on fights Lenis's own scroll hijacking. */
+html.no-lenis { scroll-behavior: smooth; }
 
 body {
   margin: 0;
@@ -427,6 +429,82 @@ footer .footer-logo img {
   .ask-lyra-sub { display: none; }
 }
 
+.network-switch { position: relative; }
+.network-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--beige);
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  padding: 7px 12px;
+  border-radius: 999px;
+  transition: border-color 0.15s ease;
+}
+.network-btn:hover { border-color: var(--accent-deep); }
+.network-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex: 0 0 auto;
+}
+.network-dot.muted { background: var(--muted-dim); }
+.network-chevron { transition: transform 0.2s ease; flex: 0 0 auto; }
+.network-switch.open .network-chevron { transform: rotate(180deg); }
+.network-icon { display: none; flex: 0 0 auto; }
+
+/* Mobile: "Plasma Mainnet" plus a chevron doesn't fit next to the logo,
+   hamburger and Ask Lyra pill on a narrow header, it was overflowing the
+   viewport. Collapse to a compact icon-only pill instead, same tap target,
+   the dropdown itself (network-menu) is unaffected. */
+@media (max-width: 720px) {
+  .network-btn { padding: 8px; gap: 0; }
+  .network-label, .network-chevron { display: none; }
+  .network-icon { display: block; }
+}
+
+.network-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  min-width: 190px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.4);
+  opacity: 0;
+  transform: translate(-50%, -6px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.network-switch.open .network-menu {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.network-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--beige-dim);
+}
+.network-item.active { background: var(--accent-soft); color: var(--beige); }
+.network-item.disabled { color: var(--muted); }
+.network-item .net-name { flex: 1; }
+.network-item .net-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.network-item.active .net-tag { color: var(--success); }
+.network-item.disabled .net-tag { color: var(--muted-dim); }
 
 /* ============================================================
    HERO
@@ -998,116 +1076,6 @@ section { padding: 88px 0; }
 .feat-check svg { flex: 0 0 auto; margin-top: 1px; color: var(--success); }
 
 /* ============================================================
-   FEATURES : scroll-scrubbed wallet
-============================================================ */
-#walletScroll[hidden] { display: none; }
-
-.wallet-scroll-track {
-  position: relative;
-  height: 760vh;
-}
-.wallet-scroll-pin {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.wallet-stage {
-  position: relative;
-  width: min(620px, 92vw);
-  height: min(440px, 72vh);
-}
-
-.wallet-hint {
-  position: absolute;
-  left: 0; right: 0;
-  bottom: 6%;
-  text-align: center;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--muted);
-  letter-spacing: 0.04em;
-}
-
-.wallet-shell { position: absolute; top: 50%; left: 50%; width: 320px; height: 220px; transform: translate(-50%, -50%); z-index: 3; }
-
-.wallet-body { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 168px; border-radius: 22px; background: linear-gradient( 155deg, var(--beige) 0%, var(--beige-dim) 100% ); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); z-index: 3; }
-.wallet-stripe {
-  position: absolute;
-  left: 26px; bottom: 30px;
-  width: 74px; height: 4px;
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.16);
-}
-.wallet-clasp {
-  position: absolute;
-  top: 50%; right: -14px;
-  width: 40px; height: 40px;
-  margin-top: -20px;
-  border-radius: 50%;
-  background: linear-gradient(155deg, var(--beige) 0%, var(--beige-dim) 100%);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
-  display: flex; align-items: center; justify-content: center;
-  transition: box-shadow 0.4s ease;
-}
-.wallet-clasp::after {
-  content: "";
-  width: 11px; height: 11px;
-  border-radius: 50%;
-  background: var(--accent-deep);
-  transition: background 0.4s ease, box-shadow 0.4s ease;
-}
-.wallet-clasp.active {
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 4px var(--accent-soft);
-}
-.wallet-clasp.active::after {
-  background: var(--accent-strong);
-  box-shadow: 0 0 10px var(--accent-strong);
-}
-
-.wallet-card { position: absolute; left: 50%; top: 50%; width: min(300px, 78vw); height: 348px; margin: -175px 0 0 -150px; pointer-events: none; z-index: 1; transition: none; will-change: transform;  border: 3px solid var(--beige); overflow: hidden;
-  box-sizing: border-box;} .wallet-card:hover { transform: none !important; }
-.wallet-card:hover { transform: none !important; }
-
-/* Opaque panel + a distinct border color per card, both with enough
-   specificity to beat the .feat-card grid-skin rule (background:
-   var(--void); border:none) these cards also match — otherwise the
-   card is see-through against the page and every card looks the same. */
-.wallet-card.feat-card { background: var(--panel2); border-radius: 18px; }
-#walletCard0 { border: 3px solid #4C8CFF; }
-#walletCard1 { border: 3px solid #A855F7; }
-#walletCard2 { border: 3px solid #2DD4BF; }
-#walletCard3 { border: 3px solid var(--gold); }
-#walletCard4 { border: 3px solid #22C55E; }
-.wallet-dots {
-  position: absolute;
-  left: 0; right: 0;
-  bottom: -6%;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-.wallet-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--line);
-  transition: background 0.4s ease, transform 0.4s ease;
-}
-.wallet-dot.active {
-  background: var(--accent-strong);
-  transform: scale(1.4);
-}
-
-@media (max-width: 640px) {
-  .wallet-scroll-track { height: 520vh; }
-  .wallet-card { margin: -130px 0 0 -140px; }
-}
-
-
-/* ============================================================
    AGENT how it thinks
 ============================================================ */
 .agent-section {
@@ -1210,6 +1178,15 @@ section { padding: 88px 0; }
 
 .ask-demo-dots { display: flex; justify-content: center; gap: 8px; margin-top: 18px; }
 .ask-demo-dots .wallet-dot { cursor: pointer; }
+/* Shared small-dot-indicator look, used by the ask-demo carousel here
+   and by the fly-cards feature scene's .fly-dot further down. */
+.wallet-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background 0.4s ease, transform 0.4s ease;
+}
+.wallet-dot.active { background: var(--accent-strong); transform: scale(1.4); }
 
 .ask-bubble {
   align-self: flex-end;
@@ -1718,13 +1695,188 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
 .cookie-banner .btn { padding: 9px 16px; font-size: 13px; }
 
 /* ============================================================
+   INTRO LOADER : binary typewriter over a solid grid of square
+   tiles; the reveal drops each tile straight down and off the
+   screen (a hard, physical "square falling" transition, top row
+   first) instead of fading, à la transitionsquarefalling.framer.
+   GSAP-driven, skipped entirely under reduced-motion.
+============================================================ */
+.intro-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.intro-loader[hidden] { display: none; }
+
+.intro-squares {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  /* Matches .intro-square's own fill so sub-pixel rounding between
+     grid cells never shows a hairline seam through to the page below.
+     Switched off in JS right as the reveal starts, or it would mask
+     the squares fading out. */
+  background: var(--void);
+}
+.intro-square { background: var(--void); }
+
+.intro-text {
+  position: relative;
+  z-index: 2;
+  font-family: var(--mono);
+  font-size: clamp(15px, 2.6vw, 24px);
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+  color: var(--muted);
+  text-align: center;
+  padding: 0 24px;
+  transition: opacity 0.3s ease;
+}
+.intro-text.out { opacity: 0; }
+.intro-line { min-height: 1.6em; white-space: pre; }
+.bt-char { display: inline-block; }
+.bt-char.revealed { color: var(--beige); }
+.bt-char.revealed.accent { color: var(--accent-strong); }
+
+/* Same binary-decode look, reused on the hero h1 and section/FAQ/
+   contact headings so the big titles "type in" instead of just
+   appearing (replaces the old word-split slide-up reveal). Real
+   space characters are left as plain text, not wrapped in a span,
+   so normal word-wrap is unaffected. */
+.bt-hchar { color: var(--muted); }
+.bt-hchar.revealed { color: inherit; }
+.bt-hchar.accent { color: var(--accent-strong); }
+.bt-hchar.chillax { font-family: var(--chillax); }
+
+/* Hides these headings from the very first paint (pure CSS, no JS
+   race) so there's never a flash of the plain readable title before
+   the typewriter script swaps it for scrambled chars. Every code
+   path that can reveal a heading — including reduced-motion — must
+   set opacity back to 1, or it stays invisible forever. */
+.bt-pending { opacity: 0; }
+
+/* ============================================================
+   WORD-SPLIT HEADING REVEAL
+============================================================ */
+.wd { display: inline-block; overflow: hidden; vertical-align: top; }
+.wd > * { display: inline-block; transform: translateY(115%); transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1); transition-delay: calc(var(--wi) * 55ms); }
+h1.in .wd > *, h2.in .wd > * { transform: translateY(0); }
+
+/* ============================================================
+   FEATURES : cards thrown at you from far away, in 3D
+============================================================ */
+#flyTrack[hidden] { display: none; }
+
+.fly-track { position: relative; height: 620vh; }
+.fly-pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.fly-stage-wrap {
+  position: relative;
+  width: min(620px, 92vw);
+  height: min(460px, 74vh);
+  perspective: 1400px;
+}
+.fly-stage { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
+
+.fly-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(320px, 82vw);
+  height: 360px;
+  margin: -180px 0 0 -160px;
+  pointer-events: none;
+  will-change: transform, opacity, filter;
+  backface-visibility: hidden;
+  box-sizing: border-box;
+}
+.fly-card:hover { transform: none !important; }
+#flyCard0 { border-color: #4C8CFF; }
+#flyCard1 { border-color: #A855F7; }
+#flyCard2 { border-color: #2DD4BF; }
+#flyCard3 { border-color: #D9A441; }
+
+.fly-dots {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: -8%;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.fly-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background 0.4s ease, transform 0.4s ease;
+}
+.fly-dot.active { background: var(--accent-strong); transform: scale(1.4); }
+
+.fly-hint {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 2%;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 640px) {
+  .fly-track { height: 420vh; }
+}
+
+/* ============================================================
+   PREMIUM 3D — pointer-reactive card tilt + glow, and deeper
+   parent perspective for sections that get a directional/flip
+   scroll reveal. Everything here is inert until the wiring
+   script below adds a class or moves a value — skipped outright
+   under reduced-motion or on touch, so this block alone never
+   changes anything visually.
+============================================================ */
+.compare-grid { perspective: 1600px; }
+.agent-flow { perspective: 1300px; }
+
+.tilt-3d {
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: box-shadow 0.35s ease;
+}
+.tilt-3d:hover { box-shadow: 0 24px 60px rgba(0,0,0,0.38); }
+.tilt-3d::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(167, 139, 250, 0.18), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.tilt-3d:hover::after { opacity: 1; }
+.tilt-3d > * { position: relative; z-index: 1; }
+
+/* ============================================================
    GRID / MONO SKIN
-   Same markup, same sections, same JS (nav, wallet-scroll,
-   Ask Lyra, network switch, FAQ/contact/legal views, cookie
-   banner) as the original site — the look is rebuilt around a
-   dot-grid backdrop, uppercase JetBrains Mono headings, and
+   Same markup, same sections, same JS as the base design — the
+   look is rebuilt around uppercase JetBrains Mono headings and
    hairline-divider card grids instead of the rounded pill/panel
-   system, matching the reference at localhost:8797.
+   system, matching the real site (index.html).
 ============================================================ */
 :root {
   --void: #0D0916;
@@ -1779,7 +1931,7 @@ h1, h2, h3,
   letter-spacing: -0.01em;
 }
 
-/* Eyebrow: plain tracked mono label, "0N / LABEL", no pill. */
+/* Eyebrow: plain tracked mono label, no pill. */
 .eyebrow {
   display: block;
   background: none;
@@ -1797,10 +1949,6 @@ h1, h2, h3,
 .btn-primary { background: var(--accent); color: var(--void); border-color: var(--accent); }
 .btn-primary:hover { background: transparent; color: var(--accent); transform: none; }
 .btn-ghost:hover { transform: none; }
-
-/* Kept identical to the real app's hold-to-confirm control (same
-   gradient, text color) except for the progress fill, which stays
-   hidden here per feedback — only the growing dot animation shows. */
 
 /* Hairline card grids: the container carries the divider color,
    each card punches a var(--void) hole in it — a 1px seam instead
@@ -1823,11 +1971,12 @@ h1, h2, h3,
 .download-btn { border-radius: 2px; }
 .download-btn .dl-icon { border-radius: 2px; }
 .faq-tab, .faq-item, .contact-form, .contact-field input { border-radius: 2px; }
-/* Textarea + topic select rounded to match the radius the inputs
-   above actually render at (11px, from the more-specific base
-   .contact-field input[type="…"] rule) — keeps the whole contact
-   form visually consistent instead of two sharp corners next to
-   rounded ones. */
+/* Textarea + topic select rounded to match the same radius the
+   inputs above actually render at (11px, from the base
+   .contact-field input[type="…"] rule, which is more specific than
+   the flat 2px skin rule and wins) — keeps the whole contact form
+   visually consistent instead of two sharp corners next to rounded
+   ones. */
 .contact-field textarea, .contact-select-wrap select { border-radius: 11px; }
 .cookie-banner { border-radius: 2px; }
 .nav-menu-panel, .ask-lyra-panel { border-radius: 2px; }
@@ -1884,27 +2033,6 @@ h1, h2, h3,
 }
 .nav-pill { max-width: 1120px; margin: 0 auto; padding: 6px 20px; }
 
-/* Networks moved out of the nav dropdown, shown inline in the
-   hero instead — five live networks including Arc. */
-.hero-networks {
-  display: flex;
-  gap: 22px;
-  flex-wrap: wrap;
-  margin: 30px 0 34px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.hero-networks span { display: flex; align-items: center; gap: 8px; }
-.hero-networks .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; flex: 0 0 auto; }
-.hero-networks span:nth-child(1) .dot { background: #0D9C5A; } /* Plasma — darker green from its logo */
-.hero-networks span:nth-child(2) .dot { background: #5468D4; } /* Ethereum — darker blue from its logo */
-.hero-networks span:nth-child(3) .dot { background: #4C8CFF; } /* Base */
-.hero-networks span:nth-child(4) .dot { background: #A855F7; } /* Polygon */
-.hero-networks span:nth-child(5) .dot { background: #223B82; } /* Arc — very dark navy blue from its logo */
-
 /* Keep the three hero stats on one row instead of wrapping. */
 .hero-stats { flex-wrap: nowrap; gap: 20px; }
 .hero-stat { flex: 1 1 0; min-width: 0; }
@@ -1925,110 +2053,6 @@ h1, h2, h3,
 @media (max-width: 640px) {
   .footer-links { flex-direction: column; gap: 10px; font-size: 12px; }
 }
-
-/* ============================================================
-   INTRO LOADER : binary typewriter, then a grid of squares
-   clears in a pyramidal wave radiating out from the center,
-   revealing the site. Plain CSS transitions (no animation
-   library), skipped entirely under reduced-motion.
-============================================================ */
-.intro-loader {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.intro-loader[hidden] { display: none; }
-
-.intro-squares {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: grid;
-  /* Matches .intro-square's own fill so sub-pixel rounding between
-     grid cells never shows a hairline seam through to the page below.
-     Switched to transparent in JS right as the reveal starts, or it
-     would mask the squares fading out. */
-  background: var(--void);
-}
-.intro-square {
-  background: var(--void);
-  opacity: 1;
-  transition: opacity 0.15s ease-out;
-}
-
-.intro-text {
-  position: relative;
-  z-index: 2;
-  font-family: var(--mono);
-  font-size: clamp(15px, 2.6vw, 24px);
-  letter-spacing: 0.02em;
-  line-height: 1.6;
-  color: var(--muted);
-  text-align: center;
-  padding: 0 24px;
-  transition: opacity 0.3s ease;
-}
-.intro-text.out { opacity: 0; }
-.intro-line { min-height: 1.6em; white-space: pre; }
-.bt-char { display: inline-block; }
-.bt-char.revealed { color: var(--beige); }
-.bt-char.revealed.accent { color: var(--accent-strong); }
-/* The word "Lyra" gets the site's brand face even mid-decode, same
-   as everywhere else it appears (nav, footer, buttons). */
-.bt-char.chillax { font-family: var(--chillax); }
-
-/* Same binary-decode look as the intro loader, reused on the hero
-   h1 and section headings so the big titles "type in" instead of
-   just appearing. Real space characters are left as plain text (not
-   wrapped in a span) so normal word-wrap is unaffected — only the
-   non-space glyphs get swapped/colored. */
-.bt-hchar { color: var(--muted); }
-.bt-hchar.revealed { color: inherit; }
-.bt-hchar.accent { color: var(--accent-strong); }
-.bt-hchar.chillax { font-family: var(--chillax); }
-
-/* Hides these headings from the very first paint (pure CSS, no JS
-   race) so there's never a flash of the plain readable title before
-   the typewriter script swaps it for scrambled chars — the heading
-   only ever becomes visible already mid- or fully-decoded. The
-   typewriter script is responsible for setting opacity back to 1
-   (including the reduced-motion / no-IntersectionObserver fallback
-   paths), so a heading never stays stuck invisible if JS fails. */
-.bt-pending { opacity: 0; }
-
-/* ============================================================
-   PREMIUM 3D — pointer-reactive card tilt + glow, and deeper
-   parent perspective for sections that get a directional/flip
-   scroll reveal. Vanilla CSS only — inert until the wiring
-   script below adds a class or moves a value, and skipped
-   outright under reduced-motion or on touch.
-============================================================ */
-.compare-grid { perspective: 1600px; }
-.agent-flow { perspective: 1300px; }
-
-.tilt-3d {
-  position: relative;
-  transform-style: preserve-3d;
-  will-change: transform;
-}
-.tilt-3d:hover { box-shadow: 0 24px 60px rgba(0,0,0,0.38); }
-.tilt-3d::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(167, 139, 250, 0.18), transparent 65%);
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-.tilt-3d:hover::after { opacity: 1; }
-.tilt-3d > * { position: relative; z-index: 1; }
 
 </style>
 </head>
@@ -2076,7 +2100,7 @@ h1, h2, h3,
       <div class="ask-lyra-switch" id="askLyraSwitch">
         <button class="ask-lyra-btn" id="askLyraBtn" aria-expanded="false" aria-haspopup="true">
           <span class="ask-lyra-spark">✦</span>
-          Ask Lyra
+          Ask <span class="lyra-chillax">Lyra</span>
         </button>
         <div class="ask-lyra-panel" id="askLyraPanel" role="dialog" aria-label="Ask Lyra">
           <div class="ask-lyra-head">
@@ -2106,6 +2130,36 @@ h1, h2, h3,
           </form>
         </div>
       </div>
+
+      <div class="network-switch" id="networkSwitch">
+        <button class="network-btn" id="networkBtn" aria-expanded="false" aria-haspopup="true" aria-label="Network: Plasma Mainnet">
+          <span class="network-label">Plasma Mainnet</span>
+          <svg class="network-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg>
+          <svg class="network-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="network-menu" id="networkMenu" role="menu">
+          <div class="network-item active" role="menuitem">
+            <span class="network-dot"></span>
+            <span class="net-name">Plasma</span>
+            <span class="net-tag">Mainnet</span>
+          </div>
+          <div class="network-item" role="menuitem">
+            <span class="network-dot"></span>
+            <span class="net-name">Ethereum</span>
+            <span class="net-tag">Live</span>
+          </div>
+          <div class="network-item" role="menuitem">
+            <span class="network-dot"></span>
+            <span class="net-name">Base</span>
+            <span class="net-tag">Live</span>
+          </div>
+          <div class="network-item" role="menuitem">
+            <span class="network-dot"></span>
+            <span class="net-name">Polygon</span>
+            <span class="net-tag">Live</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
@@ -2114,7 +2168,7 @@ h1, h2, h3,
 <header class="hero" id="top">
   <div class="wrap hero-grid">
     <div>
-      <h1 class="bt-pending">Say what you want.<br><em>Lyra</em> handles the chain.</h1>
+      <h1 id="heroTitle" class="bt-pending">Say what you want.<br><em>Lyra</em> handles the chain.</h1>
       <p class="lead">
          Lyra is an iWallet (intelligent wallet) live on Plasma, Ethereum, Base, and Polygon. Tell it what you're
         trying to do : receive, send, swap, bridge, stake, or bet on a real-world outcome through Polymarket,
@@ -2127,13 +2181,6 @@ h1, h2, h3,
           Download <span class="lyra-chillax">Lyra</span> <span class="nav-soon-tag">Soon</span>
         </a>
         <a href="#compare" class="btn btn-ghost">See it next to the manual way</a>
-      </div>
-      <div class="hero-networks">
-        <span><i class="dot"></i>Plasma</span>
-        <span><i class="dot"></i>Ethereum</span>
-        <span><i class="dot"></i>Base</span>
-        <span><i class="dot"></i>Polygon</span>
-        <span><i class="dot"></i>Arc</span>
       </div>
       <div class="hero-stats">
         <div class="hero-stat">
@@ -2217,7 +2264,7 @@ h1, h2, h3,
 <section id="compare">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">01 / The actual difference</span>
+      <span class="eyebrow">The actual difference</span>
       <h2 class="bt-pending">The chain didn't get simpler. The interface finally caught up.</h2>
       <p>Swapping, bridging, and staking were never hard because blockchains are complicated.
       They're hard because doing them safely means checking rates across tabs, guessing
@@ -2262,7 +2309,7 @@ h1, h2, h3,
 <section id="features">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">02 / What it does</span>
+      <span class="eyebrow">What it does</span>
       <h2 class="bt-pending">Four real protocols, four chains. One agent deciding what's actually safe to sign.</h2>
       <p>Lyra doesn't simulate DeFi. It's wired directly into real, verified contracts across
       Plasma, Ethereum, Base, and Polygon, and checks each one live instead of trusting a cached number.</p>
@@ -2324,113 +2371,79 @@ h1, h2, h3,
           Cash out anytime before a market resolves
         </div>
       </div>
-
-      <div class="feat-card">
-        <div class="feat-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
-        </div>
-        <h3>Pay</h3>
-        <div class="feat-platform">via x402</div>
-        <p>Lyra settles x402 payments directly over HTTP, so an app, an API, or an agent
-        can get paid instantly, no card and no invoice, on web and on mobile.</p>
-        <div class="feat-check">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
-          Same wallet, same one-hold confirmation, on both platforms
-        </div>
-      </div>
     </div>
 
-    <div class="wallet-scroll-track" id="walletScroll" hidden>
-      <div class="wallet-scroll-pin">
-        <div class="wallet-stage">
+    <div class="fly-track" id="flyTrack" hidden>
+      <div class="fly-pin">
+        <div class="fly-stage-wrap">
+          <div class="fly-stage" id="flyStage">
 
-          <div class="wallet-shell">
-            <div class="wallet-body">
-              <div class="wallet-stripe"></div>
+            <div class="fly-card feat-card" id="flyCard0" data-index="0">
+              <div class="feat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M7 8l-4-4 4-4M17 21V3M17 16l4 4-4 4"/></svg>
+              </div>
+              <h3>Swap</h3>
+              <div class="feat-platform">via Uniswap V3</div>
+              <p>Lyra finds the exact pool that exists for your pair on Plasma and reads its live
+              rate before showing you a number. It never guesses a fee tier.</p>
+              <div class="feat-check">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+                Rate and pool confirmed on-chain, not assumed
+              </div>
             </div>
-            <div class="wallet-clasp" id="walletClasp"></div>
+
+            <div class="fly-card feat-card" id="flyCard1" data-index="1">
+              <div class="feat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M2 12l6-6M2 12l6 6M22 12l-6-6M22 12l-6 6"/></svg>
+              </div>
+              <h3>Bridge</h3>
+              <div class="feat-platform">via LI.FI</div>
+              <p>Every route is requested live from LI.FI itself, the same engine behind Jumper,
+              so what Lyra shows you is exactly what gets signed, not a hand-built guess.</p>
+              <div class="feat-check">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+                Live quote per request, never hardcoded
+              </div>
+            </div>
+
+            <div class="fly-card feat-card" id="flyCard2" data-index="2">
+              <div class="feat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+              </div>
+              <h3>Stake</h3>
+              <div class="feat-platform">via Aave V3</div>
+              <p>Lyra checks the real market before proposing a deposit : current yield,
+              lock status, and a plain-language risk level, not a static promise.</p>
+              <div class="feat-check">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+                Withdraw anytime, same one-hold confirmation
+              </div>
+            </div>
+
+            <div class="fly-card feat-card" id="flyCard3" data-index="3">
+              <div class="feat-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+              </div>
+              <h3>Predict</h3>
+              <div class="feat-platform">via Polymarket</div>
+              <p>Ask Lyra to bet on a real-world outcome and it finds the exact Polymarket market,
+              reads the live order-book price, and places the trade on Polygon as a single ticket.</p>
+              <div class="feat-check">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+                Cash out anytime before a market resolves
+              </div>
+            </div>
+
+            <div class="fly-dots">
+              <span class="fly-dot" data-dot="0"></span>
+              <span class="fly-dot" data-dot="1"></span>
+              <span class="fly-dot" data-dot="2"></span>
+              <span class="fly-dot" data-dot="3"></span>
+            </div>
+
+            <div class="fly-hint" id="flyHint">↓ keep scrolling</div>
+
           </div>
-
-          <div class="wallet-card feat-card" id="walletCard0" data-index="0">
-            <div class="feat-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M7 8l-4-4 4-4M17 21V3M17 16l4 4-4 4"/></svg>
-            </div>
-            <h3>Swap</h3>
-            <div class="feat-platform">via Uniswap V3</div>
-            <p>Lyra finds the exact pool that exists for your pair on Plasma and reads its live
-            rate before showing you a number. It never guesses a fee tier.</p>
-            <div class="feat-check">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
-              Rate and pool confirmed on-chain, not assumed
-            </div>
-          </div>
-
-          <div class="wallet-card feat-card" id="walletCard1" data-index="1">
-            <div class="feat-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M2 12l6-6M2 12l6 6M22 12l-6-6M22 12l-6 6"/></svg>
-            </div>
-            <h3>Bridge</h3>
-            <div class="feat-platform">via LI.FI</div>
-            <p>Every route is requested live from LI.FI itself, the same engine behind Jumper,
-            so what Lyra shows you is exactly what gets signed, not a hand-built guess.</p>
-            <div class="feat-check">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
-              Live quote per request, never hardcoded
-            </div>
-          </div>
-
-          <div class="wallet-card feat-card" id="walletCard2" data-index="2">
-            <div class="feat-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-            </div>
-            <h3>Stake</h3>
-            <div class="feat-platform">via Aave V3</div>
-            <p>Lyra checks the real market before proposing a deposit : current yield,
-            lock status, and a plain-language risk level, not a static promise.</p>
-            <div class="feat-check">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
-              Withdraw anytime, same one-hold confirmation
-            </div>
-          </div>
-
-          <div class="wallet-card feat-card" id="walletCard3" data-index="3">
-            <div class="feat-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-            </div>
-            <h3>Predict</h3>
-            <div class="feat-platform">via Polymarket</div>
-            <p>Ask Lyra to bet on a real-world outcome and it finds the exact Polymarket market,
-            reads the live order-book price, and places the trade on Polygon as a single ticket.</p>
-            <div class="feat-check">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
-              Cash out anytime before a market resolves
-            </div>
-          </div>
-
-          <div class="wallet-card feat-card" id="walletCard4" data-index="4">
-            <div class="feat-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
-            </div>
-            <h3>Pay</h3>
-            <div class="feat-platform">via x402</div>
-            <p>Lyra settles x402 payments directly over HTTP, so an app, an API, or an agent
-            can get paid instantly, no card and no invoice, on web and on mobile.</p>
-            <div class="feat-check">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
-              Same wallet, same one-hold confirmation, on both platforms
-            </div>
-          </div>
-
-          <div class="wallet-dots">
-            <span class="wallet-dot" data-dot="0"></span>
-            <span class="wallet-dot" data-dot="1"></span>
-            <span class="wallet-dot" data-dot="2"></span>
-            <span class="wallet-dot" data-dot="3"></span>
-            <span class="wallet-dot" data-dot="4"></span>
-          </div>
-
-          <div class="wallet-hint" id="walletHint">↓ keep scrolling</div>
-
         </div>
       </div>
     </div>
@@ -2442,7 +2455,7 @@ h1, h2, h3,
 <section class="agent-section" id="agent">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">03 / How it thinks</span>
+      <span class="eyebrow">How it thinks</span>
       <h2 class="bt-pending">It doesn't answer from memory. It goes and checks.</h2>
       <p>Every ticket Lyra shows you comes from the same three-step loop | no cached rates,
       no assumed contract addresses, nothing invented to fill a gap.</p>
@@ -2476,7 +2489,7 @@ h1, h2, h3,
 <section id="ask">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">04 / Beyond the buttons</span>
+      <span class="eyebrow">Beyond the buttons</span>
       <h2 class="bt-pending">Ask it anything, not just what to click</h2>
       <p>Lyra is also who you ask before you act. It's the same research loop :
       real search, real contract checks. Turned toward your questions instead
@@ -2501,7 +2514,7 @@ h1, h2, h3,
 <section id="security">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">05 / Security model</span>
+      <span class="eyebrow">Security model</span>
       <h2 class="bt-pending">An agent that can propose anything and move nothing.</h2>
       <p>Automation and custody are two different problems. Lyra solves the first,
       your device still solves the second.</p>
@@ -2542,7 +2555,7 @@ h1, h2, h3,
 <section class="download-section" id="download">
   <div class="wrap">
     <div class="download-head">
-      <span class="eyebrow">06 / Get Lyra</span>
+      <span class="eyebrow">Get Lyra</span>
       <h2 style="font-family:var(--display);font-size:clamp(26px,3.2vw,34px);font-weight:600;letter-spacing:-0.01em;line-height:1.2;margin:14px 0 14px;">
         Available on desktop, to start
       </h2>
@@ -3150,41 +3163,169 @@ h1, h2, h3,
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.3.26/dist/lenis.min.js"></script>
 <script>
-// ---- Intro loader: binary typewriter + pyramidal square reveal ----
-// Plain CSS transitions, no animation library — kept consistent with
-// the rest of this page's vanilla-JS approach.
+// ---- GSAP + ScrollTrigger + Lenis wiring, word-split helper, intro
+// loader → hero reveal, and section-heading reveal-on-scroll. Every
+// other script below that touches motion reads window.__reducedMotion
+// / calls window.__lenisScrollTo instead of re-deriving its own. ----
 (function () {
-  const loader = document.getElementById('introLoader');
-  if (!loader) return;
-
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.__reducedMotion = reducedMotion;
 
-  function endLoader() { loader.hidden = true; document.dispatchEvent(new Event('lyra:intro-done')); }
+  const loader = document.getElementById('introLoader');
+  const heroTitle = document.getElementById('heroTitle');
 
-  if (reducedMotion) { endLoader(); return; }
+  if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') {
+    // CDN failed to load — fail open: nothing stays hidden/blank.
+    if (loader) loader.hidden = true;
+    document.querySelectorAll('.bt-pending').forEach((el) => { el.style.opacity = '1'; });
+    return;
+  }
 
-  const introText = document.getElementById('introText');
-  const line1 = document.getElementById('introLine1');
-  const line2 = document.getElementById('introLine2');
-  const squaresContainer = document.getElementById('introSquares');
+  gsap.registerPlugin(ScrollTrigger);
 
-  // Reveals `text` into `line` one character at a time (left to
-  // right); every character not yet revealed keeps flipping between
-  // "0"/"1" so the line reads as a binary decode settling into real
-  // words. `accentRange: [start, end)` colors that slice once
-  // revealed (used to pick out the word "Lyra").
+  let lenis = null;
+  if (!reducedMotion && typeof Lenis !== 'undefined') {
+    lenis = new Lenis({ lerp: 0.1, smoothWheel: true, autoRaf: false });
+    lenis.on('scroll', ScrollTrigger.update);
+    gsap.ticker.add((time) => lenis.raf(time * 1000));
+    gsap.ticker.lagSmoothing(0);
+  }
+  window.__lenis = lenis;
+  window.__lenisScrollTo = function (target, opts) {
+    if (lenis) { lenis.scrollTo(target, opts); return; }
+    if (typeof target === 'string') document.querySelector(target)?.scrollIntoView({ behavior: 'smooth' });
+    else window.scrollTo({ top: target, behavior: 'smooth' });
+  };
+
+  // Wraps each word (or child element, e.g. an <em>) of a heading in
+  // .wd > <span> so CSS can mask/slide each one in independently.
+  // <br> is copied through untouched.
+  function splitWords(el) {
+    if (!el || el.dataset.split === '1') return;
+    el.dataset.split = '1';
+    const nodes = Array.from(el.childNodes);
+    let i = 0;
+    el.innerHTML = '';
+    nodes.forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        node.textContent.split(/(\s+)/).forEach((part) => {
+          if (part === '') return;
+          if (/^\s+$/.test(part)) { el.appendChild(document.createTextNode(part)); return; }
+          const wrap = document.createElement('span');
+          wrap.className = 'wd';
+          wrap.style.setProperty('--wi', i++);
+          const inner = document.createElement('span');
+          inner.textContent = part;
+          wrap.appendChild(inner);
+          el.appendChild(wrap);
+        });
+      } else if (node.nodeName === 'BR') {
+        el.appendChild(node.cloneNode());
+      } else {
+        const wrap = document.createElement('span');
+        wrap.className = 'wd';
+        wrap.style.setProperty('--wi', i++);
+        const inner = document.createElement(node.nodeName.toLowerCase());
+        Array.from(node.attributes || []).forEach((attr) => inner.setAttribute(attr.name, attr.value));
+        inner.textContent = node.textContent;
+        wrap.appendChild(inner);
+        el.appendChild(wrap);
+      }
+    });
+  }
+
+  // Binary-decode typewriter for the big titles (hero h1, section
+  // headings, FAQ/contact hero) — same look as the intro loader's own
+  // "Say what to do." text below, but reused for on-page headings
+  // instead of the old word-split slide-up reveal. Any <em> inside a
+  // heading is flattened into plain accent-colored chars; the
+  // gradient-text CSS on <em> only applies when this never runs
+  // (reduced-motion path, handled by the callers below).
+  function typewriterize(el, opts) {
+    opts = opts || {};
+    const charDelay = opts.charDelay || 16;
+    const accentChillax = opts.accentChillax !== false;
+    const nodes = Array.from(el.childNodes);
+    el.innerHTML = '';
+    el.style.opacity = '1';
+    const chars = [];
+
+    function addText(text, accent) {
+      text.split('').forEach((ch) => {
+        if (ch === ' ') { el.appendChild(document.createTextNode(' ')); return; }
+        const s = document.createElement('span');
+        s.className = 'bt-hchar';
+        s.textContent = Math.random() < 0.5 ? '0' : '1';
+        el.appendChild(s);
+        chars.push({ span: s, ch, accent: !!accent });
+      });
+    }
+
+    nodes.forEach((node) => {
+      if (node.nodeType === Node.TEXT_NODE) addText(node.textContent, false);
+      else if (node.nodeName === 'BR') el.appendChild(document.createElement('br'));
+      else addText(node.textContent, true);
+    });
+
+    return new Promise((resolve) => {
+      const scrambleId = setInterval(() => {
+        chars.forEach(({ span }) => {
+          if (!span.classList.contains('revealed')) span.textContent = Math.random() < 0.5 ? '0' : '1';
+        });
+      }, 45);
+
+      let i = 0;
+      (function revealNext() {
+        if (i >= chars.length) { clearInterval(scrambleId); resolve(); return; }
+        const item = chars[i];
+        item.span.textContent = item.ch;
+        item.span.classList.add('revealed');
+        if (item.accent) item.span.classList.add('accent');
+        if (item.accent && accentChillax) item.span.classList.add('chillax');
+        i++;
+        setTimeout(revealNext, charDelay);
+      })();
+    });
+  }
+
+  function revealHero() {
+    if (!heroTitle) return;
+    if (reducedMotion) { heroTitle.style.opacity = '1'; return; }
+    typewriterize(heroTitle, { charDelay: 30 });
+  }
+
+  function endLoader() {
+    if (!loader) { revealHero(); return; }
+    loader.hidden = true;
+    revealHero();
+    ScrollTrigger.refresh();
+  }
+
+  if (reducedMotion || !loader) {
+    endLoader();
+  } else {
+    runIntroLoader(loader, endLoader);
+  }
+
+  // Reveals `text` into `line` one character at a time (left to right);
+  // every character not yet revealed keeps flipping between "0"/"1" so
+  // the whole line reads as a binary decode settling into real words.
+  // `accentRange: [start, end)` colors that character slice in the
+  // accent color once revealed (used to pick out the word "Lyra").
   function binaryTypewriter(line, text, opts) {
     opts = opts || {};
     const charDelay = opts.charDelay || 85;
-    const accentRange = opts.accentRange || [Infinity, Infinity];
-    const accentStart = accentRange[0], accentEnd = accentRange[1];
+    const [accentStart, accentEnd] = opts.accentRange || [Infinity, Infinity];
     const chars = text.split('');
     line.innerHTML = '';
     const spans = chars.map((ch) => {
       const s = document.createElement('span');
       s.className = 'bt-char';
-      s.textContent = ch === ' ' ? ' ' : (Math.random() < 0.5 ? '0' : '1');
+      s.textContent = ch === ' ' ? ' ' : (Math.random() < 0.5 ? '0' : '1');
       line.appendChild(s);
       return s;
     });
@@ -3202,20 +3343,22 @@ h1, h2, h3,
       (function revealNext() {
         if (i >= chars.length) { clearInterval(scrambleId); resolve(); return; }
         const s = spans[i];
-        s.textContent = chars[i] === ' ' ? ' ' : chars[i];
+        s.textContent = chars[i] === ' ' ? ' ' : chars[i];
         s.classList.add('revealed');
-        if (i >= accentStart && i < accentEnd) s.classList.add('accent', 'chillax');
+        if (i >= accentStart && i < accentEnd) s.classList.add('accent');
         i++;
         setTimeout(revealNext, charDelay);
       })();
     });
   }
 
-  // A grid of solid squares tiling the whole loader. Each carries its
-  // Manhattan distance from the grid's center cell — both the
-  // bloom-in and the reveal use that distance as a transition-delay,
-  // so the whole grid clears as one pyramidal wave radiating outward
-  // instead of a pile of disconnected squares.
+  // A grid of solid squares tiling the whole loader. Each one carries
+  // its Manhattan distance from the grid's center cell — the reveal
+  // (below) uses that distance as its delay, so the whole grid clears
+  // as one pyramidal wave radiating outward, not a pile of bricks
+  // falling independently. No square ever moves; it just switches
+  // off in its turn, which is what keeps the wave reading as one
+  // connected shape.
   function buildIntroSquares(container) {
     container.innerHTML = '';
     const cols = window.innerWidth < 640 ? 8 : 14;
@@ -3241,18 +3384,21 @@ h1, h2, h3,
     return { squares, maxDist };
   }
 
-  async function runIntroLoader() {
+  async function runIntroLoader(loaderEl, onDone) {
+    const introText = document.getElementById('introText');
+    const line1 = document.getElementById('introLine1');
+    const line2 = document.getElementById('introLine2');
+    const squaresContainer = document.getElementById('introSquares');
     const { squares, maxDist } = buildIntroSquares(squaresContainer);
 
-    // Bloom-in from the center, mirroring the outward wave the
-    // reveal will do later, instead of the grid just being there.
-    squares.forEach((sq) => {
-      sq.style.transitionDuration = '0.1s';
-      sq.style.transitionDelay = (sq._dist / maxDist) * 0.3 + 's';
-      sq.style.opacity = '0';
+    // A quick bloom-in from the center, mirroring the outward wave
+    // the reveal will do later, instead of the grid just being there.
+    gsap.from(squares, {
+      opacity: 0,
+      duration: 0.1,
+      ease: 'none',
+      stagger: (i) => (squares[i]._dist / maxDist) * 0.3
     });
-    void squaresContainer.offsetWidth; // flush, so the next opacity change actually transitions
-    squares.forEach((sq) => { sq.style.opacity = '1'; });
 
     await binaryTypewriter(line1, 'Say what to do.');
     await new Promise((r) => setTimeout(r, 150));
@@ -3262,21 +3408,49 @@ h1, h2, h3,
     introText.classList.add('out');
     await new Promise((r) => setTimeout(r, 300));
 
-    // The container's own backdrop (kept solid purely to hide
-    // sub-pixel seams between cells) would otherwise mask every
+    // The container's own backdrop (kept solid until now purely to
+    // hide sub-pixel seams between cells) would otherwise mask every
     // square fading out below it — drop it right as the reveal starts.
     squaresContainer.style.background = 'transparent';
 
-    const REVEAL_DURATION = 0.15, REVEAL_SPREAD = 0.5;
-    squares.forEach((sq) => {
-      sq.style.transitionDuration = REVEAL_DURATION + 's';
-      sq.style.transitionDelay = (sq._dist / maxDist) * REVEAL_SPREAD + 's';
-      sq.style.opacity = '0';
+    // Same distance-from-center delay, this time clearing squares
+    // (not moving them) — the "hole" grows outward from the middle
+    // until the whole grid is gone.
+    gsap.to(squares, {
+      opacity: 0,
+      duration: 0.15,
+      ease: 'power1.in',
+      stagger: (i) => (squares[i]._dist / maxDist) * 0.5,
+      onComplete: onDone
     });
-    setTimeout(endLoader, (REVEAL_DURATION + REVEAL_SPREAD) * 1000 + 100);
   }
 
-  runIntroLoader();
+  document.querySelectorAll('.section-head h2').forEach((h2) => {
+    if (reducedMotion) { h2.style.opacity = '1'; return; }
+    ScrollTrigger.create({ trigger: h2, start: 'top 85%', onEnter: () => typewriterize(h2, { charDelay: 16 }) });
+  });
+
+  // FAQ/contact hero titles aren't reached by normal page scroll (they
+  // sit in a view-switched, initially-hidden panel) — a plain
+  // IntersectionObserver, independent of ScrollTrigger, still catches
+  // them correctly once that view is shown and scrolled to top.
+  document.querySelectorAll('.faq-hero h1, .contact-hero h1').forEach((el) => {
+    if (reducedMotion || typeof IntersectionObserver === 'undefined') { el.style.opacity = '1'; return; }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        io.unobserve(entry.target);
+        typewriterize(el, { charDelay: 16, accentChillax: false });
+      });
+    }, { threshold: 0.15 });
+    io.observe(el);
+  });
+
+  // Fonts swapping in later shift layout, and every pin distance was
+  // measured from layout at creation time — resync once they settle.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => ScrollTrigger.refresh());
+  }
 })();
 </script>
 
@@ -3734,6 +3908,32 @@ h1, h2, h3,
   });
 })();
 
+(function () {
+  const switcher = document.getElementById('networkSwitch');
+  const btn = document.getElementById('networkBtn');
+  if (!switcher || !btn) return;
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = switcher.classList.toggle('open');
+    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!switcher.contains(e.target)) {
+      switcher.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      switcher.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();
+
 // ---- FAQ view: accordion + category tabs (one category shown at a time) ----
 (function () {
   const items = Array.from(document.querySelectorAll('.faq-item'));
@@ -3784,12 +3984,23 @@ h1, h2, h3,
   const LINK_DIST = 130;
   const MOUSE_RADIUS = 140;
 
-  const PARTICLE_COLOR = { r: 255, g: 255, b: 255 };
+  // Fixed beige/white mix — no scroll-driven color shift. Each node
+  // keeps its own random mix ratio for the life of the page, so the
+  // field reads as one static beige/white speckle, never a color
+  // sweep tied to scroll position.
+  const WHITE = { r: 255, g: 255, b: 255 };
+  const BEIGE = { r: 243, g: 231, b: 208 };
 
   const mouse = { x: -9999, y: -9999 };
-  let scrollProgress = 0;
 
-  function mixColor() { return PARTICLE_COLOR; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function mixColor(t) {
+    return {
+      r: Math.round(lerp(BEIGE.r, WHITE.r, t)),
+      g: Math.round(lerp(BEIGE.g, WHITE.g, t)),
+      b: Math.round(lerp(BEIGE.b, WHITE.b, t))
+    };
+  }
 
   function nodeCount() {
     const area = W * H;
@@ -3803,7 +4014,8 @@ h1, h2, h3,
       y: Math.random() * H,
       vx: (Math.random() - 0.5) * 0.18,
       vy: (Math.random() - 0.5) * 0.18,
-      r: 1.1 + Math.random() * 1.6
+      r: 1.1 + Math.random() * 1.6,
+      mix: Math.random()
     }));
   }
 
@@ -3819,14 +4031,8 @@ h1, h2, h3,
     makeNodes();
   }
 
-  function updateScrollProgress() {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    scrollProgress = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
-  }
-
   function step() {
     ctx.clearRect(0, 0, W, H);
-    const c = mixColor(scrollProgress);
 
     nodes.forEach((n) => {
       n.x += n.vx;
@@ -3850,6 +4056,7 @@ h1, h2, h3,
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < LINK_DIST) {
           const alpha = (1 - dist / LINK_DIST) * 0.16;
+          const c = mixColor((a.mix + b.mix) / 2);
           ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${alpha})`;
           ctx.lineWidth = 1;
           ctx.beginPath();
@@ -3861,6 +4068,7 @@ h1, h2, h3,
     }
 
     nodes.forEach((n) => {
+      const c = mixColor(n.mix);
       ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.55)`;
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
@@ -3872,8 +4080,8 @@ h1, h2, h3,
 
   function staticFrame() {
     ctx.clearRect(0, 0, W, H);
-    const c = mixColor(scrollProgress);
     nodes.forEach((n) => {
+      const c = mixColor(n.mix);
       ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.4)`;
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
@@ -3882,10 +4090,6 @@ h1, h2, h3,
   }
 
   window.addEventListener('resize', resize);
-  window.addEventListener('scroll', () => {
-    updateScrollProgress();
-    if (reducedMotion) staticFrame();
-  }, { passive: true });
   window.addEventListener('mousemove', (e) => {
     mouse.x = e.clientX;
     mouse.y = e.clientY;
@@ -3896,7 +4100,6 @@ h1, h2, h3,
   });
 
   resize();
-  updateScrollProgress();
   if (reducedMotion) {
     staticFrame();
   } else {
@@ -4119,57 +4322,167 @@ h1, h2, h3,
   onScroll();
 })();
 
-
 (function () {
-  const targets = document.querySelectorAll('.feat-card:not(.wallet-card), .sec-card');
-  targets.forEach(el => {
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(14px)';
-    el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-  });
+  const targets = document.querySelectorAll('.feat-card:not(.fly-card), .sec-card, .faq-item, .contact-form');
+  const reducedMotion = window.__reducedMotion;
 
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.style.opacity = '1';
-        entry.target.style.transform = 'translateY(0)';
-        io.unobserve(entry.target);
-      }
+  if (reducedMotion || typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') {
+    targets.forEach((el) => { el.style.opacity = '1'; });
+    return;
+  }
+
+  // A light 3D tilt (rotateX) on top of the usual fade/rise reads as
+  // more "premium" than a flat opacity fade, without the cost of a
+  // full pinned scene for every single card on the page.
+  gsap.set(targets, { opacity: 0, y: 26, rotateX: -10, transformPerspective: 700, transformOrigin: '50% 100%' });
+
+  targets.forEach((el) => {
+    ScrollTrigger.create({
+      trigger: el,
+      start: 'top 88%',
+      onEnter: () => gsap.to(el, { opacity: 1, y: 0, rotateX: 0, duration: 0.7, ease: 'power3.out' })
     });
-  }, { threshold: 0.15 });
-
-  targets.forEach(el => io.observe(el));
+  });
 })();
 
+// --- Features: cards thrown at you out of deep space, one at a time.
+// Replaces the old wallet-fan-out effect. Each card starts far away
+// (tiny, blurred, rotated off-axis), decelerates as it arrives dead
+// center facing the viewer — long enough to read — then keeps flying
+// on through, out the far side, while the next one is already closing
+// in. Pinned + scrubbed so it's tied to scroll position, not a
+// one-shot trigger (see the scroll-reveal-3d skill's pin+scrub pattern).
 (function () {
-  // ---- Premium 3D layer: pointer-reactive card tilt + glow, hero
-  // cursor-tilt + scroll parallax, count-up stats, and directional
-  // 3D reveals for the compare/agent sections. Vanilla JS/CSS, same
-  // approach as the rest of this page — no animation library added.
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reducedMotion) return;
+  const track = document.getElementById('flyTrack');
+  const pin = track ? track.querySelector('.fly-pin') : null;
+  const staticGrid = document.getElementById('featGridStatic');
+  if (!track || !pin || !staticGrid) return;
+
+  const reducedMotion = window.__reducedMotion;
+  const tooNarrow = window.innerWidth < 640;
+
+  if (reducedMotion || tooNarrow || typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') {
+    return; // static grid (already visible) is the fallback
+  }
+
+  staticGrid.style.display = 'none';
+  track.hidden = false;
+
+  const cards = [
+    document.getElementById('flyCard0'),
+    document.getElementById('flyCard1'),
+    document.getElementById('flyCard2'),
+    document.getElementById('flyCard3')
+  ];
+  const dots = Array.from(track.querySelectorAll('.fly-dot'));
+  const hint = document.getElementById('flyHint');
+
+  // Each card comes in from a different corner/angle so four in a row
+  // don't all fly the same path. The exit continues straight through
+  // the mirrored opposite corner — as if it flew past camera and kept
+  // going the direction it was already headed.
+  const FAR = [
+    { x: -90, y: -60, rotateY: -36, rotateX: 16 },
+    { x:  95, y:  55, rotateY:  32, rotateX: -14 },
+    { x: -85, y:  65, rotateY: -28, rotateX: -16 },
+    { x:  80, y: -55, rotateY:  34, rotateX: 14 }
+  ];
+
+  const SLOT = 1;      // abstract time budget per card
+  const OVERLAP = 0.35; // how much the next card's entrance overlaps the previous one's exit
+  const ENTER_DUR = 0.4, EXIT_DUR = 0.35;
+
+  cards.forEach((card, i) => {
+    const far = FAR[i];
+    gsap.set(card, {
+      transformPerspective: 1400,
+      x: far.x, y: far.y, z: -900, scale: 0.2,
+      rotateX: far.rotateX, rotateY: far.rotateY,
+      opacity: 0, filter: 'blur(10px)'
+    });
+  });
+
+  const tl = gsap.timeline({
+    scrollTrigger: {
+      trigger: track,
+      start: 'top top',
+      end: 'bottom top',
+      pin: pin,
+      scrub: 0.6,
+      onUpdate: (self) => {
+        if (hint) hint.style.opacity = String(1 - Math.min(1, self.progress / 0.06));
+      }
+    }
+  });
+
+  cards.forEach((card, i) => {
+    const far = FAR[i];
+    const leave = { x: -far.x, y: -far.y, rotateY: -far.rotateY, rotateX: -far.rotateX };
+    const start = i * (SLOT - OVERLAP);
+    const frontStart = start + ENTER_DUR;
+    const frontEnd = start + SLOT - EXIT_DUR;
+
+    tl.fromTo(card,
+      { x: far.x, y: far.y, z: -900, scale: 0.2, rotateX: far.rotateX, rotateY: far.rotateY, opacity: 0, filter: 'blur(10px)' },
+      {
+        x: 0, y: 0, z: 0, scale: 1, rotateX: 0, rotateY: 0, opacity: 1, filter: 'blur(0px)',
+        duration: ENTER_DUR, ease: 'power2.out'
+      }, start)
+      .to(card, {
+        x: leave.x, y: leave.y, z: 500, scale: 1.55, rotateX: leave.rotateX, rotateY: leave.rotateY,
+        opacity: 0, filter: 'blur(14px)', duration: EXIT_DUR, ease: 'power2.in'
+      }, frontEnd);
+
+    // Stash this card's "fully arrived" window for the dot-sync below.
+    card.__frontRange = [frontStart, frontEnd];
+  });
+
+  const totalDuration = tl.duration();
+  tl.eventCallback('onUpdate', () => {
+    const t = tl.progress() * totalDuration;
+    let active = -1;
+    cards.forEach((card, i) => {
+      const [from, to] = card.__frontRange;
+      if (t >= from - 0.05 && t <= to + 0.05) active = i;
+    });
+    dots.forEach((d, i) => d.classList.toggle('active', i === active));
+  });
+})();
+</script>
+
+<script>
+// ---- Premium 3D layer: pointer-reactive card tilt + glow, hero
+// cursor-tilt + scroll parallax, count-up stats, and directional
+// 3D reveals for the compare/agent sections. Purely additive on
+// top of the gsap/ScrollTrigger/Lenis instances the wiring script
+// above already created — no-ops if gsap failed to load or the
+// visitor asked for reduced motion, so nothing here can leave the
+// page broken or stuck mid-animation. ----
+(function () {
+  if (window.__reducedMotion || typeof gsap === 'undefined') return;
   const finePointer = window.matchMedia('(pointer: fine)').matches;
-  const hasIO = typeof IntersectionObserver !== 'undefined';
 
   // ---- pointer tilt + glow: feature / security / download cards ----
   if (finePointer) {
-    document.querySelectorAll('.feat-card:not(.wallet-card), .sec-card, .download-btn:not(.disabled)').forEach((el) => {
+    document.querySelectorAll('.feat-card:not(.fly-card), .sec-card, .download-btn:not(.disabled)').forEach((el) => {
       el.classList.add('tilt-3d');
-      el.style.transition = [el.style.transition, 'transform 0.15s ease-out, box-shadow 0.35s ease']
-        .filter(Boolean).join(', ');
+      gsap.set(el, { transformPerspective: 900 });
 
       el.addEventListener('mousemove', (e) => {
         const r = el.getBoundingClientRect();
         const px = (e.clientX - r.left) / r.width;
         const py = (e.clientY - r.top) / r.height;
-        const ry = ((px - 0.5) * 12).toFixed(2);
-        const rx = ((0.5 - py) * 12).toFixed(2);
-        el.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-3px)`;
+        gsap.to(el, {
+          rotateY: (px - 0.5) * 12,
+          rotateX: (0.5 - py) * 12,
+          y: -3,
+          duration: 0.5, ease: 'power3.out', overwrite: 'auto'
+        });
         el.style.setProperty('--mx', (px * 100) + '%');
         el.style.setProperty('--my', (py * 100) + '%');
       });
       el.addEventListener('mouseleave', () => {
-        el.style.transform = 'perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0)';
+        gsap.to(el, { rotateX: 0, rotateY: 0, y: 0, duration: 0.5, ease: 'power3.out', overwrite: 'auto' });
       });
     });
   }
@@ -4179,337 +4492,80 @@ h1, h2, h3,
   const demoCard = document.querySelector('.demo-card');
   const hero = document.querySelector('.hero');
   if (demoCard && hero) {
+    gsap.set(demoCard, { transformPerspective: 1000 });
     if (finePointer) {
-      demoCard.style.transition = [demoCard.style.transition, 'transform 0.5s ease-out']
-        .filter(Boolean).join(', ');
       hero.addEventListener('mousemove', (e) => {
         const r = demoCard.getBoundingClientRect();
         const px = (e.clientX - (r.left + r.width / 2)) / r.width;
         const py = (e.clientY - (r.top + r.height / 2)) / r.height;
-        demoCard.style.transform = `perspective(1000px) rotateX(${(-py * 9).toFixed(2)}deg) rotateY(${(px * 9).toFixed(2)}deg)`;
+        gsap.to(demoCard, {
+          rotateY: px * 9,
+          rotateX: -py * 9,
+          duration: 0.6, ease: 'power3.out', overwrite: 'auto'
+        });
       });
       hero.addEventListener('mouseleave', () => {
-        demoCard.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg)';
+        gsap.to(demoCard, { rotateX: 0, rotateY: 0, duration: 0.6, ease: 'power3.out', overwrite: 'auto' });
       });
     }
 
-    const heroCols = document.querySelectorAll('.hero-grid > div');
-    if (heroCols.length === 2) {
-      let ticking = false;
-      function updateHeroParallax() {
-        ticking = false;
-        const r = hero.getBoundingClientRect();
-        const total = r.height + window.innerHeight;
-        const progress = Math.min(1, Math.max(0, (window.innerHeight - r.top) / total));
-        heroCols[0].style.transform = `translateY(${(-34 * progress).toFixed(1)}px)`;
-        heroCols[1].style.transform = `translateY(${(46 * progress).toFixed(1)}px)`;
-      }
-      window.addEventListener('scroll', () => {
-        if (!ticking) { ticking = true; requestAnimationFrame(updateHeroParallax); }
-      }, { passive: true });
-      updateHeroParallax();
+    if (typeof ScrollTrigger !== 'undefined') {
+      const heroCols = document.querySelectorAll('.hero-grid > div');
+      if (heroCols[0]) gsap.to(heroCols[0], { y: -34, ease: 'none', scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } });
+      if (heroCols[1]) gsap.to(heroCols[1], { y: 46, ease: 'none', scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } });
     }
   }
 
-  if (!hasIO) return;
+  if (typeof ScrollTrigger === 'undefined') return;
 
   // ---- hero stats: count up from 0 the first time they scroll into view ----
   document.querySelectorAll('.hero-stat .n').forEach((el) => {
     const target = parseInt(el.textContent, 10);
     if (isNaN(target)) return;
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        io.unobserve(el);
-        const duration = 900;
-        const start = performance.now();
-        (function tick(now) {
-          const t = Math.min(1, (now - start) / duration);
-          const eased = 1 - Math.pow(1 - t, 3);
-          el.textContent = Math.round(target * eased);
-          if (t < 1) requestAnimationFrame(tick);
-        })(start);
-      });
-    }, { threshold: 0.6 });
-    io.observe(el);
+    const counter = { v: 0 };
+    ScrollTrigger.create({
+      trigger: el,
+      start: 'top 90%',
+      once: true,
+      onEnter: () => gsap.to(counter, {
+        v: target,
+        duration: 1.1,
+        ease: 'power2.out',
+        onUpdate: () => { el.textContent = Math.round(counter.v); }
+      })
+    });
   });
 
   // ---- compare: the two columns swing in from opposite sides in 3D,
   // like hinged panels closing face-to-face ----
   document.querySelectorAll('.compare-col').forEach((col) => {
     const fromRight = col.classList.contains('lyra');
-    col.style.opacity = '0';
-    col.style.transform = `rotateY(${fromRight ? 40 : -40}deg) translateX(${fromRight ? 70 : -70}px)`;
-    col.style.transformOrigin = fromRight ? '0% 50%' : '100% 50%';
-    col.style.transition = 'opacity 0.9s ease, transform 0.9s cubic-bezier(0.16, 1, 0.3, 1)';
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        entry.target.style.opacity = '1';
-        entry.target.style.transform = 'rotateY(0deg) translateX(0)';
-        io.unobserve(entry.target);
-      });
-    }, { threshold: 0.2 });
-    io.observe(col);
+    gsap.set(col, {
+      opacity: 0,
+      x: fromRight ? 70 : -70,
+      rotateY: fromRight ? 40 : -40,
+      transformOrigin: fromRight ? '0% 50%' : '100% 50%'
+    });
+    ScrollTrigger.create({
+      trigger: col,
+      start: 'top 82%',
+      onEnter: () => gsap.to(col, { opacity: 1, x: 0, rotateY: 0, duration: 0.9, ease: 'power3.out' })
+    });
   });
 
   // ---- agent: the three steps flip up out of the panel, one after another ----
   const agentSteps = document.querySelectorAll('.agent-step');
-  const agentFrame = document.querySelector('.agent-frame');
-  if (agentSteps.length && agentFrame) {
-    agentSteps.forEach((step, i) => {
-      step.style.opacity = '0';
-      step.style.transform = 'rotateX(-50deg) translateY(30px)';
-      step.style.transformOrigin = '50% 100%';
-      step.style.transition = `opacity 0.8s ease ${i * 0.15}s, transform 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${i * 0.15}s`;
-    });
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        agentSteps.forEach((step) => {
-          step.style.opacity = '1';
-          step.style.transform = 'rotateX(0deg) translateY(0)';
-        });
-        io.unobserve(entry.target);
-      });
-    }, { threshold: 0.3 });
-    io.observe(agentFrame);
-  }
-})();
-
-(function () {
-  // ---- Binary-decode typewriter on the big titles (hero h1, section
-  // headings, FAQ/contact hero), same look as the intro loader's own
-  // "Say what to do." text. The hero h1 waits for the loader to
-  // actually finish (it's hidden behind it anyway); section/FAQ/
-  // contact headings run the first time they scroll into view. Any
-  // <em> inside a heading is flattened into plain accent-colored
-  // chars — the gradient-text CSS on <em> only applies when this
-  // script doesn't touch the markup (reduced-motion / no IO). ----
-  const targets = Array.from(document.querySelectorAll('.bt-pending'));
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const hasIO = typeof IntersectionObserver !== 'undefined';
-
-  // CSS hides every .bt-pending heading from first paint so there's
-  // never a flash of the plain title before it's rebuilt as scrambled
-  // chars — but that means every exit path here MUST explicitly set
-  // opacity back to 1, or the heading stays invisible forever.
-  if (reducedMotion || !hasIO) {
-    targets.forEach((el) => { el.style.opacity = '1'; });
-    return;
-  }
-
-  function typewriterize(el, opts) {
-    opts = opts || {};
-    const charDelay = opts.charDelay || 16;
-    const accentChillax = opts.accentChillax !== false;
-    const nodes = Array.from(el.childNodes);
-    el.innerHTML = '';
-    el.style.opacity = '1';
-    const chars = [];
-
-    function addText(text, accent) {
-      text.split('').forEach((ch) => {
-        if (ch === ' ') { el.appendChild(document.createTextNode(' ')); return; }
-        const s = document.createElement('span');
-        s.className = 'bt-hchar';
-        s.textContent = Math.random() < 0.5 ? '0' : '1';
-        el.appendChild(s);
-        chars.push({ span: s, ch, accent: !!accent });
-      });
-    }
-
-    nodes.forEach((node) => {
-      if (node.nodeType === Node.TEXT_NODE) addText(node.textContent, false);
-      else if (node.nodeName === 'BR') el.appendChild(document.createElement('br'));
-      else addText(node.textContent, true);
-    });
-
-    return new Promise((resolve) => {
-      const scrambleId = setInterval(() => {
-        chars.forEach(({ span }) => {
-          if (!span.classList.contains('revealed')) span.textContent = Math.random() < 0.5 ? '0' : '1';
-        });
-      }, 45);
-
-      let i = 0;
-      (function revealNext() {
-        if (i >= chars.length) { clearInterval(scrambleId); resolve(); return; }
-        const item = chars[i];
-        item.span.textContent = item.ch;
-        item.span.classList.add('revealed');
-        if (item.accent) item.span.classList.add('accent');
-        if (item.accent && accentChillax) item.span.classList.add('chillax');
-        i++;
-        setTimeout(revealNext, charDelay);
-      })();
+  if (agentSteps.length) {
+    gsap.set(agentSteps, { opacity: 0, y: 30, rotateX: -50, transformOrigin: '50% 100%' });
+    ScrollTrigger.create({
+      trigger: '.agent-frame',
+      start: 'top 78%',
+      onEnter: () => gsap.to(agentSteps, {
+        opacity: 1, y: 0, rotateX: 0,
+        duration: 0.8, ease: 'power3.out', stagger: 0.15
+      })
     });
   }
-
-  const heroH1 = document.querySelector('.hero h1');
-  if (heroH1) {
-    let heroDone = false;
-    const runHero = () => { if (heroDone) return; heroDone = true; typewriterize(heroH1, { charDelay: 30 }); };
-    document.addEventListener('lyra:intro-done', runHero, { once: true });
-    // Safety net: if #introLoader is ever missing/broken and the
-    // completion event never fires, don't leave the hero title
-    // invisible forever.
-    setTimeout(runHero, 8000);
-  }
-
-  document.querySelectorAll('.section-head h2, .faq-hero h1, .contact-hero h1').forEach((el) => {
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        io.unobserve(entry.target);
-        typewriterize(el, { charDelay: 16, accentChillax: false });
-      });
-    }, { threshold: 0.15 });
-    io.observe(el);
-  });
-})();
-
-// --- Wallet scroll: swap/bridge/stake cards fanned out of a wallet.
-(function () {
-  const track = document.getElementById('walletScroll');
-  const staticGrid = document.getElementById('featGridStatic');
-  if (!track || !staticGrid) return;
-
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const tooNarrow = window.innerWidth < 640;
-
-  if (reducedMotion || tooNarrow || typeof IntersectionObserver === 'undefined') {
-    return;
-  }
-
-  staticGrid.style.display = 'none';
-  track.hidden = false;
-
-  const clasp = document.getElementById('walletClasp');
-  const hint = document.getElementById('walletHint');
-  const cards = [
-    document.getElementById('walletCard0'),
-    document.getElementById('walletCard1'),
-    document.getElementById('walletCard2'),
-    document.getElementById('walletCard3'),
-    document.getElementById('walletCard4')
-  ];
-  const dots = Array.from(track.querySelectorAll('.wallet-dot'));
-
-  // Card 1 leftmost and frontmost, each next card the same step to the
-  // right and just behind (tuckedZ below), a straight left-to-right
-  // cascade instead of a centered fan.
-  const offsetsX = [-96, -48, 0, 48, 96];
-
-  const rotations = [
-    { tucked: 0, rise: -24, out: -3 },
-    { tucked: 0, rise: -12, out: -1.5 },
-    { tucked: 0, rise:   0, out:  0 },
-    { tucked: 0, rise:  12, out:  1.5 },
-    { tucked: 0, rise:  24, out:  3 }
-  ];
-
-  // Stacked straight, no horizontal fan, just a slight step up per card
-  // so the tucked deck still reads as more than one card.
-  const tuckedYs = [-25, -30, -35, -40, -45];
-
-  // Must all stay below .wallet-shell/.wallet-body's z-index (3), or a
-  // tucked card ties with the wallet and paints in front of it instead
-  // of looking tucked inside it.
-  const tuckedZ = [2, 1, 0, -1, -2];
-
-  const MID_X = (offsetsX[0] + offsetsX[offsetsX.length - 1]) / 2;
-
-  const TUCKED = { y: -30, scale: 0.30 };
-  const RISE = { y: -190, scale: 0.42 };
-  const OUT = { x: 0, y: -16, scale: 1 };
-  const RISE_SPLIT = 0.55;
-
-  const timeline = [
-    [0.03, 0.09, 0.13, 0.19],
-    [0.20, 0.26, 0.30, 0.36],
-    [0.37, 0.43, 0.47, 0.53],
-    [0.54, 0.60, 0.64, 0.70],
-    [0.80, 0.92, 0.97, 1.00]
-  ];
-
-  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
-  function mapRange(v, inMin, inMax) { return clamp((v - inMin) / (inMax - inMin), 0, 1); }
-  function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-  function lerp(a, b, t) { return a + (b - a) * t; }
-
-  function cardValue(p, [enterFrom, enterTo, holdTo, exitTo]) {
-    if (p <= enterFrom) return 0;
-    if (p < enterTo) return easeInOutCubic(mapRange(p, enterFrom, enterTo));
-    if (p < holdTo) return 1;
-    if (p < exitTo) return 1 - easeInOutCubic(mapRange(p, holdTo, exitTo));
-    return 0;
-  }
-
-  function cardMetrics(value, offsetX, rot, tuckedY) {
-    if (value <= RISE_SPLIT) {
-      const t = easeInOutCubic(value / RISE_SPLIT);
-      return {
-        x: lerp(offsetX, MID_X, t),
-        y: lerp(tuckedY, RISE.y, t),
-        scale: lerp(TUCKED.scale, RISE.scale, t),
-        rotate: lerp(rot.tucked, rot.rise, t)
-      };
-    }
-    const t = easeInOutCubic((value - RISE_SPLIT) / (1 - RISE_SPLIT));
-    return {
-      x: lerp(MID_X, OUT.x, t),
-      y: lerp(RISE.y, OUT.y, t),
-      scale: lerp(RISE.scale, OUT.scale, t),
-      rotate: lerp(rot.rise, rot.out, t)
-    };
-  }
-
-  let ticking = false;
-
-  function update() {
-    ticking = false;
-
-    const rect = track.getBoundingClientRect();
-    const scrollable = track.offsetHeight - window.innerHeight;
-    const progress = scrollable > 0 ? clamp(-rect.top / scrollable, 0, 1) : 0;
-
-    let anyActive = false;
-    cards.forEach((card, i) => {
-      const value = cardValue(progress, timeline[i]);
-      const { x, y, scale, rotate } = cardMetrics(value, offsetsX[i], rotations[i], tuckedYs[i]);
-
-      card.style.transform = `translate(${x}px, ${y}px) rotate(${rotate}deg) scale(${scale})`;
-      card.style.zIndex = value > RISE_SPLIT ? "5" : String(tuckedZ[i]);
-
-      if (dots[i]) {
-        dots[i].classList.toggle("active", value > 0.5);
-      }
-
-      if (value > 0.05) {
-        anyActive = true;
-      }
-    });
-
-    if (clasp) {
-      clasp.classList.toggle("active", anyActive);
-    }
-
-    if (hint) {
-      hint.style.opacity = String(1 - mapRange(progress, 0, 0.06));
-    }
-  }
-
-  function onScroll() {
-    if (!ticking) {
-      requestAnimationFrame(update);
-      ticking = true;
-    }
-  }
-
-  window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', onScroll);
-  update();
 })();
 </script>
 
@@ -4542,6 +4598,15 @@ h1, h2, h3,
     navLinks.forEach((a) => a.classList.toggle('current', a.getAttribute('data-view-link') === name));
 
     if (!opts.keepScroll) window.scrollTo(0, 0);
+
+    // The view just switched visibility (display:none <-> visible), so
+    // every ScrollTrigger position measured while it was hidden is
+    // stale — the reveal-on-scroll cards in FAQ/contact would never
+    // fire otherwise. requestAnimationFrame so it measures the layout
+    // that's actually on screen after the hidden-attribute flip.
+    if (typeof ScrollTrigger !== 'undefined') {
+      requestAnimationFrame(() => ScrollTrigger.refresh());
+    }
   }
 
   navLinks.forEach((link) => {
@@ -4556,21 +4621,24 @@ h1, h2, h3,
         return;
       }
 
-      // target === 'home': if we're leaving a sub-view, switch back
-      // first, then let the anchor (e.g. #features) scroll.
-      if (currentView !== 'home') {
-        e.preventDefault();
-        showView('home', { keepScroll: true });
-        if (href && href !== '#top') {
-          requestAnimationFrame(() => {
-            const el = document.querySelector(href);
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          });
-          history.replaceState(null, '', href);
-        } else {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          history.replaceState(null, '', '#top');
-        }
+      // target === 'home': switch back first if we're leaving a
+      // sub-view, then smooth-scroll to the anchor (e.g. #features)
+      // through Lenis, instead of a native (now un-smoothed) jump.
+      e.preventDefault();
+      const wasSubview = currentView !== 'home';
+      if (wasSubview) showView('home', { keepScroll: true });
+
+      const scrollFn = window.__lenisScrollTo || function (t) {
+        if (typeof t === 'string') document.querySelector(t)?.scrollIntoView({ behavior: 'smooth' });
+        else window.scrollTo({ top: t, behavior: 'smooth' });
+      };
+
+      if (href && href !== '#top') {
+        (wasSubview ? requestAnimationFrame.bind(window) : (fn) => fn())(() => scrollFn(href));
+        history.replaceState(null, '', href);
+      } else {
+        scrollFn(0);
+        history.replaceState(null, '', '#top');
       }
     });
   });
