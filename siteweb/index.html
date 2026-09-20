@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lyra</title>
 
-<meta name="description" content="Lyra is a non-custodial iWallet live on Plasma, Ethereum, Base, and Polygon. Say what you want to send, swap, bridge, stake, or bet on Polymarket, and Lyra researches the real rate and risk before you hold one button to confirm.">
-<meta name="keywords" content="Lyra, wallet, crypto wallet, AI agent, Plasma, Ethereum, Base, Polygon, DeFi, non-custodial, Uniswap, Aave, LI.FI, Polymarket, prediction markets">
+<meta name="description" content="Lyra is a non-custodial iWallet live on Plasma, Ethereum, Base, Polygon, and Arc. Say what you want to send, swap, bridge, stake, bet on Polymarket, or pay for an API over x402, and Lyra researches the real rate and risk before you hold one button to confirm.">
+<meta name="keywords" content="Lyra, wallet, crypto wallet, AI agent, Plasma, Ethereum, Base, Polygon, Arc, DeFi, non-custodial, Uniswap, Aave, LI.FI, Polymarket, prediction markets, x402, A2A, ACP, Nanopayments, Circle, agent payments, multisig, MPC">
 <link rel="canonical" href="https://lyra.xyz/">
 
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://lyra.xyz/">
 <meta property="og:title" content="Lyra : your first iWallet">
-<meta property="og:description" content="Say what you want. Lyra handles the chain. Send, swap, bridge, stake, and bet on Polymarket, across Plasma, Ethereum, Base, and Polygon.">
+<meta property="og:description" content="Say what you want. Lyra handles the chain. Send, swap, bridge, stake, bet on Polymarket, and pay for services over x402, across Plasma, Ethereum, Base, Polygon, and Arc.">
 <meta property="og:image" content="https://lyra.xyz/public/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -20,7 +20,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@lyra_technology">
 <meta name="twitter:title" content="Lyra : your first iWallet">
-<meta name="twitter:description" content="Say what you want. Lyra handles the chain. Send, swap, bridge, stake, and bet on Polymarket, across Plasma, Ethereum, Base, and Polygon.">
+<meta name="twitter:description" content="Say what you want. Lyra handles the chain. Send, swap, bridge, stake, bet on Polymarket, and pay for services over x402, across Plasma, Ethereum, Base, Polygon, and Arc.">
 <meta name="twitter:image" content="https://lyra.xyz/public/og-image.png">
 
 <link rel="icon" href="favicon.ico" sizes="32x32" />
@@ -1004,7 +1004,7 @@ section { padding: 88px 0; }
 
 .wallet-scroll-track {
   position: relative;
-  height: 760vh;
+  height: 980vh;
 }
 .wallet-scroll-pin {
   position: sticky;
@@ -1014,12 +1014,26 @@ section { padding: 88px 0; }
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  perspective: 900px;
+  perspective-origin: 50% 50%;
+  z-index: 1;
+}
+#spaceCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
 }
 .wallet-stage {
   position: relative;
   width: min(620px, 92vw);
   height: min(440px, 72vh);
+  transform-style: preserve-3d;
 }
+
 
 .wallet-hint {
   position: absolute;
@@ -1032,43 +1046,7 @@ section { padding: 88px 0; }
   letter-spacing: 0.04em;
 }
 
-.wallet-shell { position: absolute; top: 50%; left: 50%; width: 320px; height: 220px; transform: translate(-50%, -50%); z-index: 3; }
-
-.wallet-body { position: absolute; left: 10px; right: 10px; bottom: 8px; height: 168px; border-radius: 22px; background: linear-gradient( 155deg, var(--beige) 0%, var(--beige-dim) 100% ); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); z-index: 3; }
-.wallet-stripe {
-  position: absolute;
-  left: 26px; bottom: 30px;
-  width: 74px; height: 4px;
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.16);
-}
-.wallet-clasp {
-  position: absolute;
-  top: 50%; right: -14px;
-  width: 40px; height: 40px;
-  margin-top: -20px;
-  border-radius: 50%;
-  background: linear-gradient(155deg, var(--beige) 0%, var(--beige-dim) 100%);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
-  display: flex; align-items: center; justify-content: center;
-  transition: box-shadow 0.4s ease;
-}
-.wallet-clasp::after {
-  content: "";
-  width: 11px; height: 11px;
-  border-radius: 50%;
-  background: var(--accent-deep);
-  transition: background 0.4s ease, box-shadow 0.4s ease;
-}
-.wallet-clasp.active {
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 4px var(--accent-soft);
-}
-.wallet-clasp.active::after {
-  background: var(--accent-strong);
-  box-shadow: 0 0 10px var(--accent-strong);
-}
-
-.wallet-card { position: absolute; left: 50%; top: 50%; width: min(300px, 78vw); height: 348px; margin: -175px 0 0 -150px; pointer-events: none; z-index: 1; transition: none; will-change: transform;  border: 3px solid var(--beige); overflow: hidden;
+.wallet-card { position: absolute; left: 50%; top: 50%; width: min(300px, 78vw); height: 348px; margin: -175px 0 0 calc(min(300px, 78vw) / -2); pointer-events: none; z-index: 1; transition: none; backface-visibility: visible; border: 3px solid var(--beige); overflow: hidden;
   box-sizing: border-box;} .wallet-card:hover { transform: none !important; }
 .wallet-card:hover { transform: none !important; }
 
@@ -1077,11 +1055,10 @@ section { padding: 88px 0; }
    var(--void); border:none) these cards also match — otherwise the
    card is see-through against the page and every card looks the same. */
 .wallet-card.feat-card { background: var(--panel2); border-radius: 18px; }
-#walletCard0 { border: 3px solid #4C8CFF; }
-#walletCard1 { border: 3px solid #A855F7; }
-#walletCard2 { border: 3px solid #2DD4BF; }
-#walletCard3 { border: 3px solid var(--gold); }
-#walletCard4 { border: 3px solid #22C55E; }
+.wallet-card.feat-card {
+  border: 2px solid rgba(167, 139, 250, 0.55);
+  box-shadow: 0 0 34px rgba(109, 79, 209, 0.28), 0 18px 50px rgba(0, 0, 0, 0.45);
+}
 .wallet-dots {
   position: absolute;
   left: 0; right: 0;
@@ -1102,8 +1079,7 @@ section { padding: 88px 0; }
 }
 
 @media (max-width: 640px) {
-  .wallet-scroll-track { height: 520vh; }
-  .wallet-card { margin: -130px 0 0 -140px; }
+  .wallet-scroll-track { height: 900vh; }
 }
 
 
@@ -2030,6 +2006,31 @@ h1, h2, h3,
 .tilt-3d:hover::after { opacity: 1; }
 .tilt-3d > * { position: relative; z-index: 1; }
 
+
+/* ------------------------------------------------------------
+   Agents & payments section
+   ------------------------------------------------------------ */
+.agentpay-demo { max-width: 700px; margin: 0 auto 32px; }
+.agentpay-grid { margin-bottom: 28px; }
+.feat-status {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 8px;
+  padding: 2px 7px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 2px;
+  position: relative;
+  top: -2px;
+}
+.feat-status.live { color: var(--success); border-color: rgba(120, 200, 150, 0.45); }
+.feat-status.demo { color: var(--warning); border-color: rgba(230, 190, 110, 0.45); }
+.feat-card h3 { line-height: 1.3; }
 </style>
 </head>
 <body>
@@ -2054,6 +2055,7 @@ h1, h2, h3,
     <div class="nav-links">
       <a href="#compare" data-view-link="home">Why an agent</a>
       <a href="#features" data-view-link="home">What it does</a>
+      <a href="#agentpay" data-view-link="home">Payments</a>
       <a href="#agent" data-view-link="home">How it thinks</a>
       <a href="#security" data-view-link="home">Security</a>
       <a href="#download" data-view-link="home">Download</a>
@@ -2067,6 +2069,7 @@ h1, h2, h3,
         <div class="nav-menu-panel" id="navMenuPanel" role="menu">
           <a href="#compare" data-view-link="home">Why an agent</a>
           <a href="#features" data-view-link="home">What it does</a>
+      <a href="#agentpay" data-view-link="home">Payments</a>
           <a href="#agent" data-view-link="home">How it thinks</a>
           <a href="#security" data-view-link="home">Security</a>
           <a href="#download" data-view-link="home">Download</a>
@@ -2094,6 +2097,8 @@ h1, h2, h3,
             <button class="ask-lyra-q" data-q="what">What can Lyra do?</button>
             <button class="ask-lyra-q" data-q="security_general">How is my wallet secured?</button>
             <button class="ask-lyra-q" data-q="predict_feature">Can I bet on real-world events?</button>
+            <button class="ask-lyra-q" data-q="x402">What is x402?</button>
+            <button class="ask-lyra-q" data-q="nanopayments">What are Nanopayments?</button>
             <button class="ask-lyra-q" data-q="platforms_download">Which platforms are supported?</button>
             <button class="ask-lyra-q" data-q="roadmap_next">What's coming next?</button>
           </div>
@@ -2116,9 +2121,9 @@ h1, h2, h3,
     <div>
       <h1 class="bt-pending">Say what you want.<br><em>Lyra</em> handles the chain.</h1>
       <p class="lead">
-         Lyra is an iWallet (intelligent wallet) live on Plasma, Ethereum, Base, and Polygon. Tell it what you're
-        trying to do : receive, send, swap, bridge, stake, or bet on a real-world outcome through Polymarket,
-        and it researches the real rate, the real risk, and the real route before asking you to
+         Lyra is an iWallet (intelligent wallet) live on Plasma, Ethereum, Base, Polygon, and Arc. Tell it what you're
+        trying to do : receive, send, swap, bridge, stake, bet on a real-world outcome through Polymarket,
+        or pay for an API over x402, and it researches the real rate, the real risk, and the real route before asking you to
         hold one button to confirm the interaction. Nothing moves without your approval.
       </p>
       <div class="hero-ctas">
@@ -2137,8 +2142,8 @@ h1, h2, h3,
       </div>
       <div class="hero-stats">
         <div class="hero-stat">
-          <div class="n">4</div>
-          <div class="l">protocols wired in<br>(Uniswap V3, LI.FI, Aave, Polymarket)</div>
+          <div class="n">9</div>
+          <div class="l">protocols wired in<br>(Uniswap, LI.FI, Aave, Polymarket, Circle, Safe, x402, A2A, ACP)</div>
         </div>
         <div class="hero-stat">
           <div class="n">1</div>
@@ -2263,9 +2268,9 @@ h1, h2, h3,
   <div class="wrap">
     <div class="section-head">
       <span class="eyebrow">02 / What it does</span>
-      <h2 class="bt-pending">Four real protocols, four chains. One agent deciding what's actually safe to sign.</h2>
+      <h2 class="bt-pending">Real protocols across five chains. One agent deciding what's actually safe to sign.</h2>
       <p>Lyra doesn't simulate DeFi. It's wired directly into real, verified contracts across
-      Plasma, Ethereum, Base, and Polygon, and checks each one live instead of trusting a cached number.</p>
+      Plasma, Ethereum, Base, Polygon, and Arc, and checks each one live instead of trusting a cached number.</p>
     </div>
 
     <div class="feat-grid" id="featGridStatic">
@@ -2331,25 +2336,30 @@ h1, h2, h3,
         </div>
         <h3>Pay</h3>
         <div class="feat-platform">via x402</div>
-        <p>Lyra settles x402 payments directly over HTTP, so an app, an API, or an agent
-        can get paid instantly, no card and no invoice, on web and on mobile.</p>
+        <p>Lyra pays x402 services straight from the chat: the service asks for payment over HTTP, Lyra shows you the price, and one hold signs it. No card, no invoice, no account.</p>
         <div class="feat-check">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
           Same wallet, same one-hold confirmation, on both platforms
         </div>
       </div>
+
+      <div class="feat-card">
+            <div class="feat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v7a2 2 0 0 0 2 2v9M9 3v7a2 2 0 0 1-2 2M17 21V3c-2.5 1.5-3.5 4-3.5 8H17"/></svg>
+            </div>
+            <h3>Book</h3>
+            <div class="feat-platform">a table, via x402</div>
+            <p>Say "book a table for two tonight" and Lyra finds the restaurant, shows the price of the reservation, and pays it with one hold. You get the confirmation right in the chat.</p>
+            <div class="feat-check">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+              Demo restaurant: the signature is real, no money moves
+            </div>
+          </div>
     </div>
 
     <div class="wallet-scroll-track" id="walletScroll" hidden>
       <div class="wallet-scroll-pin">
         <div class="wallet-stage">
-
-          <div class="wallet-shell">
-            <div class="wallet-body">
-              <div class="wallet-stripe"></div>
-            </div>
-            <div class="wallet-clasp" id="walletClasp"></div>
-          </div>
 
           <div class="wallet-card feat-card" id="walletCard0" data-index="0">
             <div class="feat-icon">
@@ -2413,11 +2423,23 @@ h1, h2, h3,
             </div>
             <h3>Pay</h3>
             <div class="feat-platform">via x402</div>
-            <p>Lyra settles x402 payments directly over HTTP, so an app, an API, or an agent
-            can get paid instantly, no card and no invoice, on web and on mobile.</p>
+            <p>Lyra pays x402 services straight from the chat: the service asks for payment over HTTP, Lyra shows you the price, and one hold signs it. No card, no invoice, no account.</p>
             <div class="feat-check">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
               Same wallet, same one-hold confirmation, on both platforms
+            </div>
+          </div>
+
+          <div class="wallet-card feat-card" id="walletCard5" data-index="5">
+            <div class="feat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v7a2 2 0 0 0 2 2v9M9 3v7a2 2 0 0 1-2 2M17 21V3c-2.5 1.5-3.5 4-3.5 8H17"/></svg>
+            </div>
+            <h3>Book</h3>
+            <div class="feat-platform">a table, via x402</div>
+            <p>Say "book a table for two tonight" and Lyra finds the restaurant, shows the price of the reservation, and pays it with one hold. You get the confirmation right in the chat.</p>
+            <div class="feat-check">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+              Demo restaurant: the signature is real, no money moves
             </div>
           </div>
 
@@ -2427,6 +2449,7 @@ h1, h2, h3,
             <span class="wallet-dot" data-dot="2"></span>
             <span class="wallet-dot" data-dot="3"></span>
             <span class="wallet-dot" data-dot="4"></span>
+            <span class="wallet-dot" data-dot="5"></span>
           </div>
 
           <div class="wallet-hint" id="walletHint">↓ keep scrolling</div>
@@ -2439,10 +2462,151 @@ h1, h2, h3,
 </section>
 
 
+<section id="agentpay">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">03 / Agents &amp; payments</span>
+      <h2 class="bt-pending">Your agent can find, pay, hire, and shop. Still one button to confirm.</h2>
+      <p>Lyra speaks the open standards AI agents use to transact with the web and with each other:
+      pay an API over HTTP, search a directory of paid services, hand a task to another agent, or
+      check out without leaving the chat. Every payment shows its price first and waits for you.</p>
+    </div>
+
+    <div class="demo-card agentpay-demo">
+      <div class="demo-label">Example: from a question to a payment</div>
+
+      <div class="demo-chat-msg">
+        <div class="who">You</div>
+        Find me a service for prediction market data.
+      </div>
+      <div class="demo-chat-msg">
+        <div class="who">Lyra</div>
+        1. AIsa API ($0.00066, Nanopayments): Get Events<br>
+        2. BlockRun.AI ($0.001, Nanopayments): Query Kalshi markets<br>
+        Say "use number 1" and I'll prepare the payment. You always see the price and confirm before anything is paid.
+      </div>
+      <div class="demo-chat-msg">
+        <div class="who">You</div>
+        Use number 1.
+      </div>
+
+      <div class="demo-ticket">
+        <div class="demo-ticket-title">x402 · Circle Nanopayments</div>
+        <div class="demo-row"><span>Service</span><strong>AIsa API · Polymarket events</strong></div>
+        <div class="demo-row"><span>Price</span><strong>0.00066 USDC</strong></div>
+        <div class="demo-row"><span>Paid from</span><strong>Your Nanopayments balance</strong></div>
+        <div class="demo-row"><span>Network fee</span><strong class="risk-low">None</strong></div>
+      </div>
+
+      <div class="demo-caption" style="opacity:1;">One hold to confirm, then Lyra explains what you got in plain language.</div>
+    </div>
+
+    <div class="feat-grid agentpay-grid">
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+        </div>
+        <h3>x402 payments <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">via x402 · HTTP 402</div>
+        <p>When a paid API answers "402 Payment Required", Lyra reads the price, shows you a ticket,
+        and signs a USDC authorization once you hold the button. If the network is short of USDC, it can
+        bridge funds in first, under the same confirmation.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Capped by a spending limit you set
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+        <h3>Find services <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">via Circle's service directory</div>
+        <p>Ask for what you need, like "a service for crypto prices". Lyra searches Circle's public
+        directory of paid x402 services, keeps the simple ones it can pay straight from a chat, and lists
+        a few cheap options with their prices.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          You see the price and confirm first
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5c-.6-.9-1.6-1.3-2.5-1.3-1.4 0-2.5.8-2.5 1.9 0 2.6 5 1.2 5 3.8 0 1.1-1.1 1.9-2.5 1.9-1 0-2-.5-2.6-1.3M12 6.5v1.7m0 7.6v1.7"/></svg>
+        </div>
+        <h3>Nanopayments <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">via Circle Gateway</div>
+        <p>Deposit USDC once, then every payment is just a free signature: no gas, down to fractions of a
+        cent, settled in batches by Circle. It works on Arc, Polygon, Base, and Ethereum, and a deposit
+        on Arc is credited in about a second.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Used automatically when your balance covers the price
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/></svg>
+        </div>
+        <h3>A2A: hire other agents <span class="feat-status demo">Demo agent</span></h3>
+        <div class="feat-platform">via the Agent2Agent protocol</div>
+        <p>Lyra can hand a task to another specialized agent: it reads that agent's public card, sends the
+        task, and brings the answer back into the chat. No money moves. Today the built-in agent is a demo
+        that returns simulated notes.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Designed for any agent that publishes an A2A card
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg>
+        </div>
+        <h3>ACP: checkout in the chat <span class="feat-status demo">Demo merchant</span></h3>
+        <div class="feat-platform">via the Agentic Commerce Protocol</div>
+        <p>Buy without leaving the conversation: say what you want, Lyra builds a checkout with line
+        items and a total, and one hold pays it over x402. Today the merchant is a demo, with no real
+        order behind it.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Same spending limit as every x402 payment
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18a8 8 0 0 1 16 0"/><path d="M8 18a4 4 0 0 1 8 0"/><path d="M12 18h.01"/></svg>
+        </div>
+        <h3>Built for Arc <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">via Circle's network</div>
+        <p>Arc is Circle's new stablecoin network: USDC pays the fees, Nanopayments deposits credit in
+        about a second, USDC and EURC swap and bridge through Circle's own kits, and staking runs on
+        Aave V4.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Balance, send, receive, swap, bridge, and stake
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-note">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <div><strong>What's real and what's a demo.</strong>
+      x402 payments and Nanopayments work with real third-party services. The A2A agent and the ACP
+      merchant are demos we built to show the flow, with nothing real behind them. A payment is final once
+      it settles: Lyra can't reverse it, so keep your spending limit low and pay services you trust.</div>
+    </div>
+  </div>
+</section>
+
 <section class="agent-section" id="agent">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">03 / How it thinks</span>
+      <span class="eyebrow">04 / How it thinks</span>
       <h2 class="bt-pending">It doesn't answer from memory. It goes and checks.</h2>
       <p>Every ticket Lyra shows you comes from the same three-step loop | no cached rates,
       no assumed contract addresses, nothing invented to fill a gap.</p>
@@ -2476,7 +2640,7 @@ h1, h2, h3,
 <section id="ask">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">04 / Beyond the buttons</span>
+      <span class="eyebrow">05 / Beyond the buttons</span>
       <h2 class="bt-pending">Ask it anything, not just what to click</h2>
       <p>Lyra is also who you ask before you act. It's the same research loop :
       real search, real contract checks. Turned toward your questions instead
@@ -2493,6 +2657,8 @@ h1, h2, h3,
         <span class="wallet-dot" data-dot="1"></span>
         <span class="wallet-dot" data-dot="2"></span>
         <span class="wallet-dot" data-dot="3"></span>
+        <span class="wallet-dot" data-dot="4"></span>
+        <span class="wallet-dot" data-dot="5"></span>
       </div>
     </div>
   </div>
@@ -2501,7 +2667,7 @@ h1, h2, h3,
 <section id="security">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">05 / Security model</span>
+      <span class="eyebrow">06 / Security model</span>
       <h2 class="bt-pending">An agent that can propose anything and move nothing.</h2>
       <p>Automation and custody are two different problems. Lyra solves the first,
       your device still solves the second.</p>
@@ -2528,11 +2694,31 @@ h1, h2, h3,
         <h3>Verified contracts only</h3>
         <p>If an address isn't confirmed, Lyra says so instead of guessing and signing anyway.</p>
       </div>
+      <div class="sec-card">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+        <h3>Optional 2-of-2 key split</h3>
+        <p>Turn it on when you create your wallet: your key is split in two halves, one on your device and one held by Lyra's backend. Neither half can sign alone. Early access.</p>
+      </div>
+      <div class="sec-card">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+        <h3>Spending limits</h3>
+        <p>A cap you set on x402 payments and checkouts, enforced before anything is signed, plus an optional biometric re-check above an amount you choose.</p>
+      </div>
+      <div class="sec-card">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M15 20a4.5 4.5 0 0 1 6-4"/></svg>
+        <h3>Multisig with Safe</h3>
+        <p>Set up a shared wallet with up to five owners and an approval threshold, like 2 of 3. Nothing moves until enough owners approve.</p>
+      </div>
+      <div class="sec-card">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>
+        <h3>An audit trail</h3>
+        <p>A local log of what was sent, paid, and delegated, including what got blocked, so you can always see what happened.</p>
+      </div>
     </div>
 
     <div class="sec-note">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-      <div><strong>Every transaction shown on this page is real, across Plasma, Ethereum, Base, and Polygon.</strong>
+      <div><strong>Every transaction shown on this page is real, across Plasma, Ethereum, Base, Polygon, and Arc.</strong>
       Automation reduces the number of steps, not the responsibility. Always read a ticket
       before you hold the button.</div>
     </div>
@@ -2542,13 +2728,13 @@ h1, h2, h3,
 <section class="download-section" id="download">
   <div class="wrap">
     <div class="download-head">
-      <span class="eyebrow">06 / Get Lyra</span>
+      <span class="eyebrow">07 / Get Lyra</span>
       <h2 style="font-family:var(--display);font-size:clamp(26px,3.2vw,34px);font-weight:600;letter-spacing:-0.01em;line-height:1.2;margin:14px 0 14px;">
         Available on desktop, to start
       </h2>
       <p style="font-size:15px;line-height:1.65;color:var(--muted);margin:0;">
         Download Lyra and try the agent yourself. Every transaction shown on this
-        page is real, across Plasma, Ethereum, Base, and Polygon.
+        page is real, across Plasma, Ethereum, Base, Polygon, and Arc.
       </p>
     </div>
 
@@ -2597,6 +2783,10 @@ h1, h2, h3,
       <span class="faq-tab-label">Swap, bridge, stake</span>
       <span class="faq-tab-fill"></span>
     </button>
+    <button type="button" class="faq-tab" data-cat="agents">
+      <span class="faq-tab-label">Agents &amp; payments</span>
+      <span class="faq-tab-fill"></span>
+    </button>
     <button type="button" class="faq-tab" data-cat="predictions">
       <span class="faq-tab-label">Predictions</span>
       <span class="faq-tab-fill"></span>
@@ -2619,7 +2809,7 @@ h1, h2, h3,
             <span class="qtext">What exactly is Lyra?</span>
             <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
           </button>
-          <div class="faq-a"><div class="faq-a-inner"><p>Lyra is an iWallet (an intelligent wallet), non-custodial, live on Plasma, Ethereum, Base, and Polygon. Instead of clicking through a protocol's own interface, you describe what you want in plain language, and Lyra researches the rate, the fees, and the risk before preparing a transaction for you to approve.</p></div></div>
+          <div class="faq-a"><div class="faq-a-inner"><p>Lyra is an iWallet (an intelligent wallet), non-custodial, live on Plasma, Ethereum, Base, Polygon, and Arc. Instead of clicking through a protocol's own interface, you describe what you want in plain language, and Lyra researches the rate, the fees, and the risk before preparing a transaction for you to approve. It can also pay for services over x402, hand tasks to other agents, and check out in the chat.</p></div></div>
         </div>
 
         <div class="faq-item">
@@ -2716,6 +2906,38 @@ h1, h2, h3,
           <div class="faq-a"><div class="faq-a-inner"><p>Lyra only proposes addresses it can confirm are the protocol's own verified, published contracts. If it can't verify one with confidence, it tells you that directly rather than guessing and preparing a ticket anyway.</p></div></div>
         </div>
 
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What is the optional 2-of-2 key protection?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>When you create your wallet you can turn on 2-of-2 protection (marked Recommended). Your private key is split into two halves: one stays encrypted on your device and the other is kept by Lyra's backend, and neither half can sign a transaction alone. It's an early-access feature, unlocking needs the backend to be reachable, and it is not a multisig.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What are spending limits?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>In Settings you set a spending limit for x402 payments and checkouts. Anything above it is blocked before it's ever signed. You can also require a biometric confirmation above an amount you choose, on top of the hold-to-confirm.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Can I set up a shared wallet with several owners?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Yes. Lyra can set up a multisig with Safe, with up to five owners and an approval threshold such as 2 of 3, on the networks Safe supports. Nothing is sent until enough owners approve.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Is there a record of what Lyra did?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Yes. The audit trail is a local log of what was sent, swapped, bridged, staked, bet, paid, or delegated, including anything that was blocked.</p></div></div>
+        </div>
       </div>
     </div>
 
@@ -2727,7 +2949,7 @@ h1, h2, h3,
             <span class="qtext">Which protocols does Lyra actually use?</span>
             <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
           </button>
-          <div class="faq-a"><div class="faq-a-inner"><p>Four, today: Uniswap V3 for swaps, LI.FI for bridging (the same routing engine behind Jumper), Aave V3 for staking, and Polymarket for prediction markets. All four are verified, live contracts, not simulated, across Plasma, Ethereum, Base, and Polygon.</p></div></div>
+          <div class="faq-a"><div class="faq-a-inner"><p>Nine, today: Uniswap V3 for swaps, LI.FI for bridging (the same routing engine behind Jumper), Aave for staking (V3, and V4 on Arc), Polymarket for prediction markets, Circle for Arc swaps and bridges and for Nanopayments, Safe for multisig, and the open x402, A2A, and ACP standards for agent payments, service search, and checkout. The DeFi ones are verified, live contracts, not simulated, across Plasma, Ethereum, Base, Polygon, and Arc. The A2A agent and the ACP merchant Lyra ships with are demos.</p></div></div>
         </div>
 
         <div class="faq-item">
@@ -2752,6 +2974,108 @@ h1, h2, h3,
             <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
           </button>
           <div class="faq-a"><div class="faq-a-inner"><p>Yes, staking through Aave on Lyra has no lock. You can withdraw at any time, using the same one-hold confirmation as every other action.</p></div></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="faq-group" id="cat-agents" data-cat="agents" hidden>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What is x402?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>x402 is an open standard for paying over the web. A service answers a request with &ldquo;402 Payment Required&rdquo; and a price, Lyra shows you that price as a ticket, and when you hold the button it signs a USDC payment and retries. No card, no account, no invoice.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">How do I pay for a service with Lyra?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Tell Lyra to pay for a service and give it the link of the paid API or resource. Lyra checks the price, shows a ticket, and you hold to confirm. Right after, it explains in plain language what you got. Payments are capped by the spending limit you set in Settings.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">How does Lyra find services to pay for?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Say what you need, for example &ldquo;find me a service for crypto prices&rdquo;. Lyra searches Circle's public directory of paid x402 services, keeps the simple ones it can pay straight from a chat (no login, no extra input needed), and lists a few cheap options with their price and link. Then &ldquo;use number 1&rdquo; prepares the payment. That directory comes from third parties, so you always see the price and confirm first.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What are Nanopayments?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Circle Gateway lets you deposit USDC once and then pay with free signatures: no gas per payment, and prices down to a millionth of a dollar, because Circle settles thousands of payments together in batches. Lyra uses your Nanopayments balance automatically when it covers the price. Ask Lyra to deposit USDC into your nanopayments balance to fund it, and ask for your nanopayments balance to check it.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Do Nanopayments only work on Arc?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>No. Lyra supports Nanopayments on Arc, Polygon, Base, and Ethereum. The difference is speed: a deposit on Arc is credited in about a second and on Polygon in a few seconds, while Base and Ethereum take around 15 minutes. Each service also decides which networks it accepts, so your balance has to be on one of them. Plasma isn't supported by Circle Gateway.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Do I need gas to pay with x402?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>The payment itself is a signature, so no gas and no ETH. If the payment network is short of USDC, Lyra can bridge funds in automatically, but only when one other network holds enough, and that bridge needs a little of that network's own coin for its fee. A Nanopayments deposit is one normal on-chain transaction, and every payment after it is free.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What is A2A?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>A2A (Agent2Agent) is an open protocol for agents to talk to each other. Lyra can hand a task to another specialized agent: it reads that agent's public card, sends the task, and shows you the answer in the chat. No money moves.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What is ACP?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>ACP (Agentic Commerce Protocol) is checkout in the conversation. You say what you want to buy, Lyra builds a cart with line items and a total, and one hold pays it over x402, under your spending limit.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Are A2A and ACP real, or demos?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>The protocol flows are real, but the agent and the merchant Lyra ships with today are demos we built: the agent returns simulated notes and the merchant doesn't ship anything. x402 payments and Nanopayments, on the other hand, work with real third-party services.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">What if a paid service takes my payment and gives nothing?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>A payment is final once it settles: Lyra can't reverse it and there is no built-in refund, you would need to ask that service. That's why Lyra shows the price first, why the spending limit exists, and why it's best to keep the limit low and pay only services you trust.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Can Lyra book a restaurant or buy real things for me?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Not yet. Real booking and shopping services usually need an account on the platform behind them, which a chat-only flow can't create. Lyra includes a fictional demo restaurant that shows how paying for a reservation over x402 would work, with no real table and no real money movement.</p></div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q">
+            <span class="qtext">Will I understand what I paid for, and what to do when something fails?</span>
+            <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          </button>
+          <div class="faq-a"><div class="faq-a-inner"><p>Yes. After a paid request, Lyra explains what came back in plain language instead of showing raw data. If something fails, it tells you the likely cause and one concrete next step in the same message.</p></div></div>
         </div>
 
       </div>
@@ -2811,7 +3135,7 @@ h1, h2, h3,
             <span class="qtext">Which networks and platforms are supported right now?</span>
             <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
           </button>
-          <div class="faq-a"><div class="faq-a-inner"><p>Four networks today: Plasma (Lyra's home network), Ethereum, Base, and Polygon, with more to follow as new ones get verified. It's available today on Chrome and Mac OS, with other platforms to follow.</p></div></div>
+          <div class="faq-a"><div class="faq-a-inner"><p>Five networks today: Plasma (Lyra's home network), Ethereum, Base, Polygon, and Arc (Circle's stablecoin network), with more to follow as new ones get verified. It's available today on Chrome and Mac OS, with other platforms to follow.</p></div></div>
         </div>
 
         <div class="faq-item">
@@ -2937,7 +3261,7 @@ h1, h2, h3,
 
     <div class="legal-block">
       <h2>5. Third-party protocols and services</h2>
-      <p>Lyra interacts with third-party, independently operated protocols and services to prepare and execute your requests, including KyberSwap and Uniswap V3 (swaps), LI.FI (bridging), Aave V3 (staking), Polymarket (prediction markets), and blockchain explorers and RPC providers for the networks you use. Lyra does not control these services and is not responsible for their availability, accuracy, security, or performance.</p>
+      <p>Lyra interacts with third-party, independently operated protocols and services to prepare and execute your requests, including KyberSwap and Uniswap V3 (swaps), LI.FI (bridging), Aave (staking), Polymarket (prediction markets), Circle (Arc, its swap and bridge kits, Gateway and Nanopayments, and its public directory of paid services), Safe (multisig), the services, merchants, and agents you choose to pay or delegate to over x402, A2A, and ACP, and blockchain explorers and RPC providers for the networks you use. Lyra does not control these services and is not responsible for their availability, accuracy, security, or performance.</p>
     </div>
 
     <div class="legal-block">
@@ -2945,7 +3269,8 @@ h1, h2, h3,
       <p>Using Lyra involves risks inherent to cryptocurrency and DeFi that exist independently of the app, including:</p>
       <ul>
         <li><strong>Volatility.</strong> The value of crypto assets can change rapidly and significantly.</li>
-        <li><strong>Irreversibility.</strong> Once you hold to confirm and a transaction is broadcast, it cannot be cancelled, refunded, or reversed by Lyra or anyone else.</li>
+        <li><strong>Irreversibility.</strong> Once you hold to confirm and a transaction is broadcast, it cannot be cancelled, refunded, or reversed by Lyra or anyone else. The same goes for payments to third-party services over x402 or Nanopayments: once settled, they are final, and any refund is up to that service.</li>
+        <li><strong>Third-party services and content.</strong> Services found through a directory, and the data they return, come from independent third parties. Lyra does not vouch for them, and a service may fail to deliver what you paid for.</li>
         <li><strong>Smart contract and protocol risk.</strong> The third-party protocols Lyra interacts with may contain bugs, be exploited, or otherwise fail, independently of Lyra.</li>
         <li><strong>Quote and slippage risk.</strong> A rate or estimated output shown before you confirm may differ slightly from the final on-chain result due to market movement or network conditions between quote and execution.</li>
         <li><strong>Network risk.</strong> Network congestion can delay a transaction or increase the gas fee required to process it.</li>
@@ -2995,7 +3320,7 @@ h1, h2, h3,
 
     <div class="legal-block">
       <h2>1. What we don't collect</h2>
-      <p>Lyra is non-custodial: your private key and wallet data are encrypted and stored locally on your device. We never have access to your key, seed phrase, or funds.</p>
+      <p>Lyra is non-custodial: your private key and wallet data are encrypted and stored locally on your device. We never have access to your seed phrase or funds, and never to a whole private key. If you turn on the optional 2-of-2 protection, our backend holds one encrypted half of a split key: on its own, that half cannot sign anything or reveal your key.</p>
     </div>
 
     <div class="legal-block">
@@ -3005,6 +3330,7 @@ h1, h2, h3,
         <li>Basic technical data (app version, general error logs) used only to diagnose issues.</li>
         <li>The text of what you type to the assistant, and wallet context needed to act on it, your public wallet address and displayed balance. Never your private key or recovery phrase, which stay local to your device and are never transmitted anywhere.</li>
         <li>Live queries made on your behalf to check rates, routes, or contract data, processed at the moment of your request and not used to build a profile of you.</li>
+        <li>If you turn on the optional 2-of-2 protection: your public wallet address, the encrypted key half, and the daily spending limit you set, so the backend can enforce it.</li>
       </ul>
     </div>
 
@@ -3015,12 +3341,12 @@ h1, h2, h3,
 
     <div class="legal-block">
       <h2>4. AI providers</h2>
-      <p>To understand your request and prepare a ticket, Lyra sends what you typed, and the minimal wallet context described above, to an AI provider. Depending on availability, this may be OpenRouter (routing to a Qwen model), Mistral AI, Google (Gemini), or Anthropic (Claude); only one provider handles a given request, chosen automatically as a fallback chain, never all at once. Each provider processes that request under its own privacy policy and may briefly retain it per their own data-handling terms; Lyra does not control this.</p>
+      <p>To understand your request and prepare a ticket, Lyra sends what you typed, and the minimal wallet context described above, to an AI provider. Depending on availability, this may be OpenRouter (routing to a Qwen model), Mistral AI, Google (Gemini), or Anthropic (Claude); only one provider handles a given request, chosen automatically as a fallback chain, never all at once. When you pay for a service over x402, the response it returns may also be sent to that provider so it can be summarized in plain language for you. Each provider processes that request under its own privacy policy and may briefly retain it per their own data-handling terms; Lyra does not control this.</p>
     </div>
 
     <div class="legal-block">
       <h2>5. Other third parties</h2>
-      <p>When you use Lyra to interact with a third-party protocol or data source (currently KyberSwap and Uniswap V3, LI.FI, Aave V3, Polymarket, PlasmaScan/Etherscan/Basescan/PolygonScan, and CoinGecko), that service may independently process data related to your request, such as your wallet address for an on-chain quote or transaction. Their own privacy practices apply to that interaction.</p>
+      <p>When you use Lyra to interact with a third-party protocol or data source (currently KyberSwap and Uniswap V3, LI.FI, Aave, Polymarket, Circle, including its Gateway service that is asked for your public wallet address to read your Nanopayments balance and its public directory of paid services, Safe, the third-party services and agents you choose to pay or delegate to, PlasmaScan/Etherscan/Basescan/PolygonScan, and CoinGecko), that service may independently process data related to your request, such as your wallet address for an on-chain quote or transaction. Their own privacy practices apply to that interaction.</p>
     </div>
 
     <div class="legal-block">
@@ -3481,11 +3807,55 @@ h1, h2, h3,
   const INTENTS = {
     what: {
       keywords: ['what can lyra do', 'what does lyra do', 'what is lyra', 'what does it do'],
-      answer: "Lyra sends, swaps, bridges, stakes, and places prediction-market bets on Polymarket for you, across Plasma, Ethereum, Base, and Polygon. Say what you want in one sentence, it finds the real rate and route, then you hold one button to confirm nothing signs itself."
+      answer: "Lyra sends, swaps, bridges, stakes, and places prediction-market bets on Polymarket for you, and it can pay for x402 services, hand tasks to other agents, and check out in the chat, across Plasma, Ethereum, Base, Polygon, and Arc. Say what you want in one sentence, it finds the real rate and route, then you hold one button to confirm nothing signs itself."
     },
     how_it_works: {
       keywords: ['how does lyra work', 'how it works', 'how do you decide'],
       answer: "Three steps every time: understand what you're asking, research the live rate and contract on-chain, then propose a ticket you approve nothing is invented or pulled from a cache."
+    },
+    x402: {
+      keywords: ['x402', 'http 402', 'payment required', 'pay for an api', 'pay for api', 'micropayment'],
+      answer: "x402 is an open standard for paying over the web. A service answers with a price, Lyra shows you a ticket, and one hold signs a USDC payment. It's capped by a spending limit you set, and afterwards Lyra explains in plain language what you got."
+    },
+    nanopayments: {
+      keywords: ['nanopayment', 'nanopayments', 'circle gateway', 'gateway', 'gasless payment', 'prepaid balance'],
+      answer: "Nanopayments (Circle Gateway) is a prepaid USDC balance for tiny x402 payments: deposit once, then every payment is a free signature with no gas, down to fractions of a cent. It works on Arc, Polygon, Base, and Ethereum, and a deposit on Arc is credited in about a second."
+    },
+    service_search: {
+      keywords: ['find a service', 'find me a service', 'x402 service', 'paid api', 'marketplace', 'services directory', 'service directory'],
+      answer: "Say what you need, like 'find me a service for crypto prices', and Lyra searches Circle's public directory of paid x402 services and lists a few cheap ones with their price. You see the price and confirm before anything is paid."
+    },
+    a2a: {
+      keywords: ['a2a', 'agent to agent', 'agent2agent', 'other agents', 'hire an agent', 'delegate a task'],
+      answer: "A2A (Agent2Agent) lets Lyra hand a task to another specialized agent and bring its answer back to the chat. No money moves. Today the built-in agent is a demo."
+    },
+    acp: {
+      keywords: ['acp', 'agentic commerce', 'checkout', 'buy something', 'shop in the chat'],
+      answer: "ACP (Agentic Commerce Protocol) is checkout in the chat: say what you want to buy, Lyra builds a cart with a total, and one hold pays it over x402 under your spending limit. The merchant is a demo for now."
+    },
+    arc_network: {
+      keywords: ['circle arc', 'arc network', 'what is arc', 'on arc', 'usdc gas', 'stablecoin network'],
+      answer: "Arc is Circle's stablecoin network, now the fifth network in Lyra: USDC pays the fees, and you can send, receive, swap and bridge USDC and EURC, stake on Aave V4, and fund Nanopayments in about a second."
+    },
+    mpc_split: {
+      keywords: ['mpc', '2-of-2', '2 of 2', 'key split', 'split key', 'key fragment', 'multi party'],
+      answer: "2-of-2 protection is optional and in early access: your key is split into two halves, one on your device and one held by Lyra's backend. Neither half can sign alone, and unlocking needs the backend to be reachable."
+    },
+    multisig: {
+      keywords: ['multisig', 'multi sig', 'shared wallet', 'multi signature', 'safe wallet', 'gnosis'],
+      answer: "Yes. On the networks Safe supports, Lyra can set up a shared multisig wallet with up to five owners and an approval threshold, like 2 of 3."
+    },
+    spending_limit: {
+      keywords: ['spending limit', 'spend limit', 'biometric'],
+      answer: "You set a spending limit in Settings: any single x402 payment or checkout above it is blocked before it's signed. You can also require a biometric re-check above an amount you choose."
+    },
+    audit_trail: {
+      keywords: ['audit trail', 'audit log', 'activity log', 'log of what'],
+      answer: "The audit trail is a local log of what Lyra sent, swapped, bridged, staked, paid, or delegated, including anything that was blocked."
+    },
+    help_problems: {
+      keywords: ['something fails', 'transaction failed', 'not working', 'i need help', 'what if it fails'],
+      answer: "When something fails, Lyra explains the likely cause in plain language and gives one concrete next step, right in the same message."
     },
     security_general: {
       keywords: ['secure', 'security', 'securite', 'securise', 'safe', 'hack', 'hacked', 'trust', 'confiance'],
@@ -3517,7 +3887,7 @@ h1, h2, h3,
     },
     blockchain_networks: {
       keywords: ['which blockchain', 'what blockchain', 'which chain', 'what network', 'ethereum', 'base', 'polygon', 'plasma'],
-      answer: "Four networks, live today: Plasma (Lyra's home network), Ethereum, Base, and Polygon (home to Polymarket's prediction markets). More get added as they're verified."
+      answer: "Five networks, live today: Plasma (Lyra's home network), Ethereum, Base, Polygon (home to Polymarket's prediction markets), and Arc (Circle's stablecoin network). More get added as they're verified."
     },
     platforms_download: {
       keywords: ['which platforms', 'available on', 'chrome', 'macOS', 'android', 'ios', 'windows', 'mobile app'],
@@ -3581,11 +3951,11 @@ h1, h2, h3,
     },
     protocols_supported: {
       keywords: ['which protocols', 'protocols wired', 'integrations'],
-      answer: "Four protocols today: Uniswap V3 for swaps, LI.FI for bridging, Aave V3 for staking, and Polymarket for predictions all verified, live contracts."
+      answer: "Nine today: Uniswap V3 for swaps, LI.FI for bridging, Aave for staking, Polymarket for predictions, Circle for Arc and Nanopayments, Safe for multisig, and the open x402, A2A, and ACP standards for agent payments. The DeFi ones are verified, live contracts; the A2A agent and ACP merchant are demos."
     },
     roadmap_next: {
       keywords: ["what's next", 'whats next', 'roadmap', 'coming soon', 'future plans'],
-      answer: "More networks and more protocols beyond Uniswap V3, LI.FI, Aave, and Polymarket the roadmap grows as new ones get verified."
+      answer: "More networks and more protocols the roadmap grows as new ones get verified. Next on the list: real A2A agents and real merchants beyond today's demos, withdrawing a Nanopayments balance from inside Lyra, and real restaurant booking."
     },
     getting_started: {
       keywords: ['how do i start', 'get started', 'how to use lyra', 'first time'],
@@ -3942,6 +4312,18 @@ h1, h2, h3,
         { title: "Prediction · Polymarket", rows: [["Market", "Fed cuts rates in December?"], ["Outcome", "Yes @ 64¢"], ["Stake", "$20"]] }
       ],
       success: "✓ Confirmed, position opened on Polymarket."
+    },
+    {
+      question: "Find me a cheap service for prediction market data",
+      answer: "I searched Circle's directory of paid x402 services and found a few under a cent. AIsa API returns Polymarket events for $0.00066, paid from your Nanopayments balance with a free signature. Check the details, then hold the button to confirm.",
+      tickets: [
+        { title: "x402 · Circle Nanopayments", rows: [["Service", "AIsa API · Polymarket events"], ["Price", "0.00066 USDC"], ["Network fee", "None"]] }
+      ],
+      success: "✓ Confirmed, paid with a free signature."
+    },
+    {
+      question: "Ask a specialist agent for a market note on XPL",
+      answer: "I handed that to a specialized agent over A2A and brought its answer back: a short market-intel note on XPL. No money moved. The built-in agent is a demo, so its notes are simulated."
     }
   ];
 
@@ -4371,147 +4753,274 @@ h1, h2, h3,
   });
 })();
 
-// --- Wallet scroll: swap/bridge/stake cards fanned out of a wallet.
+// --- Space cards: 6 cards fly in from deep space one by one, slow down
+// (slow motion) when they reach the front so the content can be read, then
+// carry on past the viewer while the next one arrives. Driven by scroll.
 (function () {
   const track = document.getElementById('walletScroll');
   const staticGrid = document.getElementById('featGridStatic');
   if (!track || !staticGrid) return;
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const tooNarrow = window.innerWidth < 640;
 
-  if (reducedMotion || tooNarrow || typeof IntersectionObserver === 'undefined') {
+  if (reducedMotion || typeof IntersectionObserver === 'undefined') {
     return;
   }
 
   staticGrid.style.display = 'none';
   track.hidden = false;
 
-  const clasp = document.getElementById('walletClasp');
   const hint = document.getElementById('walletHint');
-  const cards = [
-    document.getElementById('walletCard0'),
-    document.getElementById('walletCard1'),
-    document.getElementById('walletCard2'),
-    document.getElementById('walletCard3'),
-    document.getElementById('walletCard4')
-  ];
+  const cards = [0, 1, 2, 3, 4, 5].map((i) => document.getElementById('walletCard' + i));
   const dots = Array.from(track.querySelectorAll('.wallet-dot'));
+  const N = cards.length;
 
-  // Card 1 leftmost and frontmost, each next card the same step to the
-  // right and just behind (tuckedZ below), a straight left-to-right
-  // cascade instead of a centered fan.
-  const offsetsX = [-96, -48, 0, 48, 96];
-
-  const rotations = [
-    { tucked: 0, rise: -24, out: -3 },
-    { tucked: 0, rise: -12, out: -1.5 },
-    { tucked: 0, rise:   0, out:  0 },
-    { tucked: 0, rise:  12, out:  1.5 },
-    { tucked: 0, rise:  24, out:  3 }
+  // Far-away drift direction per card (screen units, keeps clear of the
+  // centre so the next card shows beside the one being read), and its
+  // spin on the way in.
+  const DRIFT = [
+    { x: -0.95, y: -0.45, ry: 170, rx: 40, rz: 35 },
+    { x: 0.95, y: -0.55, ry: -160, rx: -35, rz: -40 },
+    { x: -0.85, y: 0.55, ry: 150, rx: -45, rz: 30 },
+    { x: 0.9, y: 0.5, ry: -175, rx: 40, rz: -35 },
+    { x: -0.7, y: -0.75, ry: 160, rx: 35, rz: -30 },
+    { x: 0.75, y: 0.7, ry: -150, rx: -40, rz: 40 }
   ];
 
-  // Stacked straight, no horizontal fan, just a slight step up per card
-  // so the tucked deck still reads as more than one card.
-  const tuckedYs = [-25, -30, -35, -40, -45];
-
-  // Must all stay below .wallet-shell/.wallet-body's z-index (3), or a
-  // tucked card ties with the wallet and paints in front of it instead
-  // of looking tucked inside it.
-  const tuckedZ = [2, 1, 0, -1, -2];
-
-  const MID_X = (offsetsX[0] + offsetsX[offsetsX.length - 1]) / 2;
-
-  const TUCKED = { y: -30, scale: 0.30 };
-  const RISE = { y: -190, scale: 0.42 };
-  const OUT = { x: 0, y: -16, scale: 1 };
-  const RISE_SPLIT = 0.55;
-
-  const timeline = [
-    [0.03, 0.09, 0.13, 0.19],
-    [0.20, 0.26, 0.30, 0.36],
-    [0.37, 0.43, 0.47, 0.53],
-    [0.54, 0.60, 0.64, 0.70],
-    [0.80, 0.92, 0.97, 1.00]
-  ];
+  const Z_PER_UNIT = 1600;     // px of depth per unit of "distance from front"
+  const LEAD_IN = 1.7;         // card 0 starts this far behind the front
+  const LEAD_OUT = 0.6;        // last card flies this far past the front
+  const SLOW = 0.06;           // speed at the front (1 = normal, lower = slower)
+  const SLOW_WIDTH = 0.55;     // how wide the slow-motion zone is
 
   function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
-  function mapRange(v, inMin, inMax) { return clamp((v - inMin) / (inMax - inMin), 0, 1); }
-  function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-  function lerp(a, b, t) { return a + (b - a) * t; }
+  function smooth(a, b, v) { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
 
-  function cardValue(p, [enterFrom, enterTo, holdTo, exitTo]) {
-    if (p <= enterFrom) return 0;
-    if (p < enterTo) return easeInOutCubic(mapRange(p, enterFrom, enterTo));
-    if (p < holdTo) return 1;
-    if (p < exitTo) return 1 - easeInOutCubic(mapRange(p, holdTo, exitTo));
-    return 0;
+  // x = distance from the front in card spacings (negative = still coming,
+  // positive = already passed). q = same distance after the slow-motion
+  // warp: its slope is SLOW at x = 0 and 1 far away.
+  function warp(x) {
+    const r = x / SLOW_WIDTH;
+    return x * (SLOW + (1 - SLOW) * (1 - Math.exp(-r * r)));
   }
 
-  function cardMetrics(value, offsetX, rot, tuckedY) {
-    if (value <= RISE_SPLIT) {
-      const t = easeInOutCubic(value / RISE_SPLIT);
-      return {
-        x: lerp(offsetX, MID_X, t),
-        y: lerp(tuckedY, RISE.y, t),
-        scale: lerp(TUCKED.scale, RISE.scale, t),
-        rotate: lerp(rot.tucked, rot.rise, t)
-      };
-    }
-    const t = easeInOutCubic((value - RISE_SPLIT) / (1 - RISE_SPLIT));
-    return {
-      x: lerp(MID_X, OUT.x, t),
-      y: lerp(RISE.y, OUT.y, t),
-      scale: lerp(RISE.scale, OUT.scale, t),
-      rotate: lerp(rot.rise, rot.out, t)
-    };
-  }
+  let visible = false;
+  let raf = 0;
 
-  let ticking = false;
-
-  function update() {
-    ticking = false;
-
+  function update(now) {
     const rect = track.getBoundingClientRect();
     const scrollable = track.offsetHeight - window.innerHeight;
     const progress = scrollable > 0 ? clamp(-rect.top / scrollable, 0, 1) : 0;
+    const t = now / 1000;
 
-    let anyActive = false;
+    // u: position of the "camera" along the row of cards
+    const u = progress * (N - 1 + LEAD_IN + LEAD_OUT) - LEAD_IN;
+
+    let front = -1;
+    let frontBest = 0.5;
+
     cards.forEach((card, i) => {
-      const value = cardValue(progress, timeline[i]);
-      const { x, y, scale, rotate } = cardMetrics(value, offsetsX[i], rotations[i], tuckedYs[i]);
+      const x = u - i;
+      const q = warp(x);
+      const d = DRIFT[i];
 
-      card.style.transform = `translate(${x}px, ${y}px) rotate(${rotate}deg) scale(${scale})`;
-      card.style.zIndex = value > RISE_SPLIT ? "5" : String(tuckedZ[i]);
-
-      if (dots[i]) {
-        dots[i].classList.toggle("active", value > 0.5);
+      // Fade in while far away, fade out just after passing the front.
+      const alpha = smooth(-LEAD_IN - 0.05, -1.15, x) * (1 - smooth(0.12, 0.42, x));
+      if (alpha <= 0.002) {
+        card.style.visibility = 'hidden';
+        return;
       }
+      card.style.visibility = 'visible';
+      card.style.opacity = alpha.toFixed(3);
 
-      if (value > 0.05) {
-        anyActive = true;
-      }
+      // Coming: spread out and small. Passing: sweep off to the side.
+      const spread = q < 0 ? -q : q * 2.4;
+      const sx = Math.min(1, window.innerWidth / 1000);
+      const px = d.x * spread * 520 * sx;
+      const py = d.y * spread * 380;
+      const pz = q * Z_PER_UNIT;
+
+      // Spin on itself while far, settling flat towards the reader at the
+      // front. A gentle float keeps it alive even when scrolling stops.
+      const ry = d.ry * q + Math.sin(t * 0.9 + i * 1.7) * 2.2;
+      const rx = d.rx * q + Math.cos(t * 0.7 + i) * 1.6;
+      const rz = d.rz * q + Math.sin(t * 0.5 + i * 2.3) * 1.2;
+      const bob = Math.sin(t * 1.1 + i * 1.3) * 5;
+
+      card.style.transform = 'translate3d(' + px.toFixed(1) + 'px,' + (py + bob).toFixed(1) + 'px,' + pz.toFixed(1) + 'px) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg) rotateZ(' + rz.toFixed(2) + 'deg)';
+      // Only the card being read can be clicked/selected.
+      card.style.pointerEvents = Math.abs(x) < 0.25 ? 'auto' : 'none';
+
+      const nearFront = Math.abs(x);
+      if (nearFront < frontBest) { frontBest = nearFront; front = i; }
     });
 
-    if (clasp) {
-      clasp.classList.toggle("active", anyActive);
-    }
+    dots.forEach((dot, i) => dot.classList.toggle('active', i === front));
 
     if (hint) {
-      hint.style.opacity = String(1 - mapRange(progress, 0, 0.06));
+      hint.style.opacity = String(1 - smooth(0, 0.05, progress));
     }
   }
 
-  function onScroll() {
-    if (!ticking) {
-      requestAnimationFrame(update);
-      ticking = true;
-    }
+  function loop(now) {
+    update(now);
+    raf = visible ? requestAnimationFrame(loop) : 0;
   }
 
-  window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', onScroll);
-  update();
+  new IntersectionObserver((entries) => {
+    visible = entries[0].isIntersecting;
+    if (visible && !raf) raf = requestAnimationFrame(loop);
+  }, { rootMargin: '100px' }).observe(track);
+
+  update(performance.now());
+})();
+
+// --- Space particles: a starfield the camera flies through as you scroll.
+// It fades in before the card reveal starts and fades out after it ends,
+// so the cards section blends into what comes before and after it.
+(function () {
+  const track = document.getElementById('walletScroll');
+  if (!track) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const bgNet = document.getElementById('bgCanvas');
+  const canvas = document.createElement('canvas');
+  canvas.id = 'spaceCanvas';
+  canvas.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const COUNT = window.innerWidth < 640 ? 550 : 1100;
+  const DEPTH = 1600;
+  let FOCAL = 520;
+
+  let w = 0, h = 0, dpr = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    FOCAL = Math.max(260, Math.min(520, w * 0.45));
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Soft glowing dot sprites: white, warm, cool (same palette split as a
+  // classic night sky: mostly white, some amber, some blue).
+  function makeSprite(r, g, b) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const x = c.getContext('2d');
+    const grad = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',1)');
+    grad.addColorStop(0.18, 'rgba(' + r + ',' + g + ',' + b + ',0.85)');
+    grad.addColorStop(0.5, 'rgba(' + r + ',' + g + ',' + b + ',0.18)');
+    grad.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+    x.fillStyle = grad;
+    x.fillRect(0, 0, 64, 64);
+    return c;
+  }
+  const sprites = [makeSprite(255, 255, 255), makeSprite(255, 214, 170), makeSprite(170, 200, 255)];
+
+  let seed = 11;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const stars = [];
+  for (let i = 0; i < COUNT; i++) {
+    const roll = rnd();
+    // Spread over a wide disc so the tunnel is empty-ish at the centre only
+    // for a moment: near stars sweep outward as the camera advances.
+    const angle = rnd() * Math.PI * 2;
+    const radius = 60 + Math.pow(rnd(), 0.7) * 1400;
+    stars.push({
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+      z: rnd() * DEPTH,
+      size: 0.5 + rnd() * 1.6,
+      tone: roll < 0.7 ? 0 : roll < 0.9 ? 1 : 2,
+      tw: rnd() * Math.PI * 2
+    });
+  }
+
+  function smooth(a, b, v) { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); }
+
+  let raf = 0;
+  let running = false;
+
+  function frame(now) {
+    raf = 0;
+    if (track.offsetParent === null) {
+      canvas.style.opacity = '0';
+      if (bgNet) bgNet.style.opacity = '';
+      running = false;
+      return;
+    }
+    const rect = track.getBoundingClientRect();
+    const vh = window.innerHeight;
+    // Fade in from before the sticky stage locks, out after it lets go.
+    const fadeIn = 1 - smooth(0.15 * vh, 1.3 * vh, rect.top);
+    const fadeOut = 1 - smooth(vh * 0.95, -0.35 * vh, rect.bottom);
+    const alpha = Math.min(fadeIn, fadeOut);
+    canvas.style.opacity = alpha.toFixed(3);
+    // The linked-dots background steps aside while the big particles are on.
+    if (bgNet) bgNet.style.opacity = alpha <= 0.003 ? '' : (1 - alpha).toFixed(3);
+
+    if (alpha <= 0.003) {
+      running = false;
+      return;
+    }
+
+    const t = now / 1000;
+    // Camera advances with the page position, with a slow idle drift.
+    const cam = (window.scrollY * 1.1 + t * 22) % DEPTH;
+    const roll = t * 0.02 + window.scrollY * 0.00012;
+    const cosR = Math.cos(roll), sinR = Math.sin(roll);
+    const cx = w / 2, cy = h / 2;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let i = 0; i < stars.length; i++) {
+      const st = stars[i];
+      let z = st.z - cam;
+      z = ((z % DEPTH) + DEPTH) % DEPTH;
+      if (z < 24) continue;
+      const k = FOCAL / z;
+      const rx = st.x * cosR - st.y * sinR;
+      const ry = st.x * sinR + st.y * cosR;
+      const sx = cx + rx * k;
+      const sy = cy + ry * k;
+      if (sx < -20 || sx > w + 20 || sy < -20 || sy > h + 20) continue;
+
+      // Faint far away, fade again right before it passes the camera.
+      const depthFade = smooth(0, 0.25, 1 - z / DEPTH) * smooth(24, 120, z);
+      const twinkle = 0.8 + 0.2 * Math.sin(t * 1.6 + st.tw);
+      const a = depthFade * twinkle;
+      if (a < 0.02) continue;
+      const size = Math.max(2, st.size * k * 5);
+      ctx.globalAlpha = Math.min(1, a);
+      ctx.drawImage(sprites[st.tone], sx - size / 2, sy - size / 2, size, size);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+
+    if (running) raf = requestAnimationFrame(frame);
+  }
+
+  function kick() {
+    if (running) return;
+    running = true;
+    raf = requestAnimationFrame(frame);
+  }
+
+  // Wake the loop when the section comes near the viewport (a full screen
+  // of margin, matching the fade-in), sleep when it is far away.
+  new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) kick();
+  }, { rootMargin: '150% 0px 150% 0px' }).observe(track);
+  window.addEventListener('scroll', () => { if (!running) kick(); }, { passive: true });
 })();
 </script>
 
