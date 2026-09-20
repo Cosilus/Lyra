@@ -2904,6 +2904,8 @@ h1, h2, h3,
         <textarea id="contactMessage" name="message" rows="6" placeholder="Write your message here…" required></textarea>
       </div>
 
+      <input type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
+
       <div class="contact-submit-row">
         <button type="submit" class="btn btn-primary" id="contactSubmitBtn">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -4653,15 +4655,18 @@ h1, h2, h3,
   const form = document.getElementById('contactForm');
   if (!form) return;
 
-  const CONTACT_EMAIL = 'hello@lyra.xyz'; // to replace with the real address
+  const CONTACT_ENDPOINT = 'https://formsubmit.co/ajax/contact@lyrapp.to';
   const TOPIC_LABELS = { general: 'General question', feedback: 'Feedback', partnerships: 'Partnerships' };
 
   const statusEl = document.getElementById('contactStatus');
 
   function isValidEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); }
 
-  form.addEventListener('submit', (e) => {
+  const submitBtn = document.getElementById('contactSubmitBtn');
+
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (form._honey && form._honey.value) return; // bot filled the hidden field
     const firstName = form.firstName.value.trim();
     const lastName = form.lastName.value.trim();
     const email = form.email.value.trim();
@@ -4684,12 +4689,36 @@ h1, h2, h3,
     const topicLabel = TOPIC_LABELS[topic] || 'General question';
     const fullName = [firstName, lastName].filter(Boolean).join(' ');
     const subject = `[Lyra – ${topicLabel}]` + (fullName ? ` from ${fullName}` : '');
-    const bodyLines = [fullName ? `Name: ${fullName}` : null, `Email: ${email}`, `Topic: ${topicLabel}`, '', message].filter((l) => l !== null);
-    const mailtoUrl = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
 
-    window.location.href = mailtoUrl;
-    statusEl.textContent = 'Opening your email client…';
-    statusEl.className = 'contact-status ok';
+    submitBtn.disabled = true;
+    statusEl.textContent = 'Sending…';
+    statusEl.className = 'contact-status';
+
+    try {
+      const res = await fetch(CONTACT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          name: fullName || 'Anonymous',
+          email,
+          topic: topicLabel,
+          message,
+          _subject: subject,
+          _template: 'table',
+          _captcha: 'false',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || String(data.success) === 'false') throw new Error(data.message || 'Request failed');
+      form.reset();
+      statusEl.textContent = 'Message sent. We’ll get back to you soon.';
+      statusEl.className = 'contact-status ok';
+    } catch (err) {
+      statusEl.textContent = 'Couldn’t send your message. Please try again in a moment.';
+      statusEl.className = 'contact-status err';
+    } finally {
+      submitBtn.disabled = false;
+    }
   });
 })();
 </script>
