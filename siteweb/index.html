@@ -623,7 +623,9 @@ footer .footer-logo img {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  transition: color 0.25s ease;
 }
+.hold-btn.dots-cover .hold-content { color: #fff; }
 .demo-caption {
   text-align: center;
   font-size: 12px;
@@ -3609,15 +3611,16 @@ h1, h2, h3,
     const dotColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--accent-deep').trim() || '#6D4FD1';
 
-    // Same math as the app's HoldSquares: a true 45°-rotated square
-    // (raw Manhattan distance, normalized once by half+halfH so it
-    // hits 1 exactly at the button's corners) grows from the center
-    // at a uniform rate in every diagonal direction. A spatial ripple
-    // plus a slow time drift break up the front so it reads as one
-    // fluid wave, and a small time-based "breathe" on already-grown
-    // dots keeps the whole thing from ever looking frozen.
-    function drawDots(pct, now) {
-      now = now || 0;
+    // Staircase fill, same idea as the intro loader: a grid of solid
+    // squares, each with its Manhattan distance from the centre cell. The
+    // wave grows at constant speed, so it is a diamond whose edges are
+    // perfect steps, and every square swells and fades in as the wave
+    // reaches it. Nothing random, so the steps stay clean. On release the
+    // squares shrink back the way they came instead of vanishing.
+    const ROWS = 5;             // odd, so a row of squares sits on the centre line
+    const SPAN = 3.2;           // width of the soft edge, in squares
+
+    function drawDots(pct) {
       const w = btn.clientWidth, h = btn.clientHeight;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       if (dots.width !== Math.round(w * dpr) || dots.height !== Math.round(h * dpr)) {
@@ -3626,77 +3629,75 @@ h1, h2, h3,
       }
       dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       dctx.clearRect(0, 0, w, h);
-      if (pct <= 0) return;
+      if (pct <= 0) { btn.classList.remove("dots-cover"); return; }
 
-      const p = pct / 100;
-      const CELL = 4;
-      const FRONT = 0.55;
-      const cols = Math.ceil(w / CELL);
-      const rows = Math.ceil(h / CELL);
-      const maxR = CELL * 1.25;
-      const half = w / 2;
-      const halfH = h / 2;
+      const cell = h / ROWS;
+      const halfRows = (ROWS - 1) / 2;
+      const halfCols = Math.ceil(w / 2 / cell);
+      const maxD = halfRows + halfCols;
+      const R = (pct / 100) * (maxD + SPAN);
+      // Flip the label to white once the wave has grown past its ends.
+      btn.classList.toggle("dots-cover", R - label.offsetWidth / 2 / cell - halfRows > SPAN * 0.7);
 
       dctx.fillStyle = dotColor;
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          const cx = (col + 0.5) * CELL;
-          const cy = (row + 0.5) * CELL;
-          const dx = Math.abs(cx - half);
-          const dy = Math.abs(cy - halfH);
-          const dist = (dx + dy) / (half + halfH);
-          const ripple = Math.sin(row * 0.9 + col * 0.35 + now * 0.0035) * 0.055;
-          const threshold = Math.max(0, Math.min(1, dist + ripple)) * (1 - FRONT);
-          let t = (p - threshold) / FRONT;
+      for (let j = -halfRows; j <= halfRows; j++) {
+        for (let i = -halfCols; i <= halfCols; i++) {
+          let t = (R - (Math.abs(i) + Math.abs(j))) / SPAN;
           t = t < 0 ? 0 : t > 1 ? 1 : t;
+          if (t <= 0.01) continue;
           t = t * t * (3 - 2 * t);
-          if (t <= 0.02) continue;
-          const breathe = 1 + Math.sin(now * 0.005 + col * 0.6 + row * 0.4) * 0.12 * t;
-          const radius = maxR * t * breathe;
-          dctx.beginPath();
-          dctx.arc(cx, cy, radius, 0, Math.PI * 2);
-          dctx.fill();
+          const side = t >= 1 ? cell + 0.75 : cell * (0.3 + 0.7 * t);
+          dctx.globalAlpha = t >= 1 ? 1 : 0.25 + 0.75 * t;
+          dctx.fillRect(w / 2 + i * cell - side / 2, h / 2 + j * cell - side / 2, side, side);
         }
       }
+      dctx.globalAlpha = 1;
     }
 
+    const DURATION = 3600;   // full hold
+    const RETRACT = 420;     // ms to shrink back on release
     let progress = 0;
     let timer = null;
     let done = false;
 
+    // Shrink the dots back to nothing (release, or after success).
+    function retract() {
+      cancelAnimationFrame(timer);
+      const from = progress;
+      if (from <= 0) { drawDots(0); timer = null; return; }
+      const t0 = performance.now();
+      function back(now) {
+        const k = Math.min((now - t0) / (RETRACT * Math.max(0.35, from / 100)), 1);
+        progress = from * (1 - k * k);
+        drawDots(progress, now);
+        if (k >= 1) { progress = 0; drawDots(0); timer = null; return; }
+        timer = requestAnimationFrame(back);
+      }
+      timer = requestAnimationFrame(back);
+    }
+
     function reset() {
-      progress = 0;
-      fill.style.width = '0%';
-      drawDots(0);
-      btn.classList.remove('dots-cover');
       label.textContent = defaultLabel;
       if (success) success.classList.remove('show');
       done = false;
+      progress = 100;
+      retract();
     }
 
     function start(e) {
       if (done) return;
       e.preventDefault();
       cancelAnimationFrame(timer);
-      const duration = 3600;
-      const startTime = performance.now();
+      const startTime = performance.now() - (progress / 100) * DURATION;
 
       function tick(now) {
-        const elapsed = now - startTime;
-        progress = Math.min((elapsed / duration) * 100, 100);
-
+        progress = Math.min(((now - startTime) / DURATION) * 100, 100);
+        drawDots(progress, now);
         if (progress >= 100) {
-          fill.style.width = '100%';
-          drawDots(100, now);
-          btn.classList.add('dots-cover');
           timer = null;
           finish();
           return;
         }
-
-        fill.style.width = progress + '%';
-        drawDots(progress, now);
-        btn.classList.toggle('dots-cover', progress > 55);
         timer = requestAnimationFrame(tick);
       }
 
@@ -3705,11 +3706,7 @@ h1, h2, h3,
 
     function stop() {
       if (done) return;
-      cancelAnimationFrame(timer);
-      progress = 0;
-      fill.style.width = '0%';
-      drawDots(0);
-      btn.classList.remove('dots-cover');
+      retract();
     }
 
     // "Try the actual control" is the only hold button wired to a real
