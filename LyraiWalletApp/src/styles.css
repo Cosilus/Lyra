@@ -1,22 +1,26 @@
 :root {
-  --void: #150E20;
-  --panel: #221735;
-  --panel2: #2C1F45;
-  --panel3: #362854;
-  --line: #3D2C5B;
-  --line-soft: rgba(167, 139, 250, 0.14);
+  /* Matches the site's current GRID/MONO skin (siteweb/index.html) --
+     keep these two in sync, that's the whole point of sharing hexes. */
+  --void: #0D0916;
+  --panel: #150E20;
+  --panel2: #1B1228;
+  --panel3: #221733;
+  --line: rgba(167, 139, 250, 0.16);
+  --line-soft: rgba(167, 139, 250, 0.09);
 
   --accent: #A78BFA;
+  --accent-rgb: 167, 139, 250;
   --accent-strong: #C4B0FF;
   --accent-deep: #6D4FD1;
-  --accent-soft: rgba(167, 139, 250, 0.14);
+  --accent-soft: rgba(167, 139, 250, 0.12);
 
-  --beige: #F3E7D0;
-  --beige-dim: #D8C9A8;
-  --beige-soft: rgba(243, 231, 208, 0.08);
+  --beige: #F3EBFF;
+  --beige-rgb: 243, 235, 255;
+  --beige-dim: #D9D2E8;
+  --beige-soft: rgba(var(--beige-rgb), 0.08);
 
-  --muted: #9C8FBE;
-  --muted-dim: #6E6291;
+  --muted: rgba(243, 235, 255, 0.6);
+  --muted-dim: rgba(243, 235, 255, 0.32);
 
   --danger: #F2A0A0;
   --success: #B9E3B0;
@@ -90,13 +94,13 @@ button { cursor: pointer; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--panel);
+  background: var(--void);
   border: 1px solid var(--line);
   border-radius: 34px;
   box-shadow:
     0 50px 100px -30px rgba(0, 0, 0, 0.65),
-    0 0 0 1px rgba(167, 139, 250, 0.06),
-    0 0 60px -20px rgba(167, 139, 250, 0.25);
+    0 0 0 1px rgba(var(--accent-rgb), 0.06),
+    0 0 60px -20px rgba(var(--accent-rgb), 0.25);
   position: relative;
 }
 
@@ -107,10 +111,12 @@ button { cursor: pointer; }
 .header {
   position: relative;
   padding: 1px 16px 14px;
-  border-bottom: 1px solid var(--line);
+  /* Matches .frame::before's own top-right tint (same corner, same
+     hue) at a stronger dose: the header's own background otherwise
+     sits opaque on top of that ambient glow and mostly hides it. */
   background:
-    radial-gradient(circle at 15% 0%, rgba(167, 139, 250, 0.16) 0%, transparent 55%),
-    linear-gradient(180deg, #2A1D42, var(--panel));
+    radial-gradient(circle at 90% 0%, rgba(var(--accent-rgb), 0.38) 0%, transparent 60%),
+    linear-gradient(180deg, #2A1D42, var(--void));
 }
 
 .brand { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
@@ -161,8 +167,8 @@ button { cursor: pointer; }
   border: 1px solid var(--line);
   box-shadow:
     0 50px 100px -30px rgba(0, 0, 0, 0.65),
-    0 0 0 1px rgba(167, 139, 250, 0.06),
-    0 0 60px -20px rgba(167, 139, 250, 0.25);
+    0 0 0 1px rgba(var(--accent-rgb), 0.06),
+    0 0 60px -20px rgba(var(--accent-rgb), 0.25);
   animation: frame-aura-breathe 6s ease-in-out infinite;
 }
 
@@ -336,21 +342,37 @@ button { cursor: pointer; }
   border: 0;
   border-radius: 999px;
   background: linear-gradient(135deg, var(--beige), var(--beige-dim));
-  color: #241735;
+  color: var(--void);
   font-weight: 700;
   font-size: 13.5px;
-  box-shadow: 0 8px 24px -8px rgba(243, 231, 208, 0.35);
+  box-shadow: 0 8px 24px -8px rgba(var(--beige-rgb), 0.35);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.connect-wallet:hover { transform: translateY(-1px); box-shadow: 0 12px 28px -8px rgba(243, 231, 208, 0.45); }
+.connect-wallet:hover { transform: translateY(-1px); box-shadow: 0 12px 28px -8px rgba(var(--beige-rgb), 0.45); }
 .connect-wallet:active { transform: scale(0.98); }
 
 /* ================================
    CHAT
 ================================ */
 
-.chat { flex: 1; min-height: 0; overflow: auto; padding: 10px 16px; display: flex; flex-direction: column; gap: 14px; position: relative; }
+.chat {
+  flex: 1; min-height: 0; overflow: auto; padding: 32px 16px 52px; display: flex; flex-direction: column; gap: 14px; position: relative;
+  /* Content fades out as it scrolls near the top edge (toward the
+     balance card) or the bottom edge (toward the input pill), instead
+     of getting sharply clipped by the container's own edge. The 52px
+     bottom padding above matters here: autoscroll always rests at
+     max scrollTop, putting the newest message's bottom edge flush
+     against the container's own bottom edge (0px away, the most
+     faded point) unless there's real padding past it acting as a
+     buffer. Without it the latest, most important message would
+     always render partly transparent. 52px comfortably clears the
+     40px fade band below; the top isn't given the same treatment on
+     purpose, fading old content as you scroll up toward it is the
+     point there. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 40px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 40px), transparent 100%);
+}
 /* Without this, .chat's own flex children (message bubbles, tickets)
    default to flex-shrink: 1 too, so once .chat itself is squeezed
    short by the balance card/chart above it, they shrink to fit instead
@@ -359,7 +381,10 @@ button { cursor: pointer; }
    and scroll. Forcing them to keep their natural height is what makes
    there be real content to scroll to. */
 .chat > * { flex-shrink: 0; }
-.msg { max-width: 86%; animation: bubbleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+/* cubic-bezier(0.4, 0, 0.2, 1): the same signature curve tickets,
+   charts, and collapsible sections already use elsewhere, now the
+   one curve carrying every entrance on this screen too. */
+.msg { max-width: 86%; animation: bubbleIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) both; }
 .msg.user { align-self: flex-end; }
 .msg.ai { align-self: stretch; max-width: 100%; }
 
@@ -374,8 +399,17 @@ button { cursor: pointer; }
   padding: 11px 14px;
   border-radius: 16px;
   background: linear-gradient(135deg, var(--beige), var(--beige-dim));
-  color: #241735;
+  color: var(--void);
   border-bottom-right-radius: 4px;
+  font-weight: 500;
+}
+
+.msg.ai .bubble.bubble-warning {
+  padding: 12px 14px;
+  background: rgba(74, 15, 15, 0.35);
+  border: 1px solid #f87171;
+  border-radius: 12px;
+  color: #ffd7d7;
   font-weight: 500;
 }
 
@@ -387,6 +421,42 @@ button { cursor: pointer; }
 }
 
 .ai-label { margin-bottom: 5px; color: var(--accent); }
+
+.onboarding-examples { margin-top: 12px; }
+
+.onboarding-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.onboarding-pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: default;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.onboarding-pill.active {
+  color: var(--accent-strong);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.onboarding-example-text {
+  margin-top: 9px;
+  min-height: 15px;
+  font-size: 11.5px;
+  font-family: var(--mono);
+  color: var(--muted-dim);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.onboarding-example-text.visible { opacity: 1; color: var(--accent-strong); }
 
 .typewriter-cursor {
   display: inline-block;
@@ -458,7 +528,7 @@ button { cursor: pointer; }
 
 .border-light-mask {
   position: absolute;
-  inset: 1.5px;
+  inset: 1.5px 1.5px 1.3px 2px;
   z-index: -1;
   border-radius: inherit;
   background: var(--mask-bg, var(--panel2));
@@ -482,11 +552,15 @@ button { cursor: pointer; }
   padding: 16px 20px 14px;
   border-radius: 18px;
   text-align: center;
-  background:
-    radial-gradient(120% 140% at 50% 0%, var(--accent-soft) 0%, transparent 60%),
-    var(--panel2);
+  /* Same flat background as .balance-card now, instead of its own
+     panel2 + radial-gradient tint. */
+  background: var(--panel);
   border: 1px solid var(--line);
-  animation: hint-fade-in 0.4s ease;
+  box-shadow:
+    0 50px 100px -30px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(var(--accent-rgb), 0.08),
+    0 0 72px -18px rgba(var(--accent-rgb), 0.3);
+  animation: hint-fade-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) both, frame-aura-breathe 6s ease-in-out infinite;
 }
 
 .chat-empty-icon {
@@ -516,8 +590,8 @@ button { cursor: pointer; }
 }
 
 @keyframes hint-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 .suggestions { display: flex; gap: 8px; overflow: auto; padding: 10px 16px 14px; }
@@ -532,27 +606,43 @@ button { cursor: pointer; }
 }
 .suggestions button:hover { border-color: var(--accent); background: var(--panel3); }
 
-.inputbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px 18px; border-top: 1px solid var(--line); }
-.inputbar input {
-  flex: 1;
-  background: var(--panel2);
-  border: 1px solid var(--line);
-  color: var(--beige);
-  padding: 11px 16px;
-  border-radius: 20px;
-  outline: 0;
+/* One unified pill (background/border live here now) instead of two
+   separate shapes (a pill input next to a floating circular button)
+   sitting side by side. The send button is embedded inside this same
+   box, right-aligned, matching the reference screenshot. */
+.inputbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 86%;
+  margin: 0 auto 18px;
+  padding: 6px 6px 6px 16px;
+  background: var(--void);
+  border: 1px solid rgba(109, 79, 209, 0.55);
+  border-radius: 999px;
   transition: border-color 0.15s ease;
 }
-.inputbar input:focus { border-color: var(--accent); }
-.inputbar input::placeholder { color: var(--muted-dim); }
+.inputbar:focus-within { border-color: var(--accent-deep); }
+
+.inputbar input {
+  flex: 1;
+  background: none;
+  border: 0;
+  color: var(--beige);
+  padding: 5px 0;
+  outline: 0;
+}
+.inputbar input::placeholder { color: var(--muted); }
 
 .send {
-  width: 38px; height: 38px; border-radius: 50%; border: 0;
-  background: linear-gradient(135deg, var(--accent-strong), var(--accent-deep));
-  display: grid; place-items: center; color: #241735;
-  box-shadow: 0 6px 16px -4px rgba(243, 231, 208, 0.35);
+  position: relative;
+  width: 34px; height: 34px; border-radius: 50%; border: 0;
+  flex: 0 0 auto;
+  background: linear-gradient(135deg, var(--beige), var(--beige-dim));
+  display: grid; place-items: center; color: var(--void);
   transition: transform 0.15s ease;
 }
+.send svg { position: relative; z-index: 1; }
 .send:hover { transform: scale(1.05); }
 .send:active { transform: scale(0.94); }
 
@@ -599,7 +689,7 @@ button { cursor: pointer; }
   width: 100%;
   border: 0;
   background: linear-gradient(135deg, var(--accent-strong), var(--accent-deep));
-  color: #1B1228;
+  color: var(--panel2);
   padding: 13px;
   border-radius: 22px;
   display: flex;
@@ -607,7 +697,7 @@ button { cursor: pointer; }
   gap: 7px;
   align-items: center;
   font-weight: 700;
-  box-shadow: 0 8px 22px -8px rgba(167, 139, 250, 0.5);
+  box-shadow: 0 8px 22px -8px rgba(var(--accent-rgb), 0.5);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .confirm:hover { transform: translateY(-1px); }
@@ -632,7 +722,7 @@ button { cursor: pointer; }
   border-radius: 12px;
   font-size: 13px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
-  animation: toast-in 0.2s ease;
+  animation: toast-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @keyframes toast-in {
@@ -672,7 +762,7 @@ button { cursor: pointer; }
   flex: 1;
   background: var(--panel);
   border: 1px solid var(--line);
-  color: var(--muted);
+  color: var(--beige-dim);
   padding: 9px;
   border-radius: 10px;
   transition: color 0.15s ease, border-color 0.15s ease;
@@ -703,7 +793,7 @@ textarea { min-height: 90px; resize: vertical; }
   -webkit-user-select: none;
   touch-action: none;
   background: linear-gradient(135deg, var(--beige), var(--beige-dim));
-  color: #241735;
+  color: var(--void);
 }
 
 .hold-confirm .hold-content {
@@ -732,6 +822,10 @@ textarea { min-height: 90px; resize: vertical; }
   pointer-events: none;
 }
 
+/* Label flips to white once the squares have covered it. */
+.hold-confirm { transition: color 0.25s ease; }
+.hold-confirm.dots-cover { color: #fff; }
+
 .hold-content {
   position: relative; z-index: 1;
   display: flex; align-items: center; justify-content: center;
@@ -743,9 +837,9 @@ textarea { min-height: 90px; resize: vertical; }
 }
 
 @keyframes hold-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0.55); }
-  60% { box-shadow: 0 0 0 14px rgba(167, 139, 250, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(167, 139, 250, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.55); }
+  60% { box-shadow: 0 0 0 14px rgba(var(--accent-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0); }
 }
 
 .hold-coin {
@@ -1113,7 +1207,7 @@ textarea { min-height: 90px; resize: vertical; }
   background: rgba(34, 23, 53, 0.97);
   border: 1px solid var(--line);
   border-radius: 20px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(167, 139, 250, 0.05);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(var(--accent-rgb), 0.05);
   animation: contactsPanelIn 0.20s ease-out;
 }
 
@@ -1137,6 +1231,20 @@ textarea { min-height: 90px; resize: vertical; }
 
 .contacts-title { font-size: 16px; font-weight: 600; letter-spacing: -0.02em; color: var(--beige); }
 .contacts-subtitle { margin-top: 4px; font-size: 12px; color: var(--muted); }
+
+.tx-history-header {
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin-bottom: 14px;
+}
+.tx-history-address {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.tx-history-header .usd-dot {
+  margin: 0 3px;
+}
 
 .contacts-header-actions {
   display: flex;
@@ -1247,10 +1355,11 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .add-contact-button:hover { color: var(--accent-strong); background: var(--accent-soft); border-color: var(--accent); }
 
-.contacts-io-row { display: flex; gap: 8px; padding: 0 4px; margin-top: 2px; }
+.contacts-io-row { display: flex; gap: 8px; padding: 0 2px; margin: 12px 0 16px; }
 .contacts-io-button {
-  flex: 1;
-  height: 32px;
+  flex: 0 1 auto;
+  height: 30px;
+  padding: 0 14px;
   display: flex; align-items: center; justify-content: center; gap: 6px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1304,7 +1413,7 @@ textarea { min-height: 90px; resize: vertical; }
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
-.contact-save:hover { background: rgba(167, 139, 250, 0.22); }
+.contact-save:hover { background: rgba(var(--accent-rgb), 0.22); }
 .contact-save:active { transform: scale(0.96); }
 
 .contact-cancel {
@@ -1376,7 +1485,7 @@ textarea { min-height: 90px; resize: vertical; }
   background: rgba(34, 23, 53, 0.98);
   border: 1px solid var(--line);
   border-radius: 20px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(167, 139, 250, 0.05);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(var(--accent-rgb), 0.05);
   animation: contactsPanelIn 0.20s ease-out;
 }
 
@@ -1545,6 +1654,64 @@ textarea { min-height: 90px; resize: vertical; }
   transition: border-color 0.15s ease;
 }
 .password-field input:focus { border-color: var(--accent); }
+
+/* ================================
+   MPC settings row (daily limit)
+================================ */
+.mpc-limit-row { display: flex; gap: 8px; margin-top: 4px; }
+.mpc-limit-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--beige);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: 0;
+  font-size: 13px;
+  transition: border-color 0.15s ease;
+}
+.mpc-limit-input::placeholder { color: var(--muted-dim); }
+.mpc-limit-input:focus { border-color: var(--accent); }
+button.mpc-limit-btn {
+  width: auto;
+  flex: 0 0 auto;
+  justify-content: center;
+}
+.mpc-limit-btn:disabled { opacity: 0.5; cursor: default; }
+
+.mpc-option-card {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mpc-badge {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-deep);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.mpc-option-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--beige);
+  font-weight: 500;
+}
 
 /* ================================
    SEED IMPORT (wallet modal)
@@ -1834,7 +2001,7 @@ textarea { min-height: 90px; resize: vertical; }
   flex: 0 0 auto;
   background: none;
   border: 1px solid transparent;
-  color: var(--muted);
+  color: var(--beige-dim);
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 8px;
@@ -2105,6 +2272,7 @@ textarea { min-height: 90px; resize: vertical; }
 }
 
 .defi-ticket-close {
+  margin-top: 6px;
   background: var(--panel2);
   color: var(--beige);
   border: 1px solid var(--line);
@@ -2114,24 +2282,56 @@ textarea { min-height: 90px; resize: vertical; }
    TRANSACTION HISTORY
 ================================ */
 
-.tx-history-tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-.tx-history-tabs button {
+/* A grid of tiles filling the whole panel uniformly, one per
+   category (Send/Receive, Swap, Stake, Bridge, Predictions, x402...),
+   this is the landing view: nothing is picked yet, so there's no
+   category content to show alongside it. Same hover language as the
+   rest of the app's cards: a light violet ring/glow traces the
+   tile's own border instead of a flat color swap. */
+.tx-history-grid {
   flex: 1;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  padding: 7px 4px;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 10px;
+  min-height: 220px;
 }
-.tx-history-tabs button.active { color: var(--accent-strong); border-color: var(--accent); background: var(--accent-soft); }
+.tx-history-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--beige-dim);
+  padding: 10px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+.tx-history-tile:hover {
+  color: var(--beige);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.4), 0 0 18px -4px rgba(var(--accent-rgb), 0.55);
+}
+
+/* The category's own transaction list, a second panel that opens on
+   top of the grid above (its own backdrop + close X), rather than
+   swapping the grid's content out in place. */
+.tx-history-detail-overlay {
+  position: fixed; inset: 0; z-index: 1001;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: rgba(12, 7, 20, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
 
 .tx-item {
   min-height: 58px;
@@ -2216,16 +2416,66 @@ textarea { min-height: 90px; resize: vertical; }
 .settings-row-title { font-size: 13.5px; color: var(--beige); font-weight: 500; }
 .settings-row-desc { margin-top: 2px; font-size: 11.5px; color: var(--muted); }
 
-.settings-select {
-  background: var(--panel);
+.custom-select { position: relative; flex-shrink: 0; }
+
+.custom-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel2);
   border: 1px solid var(--line);
   color: var(--beige);
   border-radius: 9px;
   padding: 7px 10px;
   font-size: 12.5px;
-  outline: 0;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
 }
-.settings-select:focus { border-color: var(--accent); }
+.custom-select-trigger:hover { border-color: var(--accent-deep); }
+.custom-select-trigger.open { border-color: var(--accent); }
+.custom-select-trigger svg {
+  color: var(--muted);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+.custom-select-trigger.open svg { transform: rotate(180deg); color: var(--accent-strong); }
+
+.custom-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 140px;
+  padding: 5px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transform-origin: top right;
+}
+
+.custom-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.custom-select-option:hover { background: var(--panel3); color: var(--beige); }
+.custom-select-option.active { color: var(--accent-strong); }
+.custom-select-option svg { flex-shrink: 0; }
 
 .settings-action-row {
   display: flex;
@@ -2264,6 +2514,26 @@ textarea { min-height: 90px; resize: vertical; }
 .export-key-eye { flex: 0 0 auto; color: var(--muted); background: none; border: 0; }
 .export-key-eye:hover { color: var(--accent-strong); }
 
+.seed-display-blurred { filter: blur(5px); user-select: none; }
+.seed-reveal-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px;
+  margin-bottom: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel2);
+  color: var(--muted);
+  font-size: 12.5px;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.seed-reveal-toggle:hover { border-color: var(--accent-deep); color: var(--beige); }
+.seed-reveal-toggle { margin-top: 8px; }
+.seed-copy-btn { margin-top: 10px; }
+
 .qr-body {
   display: flex;
   flex-direction: column;
@@ -2285,26 +2555,10 @@ textarea { min-height: 90px; resize: vertical; }
   word-break: break-all;
   text-align: center;
 }
-.qr-download { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.qr-skeleton {
-  width: 100%; max-width: 240px; aspect-ratio: 1/1;
-  border-radius: 16px;
-  background: var(--panel2);
-  animation: qr-pulse 1.4s ease-in-out infinite;
-}
-.qr-skeleton-line {
-  width: 140px; height: 12px; border-radius: 6px;
-  background: var(--panel2);
-  animation: qr-pulse 1.4s ease-in-out infinite;
-}
-@keyframes qr-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
 
 .biometric-unlock-btn {
   background: linear-gradient(135deg, var(--accent-strong), var(--accent-deep));
-  color: #1B1228;
+  color: var(--panel2);
 }
 
 .biometric-divider {
@@ -2321,12 +2575,55 @@ textarea { min-height: 90px; resize: vertical; }
   padding: 7px 14px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--panel);
+  background: var(--panel2);
   color: var(--beige);
   font-size: 12px;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.settings-toggle-btn:hover { border-color: var(--accent); background: var(--panel3); }
+.settings-toggle-btn:hover { border-color: var(--accent-deep); background: var(--panel3); }
+
+.toggle-switch {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-block;
+  width: 46px;
+  height: 26px;
+  cursor: pointer;
+}
+.toggle-switch.busy { opacity: 0.6; cursor: default; }
+.toggle-switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.toggle-switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--panel3);
+  border: 1px solid var(--line);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+.toggle-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s ease;
+}
+.toggle-switch input:checked ~ .toggle-switch-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.toggle-switch input:checked ~ .toggle-switch-track .toggle-switch-thumb {
+  transform: translateX(20px);
+  background: #fff;
+}
 
 .unlock-actions {
   display: flex;
@@ -2360,7 +2657,7 @@ textarea { min-height: 90px; resize: vertical; }
   margin-bottom: 18px;
   color: var(--accent-strong);
   background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
-  box-shadow: 0 0 30px -4px rgba(167, 139, 250, 0.45);
+  box-shadow: 0 0 30px -4px rgba(var(--accent-rgb), 0.45);
   border: 1px solid var(--line);
 }
 
@@ -2433,10 +2730,10 @@ textarea { min-height: 90px; resize: vertical; }
   border: 0;
   border-radius: 14px;
   background: linear-gradient(135deg, var(--accent-deep), var(--accent-strong));
-  color: #150E20;
+  color: var(--void);
   font-weight: 700;
   font-size: 14px;
-  box-shadow: 0 10px 28px -8px rgba(167, 139, 250, 0.55);
+  box-shadow: 0 10px 28px -8px rgba(var(--accent-rgb), 0.55);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .unlock-btn-gradient:hover { transform: translateY(-1px); }
@@ -2537,8 +2834,8 @@ textarea { min-height: 90px; resize: vertical; }
 
 .execution-checklist-main.done .execution-checklist-status-icon {
   background: var(--success);
-  color: #150E20;
-  animation: checklist-dot-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: var(--void);
+  animation: checklist-dot-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .execution-checklist-main-label {
@@ -2602,20 +2899,24 @@ textarea { min-height: 90px; resize: vertical; }
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #150E20;
+  color: var(--void);
   transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .execution-checklist-substep.checked .execution-checklist-dot {
   background: var(--success);
   border-color: var(--success);
-  animation: checklist-dot-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: checklist-dot-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Grows in past its final size, then eases back down to settle inside
+   the ring: a real "pop", not just an instant color swap. Also fades
+   in from partly transparent so the very start of the growth reads as
+   the mark actually appearing, not just resizing. */
 @keyframes checklist-dot-pop {
-  0% { transform: scale(0.6); }
-  60% { transform: scale(1.2); }
-  100% { transform: scale(1); }
+  0% { transform: scale(0.3); opacity: 0.5; }
+  55% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .execution-checklist-substep.checked .execution-checklist-substep-label {
@@ -2655,22 +2956,29 @@ textarea { min-height: 90px; resize: vertical; }
    its own transaction, and a single larger Done button to close it all.
 ------------------------------------------------------------------- */
 
+/* No background/border/shadow of its own: every place this renders
+   (single-ticket and multi-ticket "done" recaps alike) already sits
+   inside the outer .ticket.defi-ticket card, so styling this as its
+   own card too produced a visible box-inside-a-box. */
 .multi-ticket-summary {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 26px 18px 22px;
-  background: var(--panel2);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  gap: 28px;
+  padding: 52px 18px 22px;
 }
 
 .multi-summary-icon {
   width: 60px;
   height: 60px;
   flex-shrink: 0;
+  margin-bottom: 10px;
+}
+
+.multi-summary-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--beige);
 }
 
 .multi-summary-ring {
@@ -2704,25 +3012,18 @@ textarea { min-height: 90px; resize: vertical; }
 .multi-summary-steps {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   width: 100%;
 }
 
 .multi-summary-step {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-}
-
-.multi-summary-step-line {
-  display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 7px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line);
 }
+.multi-summary-step:last-child { border-bottom: 0; }
 
 .multi-summary-step-num {
   flex-shrink: 0;
@@ -2733,14 +3034,16 @@ textarea { min-height: 90px; resize: vertical; }
 }
 
 .multi-summary-step-text {
+  flex: 1;
+  min-width: 0;
   font-size: 12.5px;
   color: var(--beige);
   line-height: 1.4;
 }
 
 .multi-summary-step-link {
-  align-self: flex-start;
-  margin-left: 19px;
+  flex-shrink: 0;
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2752,9 +3055,10 @@ textarea { min-height: 90px; resize: vertical; }
 
 .multi-summary-done {
   width: 100%;
-  margin-top: 4px;
+  margin-top: -8px;
   padding: 15px;
   font-size: 14.5px;
+  border-radius: 12px;
 }
 
 /* ------------------------------------------------------------------
@@ -2920,34 +3224,46 @@ textarea { min-height: 90px; resize: vertical; }
   isolation: isolate;
 }
 
-.page::before,
-.page::after {
+/* Lives on .frame itself, not .page: at the ≤480px breakpoint below,
+   .frame stretches to fill the entire viewport (real phone usage,
+   not just this desktop demo shell), leaving no visible .page margin
+   around it at all. The old .page::before/::after version of this
+   glow was invisible there the whole time, only ever showing up in
+   the wide desktop preview. Frame::before/::after paints inside
+   .frame's own overflow:hidden bounds, so it shows in both cases. */
+.frame::before,
+.frame::after {
   content: "";
   position: absolute;
   border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.55;
+  filter: blur(70px);
+  opacity: 0.7;
   pointer-events: none;
   z-index: 0;
   will-change: transform;
 }
 
-.page::before {
-  width: 440px;
-  height: 440px;
-  top: -14%;
-  left: -16%;
-  background: radial-gradient(circle, #6D4FD1 0%, transparent 70%);
+.frame::before {
+  width: 240px;
+  height: 240px;
+  top: -16%;
+  right: -16%;
+  left: auto;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
   animation: aurora-drift-a 20s ease-in-out infinite alternate;
 }
 
-.page::after {
-  width: 400px;
-  height: 400px;
-  bottom: -16%;
-  right: -12%;
-  background: radial-gradient(circle, #A78BFA 0%, transparent 70%);
-  animation: aurora-drift-b 24s ease-in-out infinite alternate;
+.frame::after {
+  border-radius: 0;
+  filter: none;
+  opacity: 1;
+  width: 100%;
+  height: 70px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(var(--accent-rgb), 0.16), transparent);
+  animation: none;
 }
 
 @keyframes aurora-drift-a {
@@ -2957,37 +3273,38 @@ textarea { min-height: 90px; resize: vertical; }
 
 @keyframes aurora-drift-b {
   0%   { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(-60px, -40px) scale(1.12); }
+  100% { transform: translate(-25px, -18px) scale(1.1); }
 }
 
 .frame {
   z-index: 1;
-  animation: frame-aura-breathe 6s ease-in-out infinite;
+  /* One quiet ambient signal instead of three competing ones (this,
+     the aurora drift, and a pulsing logo glow that used to run at the
+     same time): a single slow, low-amplitude breathe, Premium's own
+     easing curve, no overshoot. */
+  animation: frame-aura-breathe 8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 @keyframes frame-aura-breathe {
   0%, 100% {
     box-shadow:
       0 50px 100px -30px rgba(0, 0, 0, 0.65),
-      0 0 0 1px rgba(167, 139, 250, 0.06),
-      0 0 60px -20px rgba(167, 139, 250, 0.25);
+      0 0 0 1px rgba(var(--accent-rgb), 0.06),
+      0 0 60px -20px rgba(var(--accent-rgb), 0.22);
   }
   50% {
     box-shadow:
       0 50px 100px -30px rgba(0, 0, 0, 0.65),
-      0 0 0 1px rgba(167, 139, 250, 0.1),
-      0 0 90px -14px rgba(167, 139, 250, 0.42);
+      0 0 0 1px rgba(var(--accent-rgb), 0.08),
+      0 0 72px -18px rgba(var(--accent-rgb), 0.3);
   }
 }
 
-.mark {
-  animation: mark-glow-pulse 4.5s ease-in-out infinite;
-}
-
-@keyframes mark-glow-pulse {
-  0%, 100% { filter: drop-shadow(0 0 0 rgba(167, 139, 250, 0)); }
-  50% { filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.55)); }
-}
+/* The mark used to carry its own separate pulsing glow, one ambient
+   signal too many for the same screen (see .frame above) and the
+   kind of "always doing something" decoration that reads as trying
+   too hard rather than premium. It now just sits still. */
+.mark {}
 
 .balance-refresh.spinning svg {
   animation: spin 0.6s linear infinite;
@@ -3001,3 +3318,222 @@ textarea { min-height: 90px; resize: vertical; }
   }
   .page::before, .page::after { display: none; }
 }
+
+/* Multisig setup */
+
+.multisig-setup-panel { max-width: 420px; }
+
+/* .contacts-panel clips overflow and is a fixed-height flex column
+   (see its own rule above), everything below the header needs to be
+   its own scrollable flex child or long content (the explainer + a
+   full 5-owner list + the N-of-M row + actions) gets clipped instead
+   of scrolling, live-confirmed cutting off the Deploy button itself. */
+.multisig-setup-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.multisig-intro {
+  margin: 14px 0 6px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--accent-soft);
+}
+.multisig-intro-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+.multisig-intro-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--beige);
+}
+.multisig-intro-text + .multisig-intro-text { margin-top: 8px; }
+
+.multisig-field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 16px 0 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted-dim);
+}
+.multisig-field-count { font-size: 10.5px; letter-spacing: 0; text-transform: none; color: var(--muted); }
+
+.multisig-owner-list { display: flex; flex-direction: column; gap: 6px; }
+
+.multisig-owner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+}
+.multisig-owner-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.multisig-owner-name { font-size: 13px; font-weight: 500; color: var(--beige); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.multisig-owner-address { font-family: var(--mono, monospace); font-size: 11px; color: var(--muted); }
+
+.multisig-owner-tag {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.multisig-owner-remove {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.multisig-owner-remove:hover { color: var(--danger); border-color: var(--danger); background: rgba(242, 160, 160, 0.08); }
+
+.multisig-add-buttons { display: flex; gap: 8px; margin-top: 10px; }
+.multisig-add-buttons .contacts-io-button { flex: 1; height: 36px; font-size: 12.5px; }
+
+.multisig-contact-picker, .multisig-add-address {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.multisig-add-address .contact-input { margin-bottom: 0; }
+
+.multisig-contact-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--void);
+  color: var(--beige);
+  font-size: 12.5px;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.multisig-contact-option:hover { border-color: var(--accent); background: var(--panel3); }
+
+.multisig-threshold-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.multisig-threshold-btn {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--beige);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.multisig-threshold-btn:hover { border-color: var(--accent); }
+.multisig-threshold-btn.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--beige), var(--beige-dim));
+  color: #241735;
+}
+.multisig-threshold-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+.multisig-threshold-btn:disabled:hover { border-color: var(--line); }
+.multisig-threshold-of { margin-left: 2px; font-size: 12px; color: var(--muted); }
+
+/* Live plain-language readout of the current N-of-M pick, updates as
+   soon as a threshold button is tapped, so the meaning of the number
+   is never left for the reader to work out on their own. */
+.multisig-threshold-summary {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.multisig-threshold-summary strong { color: var(--beige); font-weight: 600; }
+
+.multisig-review-summary {
+  margin-top: 4px;
+  padding: 13px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 13px;
+  background: var(--accent-soft);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--beige);
+}
+.multisig-review-summary strong { color: var(--accent-strong); font-weight: 700; }
+
+/* Bigger, rectangular action row for the two money-relevant screens
+   (setup form, review page): same shape family and weight as the
+   ticket's own "Hold to Confirm" button (.hold-confirm), so the step
+   that actually deploys/sends reads as seriously as every other real
+   transaction in the app, not as a smaller/lighter form action. */
+.multisig-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.multisig-btn-primary {
+  flex: 1;
+  padding: 15px;
+  border: none;
+  border-radius: 13px;
+  background: linear-gradient(135deg, var(--beige), var(--beige-dim));
+  color: #241735;
+  font-weight: 600;
+  font-size: 14px;
+  transition: transform 0.15s ease;
+}
+.multisig-btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+.multisig-btn-primary:active:not(:disabled) { transform: scale(0.98); }
+.multisig-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.multisig-btn-secondary {
+  flex: 1;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+  color: var(--beige);
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.multisig-btn-secondary:hover:not(:disabled) { background: var(--panel3); border-color: var(--accent); }
+.multisig-btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }

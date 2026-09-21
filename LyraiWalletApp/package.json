@@ -14,7 +14,11 @@
     "start": "node server/server.js"
   },
   "dependencies": {
+    "@circle-fin/adapter-ethers-v6": "^1.12.0",
+    "@circle-fin/bridge-kit": "^1.15.1",
+    "@circle-fin/swap-kit": "^1.7.0",
     "@google/genai": "^2.19.0",
+    "@safe-global/protocol-kit": "^8.0.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "ethers": "^6.17.0",
@@ -24,10 +28,12 @@
     "lucide-react": "^0.468.0",
     "qrcode": "^1.5.4",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "undici": "^7.29.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.1.0"
+    "vite": "^6.1.0",
+    "vite-plugin-node-polyfills": "^0.28.0"
   }
 }

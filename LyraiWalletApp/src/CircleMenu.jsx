@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, X } from "lucide-react";
 
 // Same base as before (framer-motion, spring-driven deploy, closing plays
-// the exact same spring motion as opening — just reversed) but the trigger
+// the exact same spring motion as opening. Just reversed) but the trigger
 // now sits top-right as a compact circular icon button that nudges right
 // when pressed, and items deploy horizontally to its LEFT instead of below.
 
