@@ -364,6 +364,16 @@ footer .footer-logo img {
   margin-bottom: 12px;
 }
 .ask-lyra-answer.show { display: block; }
+.askLyraCursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin: 0 1px -0.15em;
+  background: var(--accent-strong);
+  animation: askLyraBlink 0.9s step-end infinite;
+}
+.askLyraRest { visibility: hidden; }
+@keyframes askLyraBlink { 50% { opacity: 0; } }
 .ask-lyra-answer .who {
   font-family: var(--mono);
   font-size: 10px;
@@ -3999,32 +4009,59 @@ h1, h2, h3,
     btn.setAttribute('aria-expanded', 'false');
   }
 
-  function typeWriter(text, element, speed = 15) {
-  element.textContent = "";
-  let i = 0;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let typeToken = 0;
 
-  const cursor = document.createElement("span");
-  cursor.className = "askLyraCursor";
-  cursor.textContent = "|";
-
-  element.appendChild(cursor);
-
-  function write() {
-    if (i < text.length) {
-      cursor.before(document.createTextNode(text.charAt(i)));
-      i++;
-      setTimeout(write, speed);
-    } else {
-      cursor.remove();
-    }
-  }
-
-  write();
-}
-
+  // Types the answer out character by character. The not-yet-typed part is
+  // laid out but invisible, so the answer box is already its final height
+  // and does not jump as the text grows. Clicking the answer skips ahead.
   function showAnswer(text) {
-    answerBox.innerHTML = '<span class="who">Lyra</span>' + text;
-    answerBox.classList.add('show');
+    const token = ++typeToken;
+    answerBox.innerHTML = "";
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = "Lyra";
+    answerBox.appendChild(who);
+    answerBox.classList.add("show");
+
+    if (reducedMotion) {
+      answerBox.appendChild(document.createTextNode(text));
+      return;
+    }
+
+    const typed = document.createElement("span");
+    const cursor = document.createElement("span");
+    cursor.className = "askLyraCursor";
+    const rest = document.createElement("span");
+    rest.className = "askLyraRest";
+    rest.textContent = text;
+    answerBox.append(typed, cursor, rest);
+
+    // About 2s for long answers, never slower than 14ms a character.
+    const perTick = Math.max(1, Math.ceil(text.length / 130));
+    const delay = Math.min(14, Math.max(8, 1800 / (text.length / perTick)));
+    let i = 0;
+    let done = false;
+
+    function finish() {
+      done = true;
+      typed.textContent = text;
+      cursor.remove();
+      rest.remove();
+      answerBox.removeEventListener("click", finish);
+    }
+
+    function tick() {
+      if (done || token !== typeToken) return;
+      i = Math.min(text.length, i + perTick);
+      typed.textContent = text.slice(0, i);
+      rest.textContent = text.slice(i);
+      if (i >= text.length) { finish(); return; }
+      setTimeout(tick, delay);
+    }
+
+    answerBox.addEventListener("click", finish, { once: true });
+    tick();
   }
 
   btn.addEventListener('click', (e) => {
