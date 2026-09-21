@@ -4037,11 +4037,11 @@ h1, h2, h3,
     rest.textContent = text;
     answerBox.append(typed, cursor, rest);
 
-    // Streams word by word like a model producing tokens: a short "thinking"
-    // pause first, then a steady but slightly uneven pace, with a longer beat
-    // after punctuation. Very long answers speed up a little.
-    const chunks = text.match(/\S+\s*/g) || [text];
-    const pace = text.length > 420 ? 0.75 : 1;
+    // Types letter by letter: a short "thinking" pause first, then a steady but
+    // slightly uneven pace, with a longer beat after punctuation. Very long
+    // answers speed up a little.
+    const chunks = Array.from(text);
+    const pace = text.length > 420 ? 0.7 : 1;
     let n = 0;
     let done = false;
 
@@ -4060,11 +4060,10 @@ h1, h2, h3,
       typed.textContent = shown;
       rest.textContent = text.slice(shown.length);
       if (n >= chunks.length) { finish(); return; }
-      const word = chunk.trim();
-      let wait = (45 + Math.random() * 55) * pace;
-      if (/[.!?:]$/.test(word)) wait += 230 * pace;
-      else if (/[,;]$/.test(word)) wait += 110 * pace;
-      else if (word.length > 9) wait += 25 * pace;
+      let wait = (9 + Math.random() * 11) * pace;
+      const atBreak = text.charAt(n) === " " || n >= chunks.length;
+      if (atBreak && /[.!?:]/.test(chunk)) wait += 240 * pace;
+      else if (atBreak && /[,;]/.test(chunk)) wait += 110 * pace;
       setTimeout(tick, wait);
     }
 
