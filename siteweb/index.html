@@ -23,6 +23,8 @@
 <meta name="twitter:description" content="Say what you want. Lyra handles the chain. Send, swap, bridge, stake, bet on Polymarket, and pay for services over x402, across Plasma, Ethereum, Base, Polygon, and Arc.">
 <meta name="twitter:image" content="https://lyra.xyz/public/og-image.png">
 
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0D0916">
 <link rel="icon" href="favicon.ico" sizes="32x32" />
 <link rel="icon" type="image/png" href="public/favicon-96x96.png" sizes="96x96" />
 <link rel="icon" type="image/svg+xml" href="public/favicon.svg" />
@@ -1127,7 +1129,10 @@ section { padding: 88px 0; }
   width: 26px; height: 1px;
   background: var(--line);
 }
-@media (max-width: 860px) { .agent-step:not(:last-child)::after { display: none; } }
+@media (max-width: 860px) {
+  .agent-step:not(:last-child)::after { display: none; }
+  .agent-step, .agent-step:first-child, .agent-step:last-child { padding-left: 0; padding-right: 0; }
+}
 
 .agent-num {
   font-family: var(--mono);
@@ -1732,6 +1737,7 @@ footer .footer-logo img { width: 70px !important; height: 70px !important; min-w
   --chillax: 'Chillax', sans-serif;
 }
 
+html { color-scheme: dark; }
 body {
   background: var(--void);
   background-attachment: fixed;
@@ -1827,6 +1833,9 @@ h1, h2, h3,
 }
 .demo-row { border-bottom: none; padding: 7px 0; }
 .demo-row strong { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.demo-row { gap: 14px; align-items: baseline; }
+.demo-row span { flex: 0 0 auto; }
+.demo-row strong { min-width: 0; text-align: right; overflow-wrap: anywhere; }
 
 /* Nav: full-width sticky bar with a fading gradient instead of a
    floating rounded pill. */
@@ -1875,13 +1884,8 @@ h1, h2, h3,
   text-transform: uppercase;
   color: var(--muted);
 }
-.hero-networks span { display: flex; align-items: center; gap: 8px; }
-.hero-networks .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; flex: 0 0 auto; }
-.hero-networks span:nth-child(1) .dot { background: #0D9C5A; } /* Plasma — darker green from its logo */
-.hero-networks span:nth-child(2) .dot { background: #5468D4; } /* Ethereum — darker blue from its logo */
-.hero-networks span:nth-child(3) .dot { background: #4C8CFF; } /* Base */
-.hero-networks span:nth-child(4) .dot { background: #A855F7; } /* Polygon */
-.hero-networks span:nth-child(5) .dot { background: #223B82; } /* Arc — very dark navy blue from its logo */
+.hero-networks span { display: flex; align-items: center; gap: 9px; }
+.hero-networks .net-logo { width: 20px; height: 20px; flex: 0 0 auto; display: block; }
 
 /* Keep the three hero stats on one row instead of wrapping. */
 .hero-stats { flex-wrap: nowrap; gap: 20px; }
@@ -2136,11 +2140,11 @@ h1, h2, h3,
         <a href="#compare" class="btn btn-ghost">See it next to the manual way</a>
       </div>
       <div class="hero-networks">
-        <span><i class="dot"></i>Plasma</span>
-        <span><i class="dot"></i>Ethereum</span>
-        <span><i class="dot"></i>Base</span>
-        <span><i class="dot"></i>Polygon</span>
-        <span><i class="dot"></i>Arc</span>
+        <span><img class="net-logo" src="public/networks/plasma.svg" alt="" width="20" height="20">Plasma</span>
+        <span><img class="net-logo" src="public/networks/ethereum.svg" alt="" width="20" height="20">Ethereum</span>
+        <span><img class="net-logo" src="public/networks/base.svg" alt="" width="20" height="20">Base</span>
+        <span><img class="net-logo" src="public/networks/polygon.svg" alt="" width="20" height="20">Polygon</span>
+        <span><img class="net-logo" src="public/networks/arc.svg" alt="" width="20" height="20">Arc</span>
       </div>
       <div class="hero-stats">
         <div class="hero-stat">
