@@ -4037,10 +4037,12 @@ h1, h2, h3,
     rest.textContent = text;
     answerBox.append(typed, cursor, rest);
 
-    // About 2s for long answers, never slower than 14ms a character.
-    const perTick = Math.max(1, Math.ceil(text.length / 130));
-    const delay = Math.min(14, Math.max(8, 1800 / (text.length / perTick)));
-    let i = 0;
+    // Streams word by word like a model producing tokens: a short "thinking"
+    // pause first, then a steady but slightly uneven pace, with a longer beat
+    // after punctuation. Very long answers speed up a little.
+    const chunks = text.match(/\S+\s*/g) || [text];
+    const pace = text.length > 420 ? 0.75 : 1;
+    let n = 0;
     let done = false;
 
     function finish() {
@@ -4053,15 +4055,21 @@ h1, h2, h3,
 
     function tick() {
       if (done || token !== typeToken) return;
-      i = Math.min(text.length, i + perTick);
-      typed.textContent = text.slice(0, i);
-      rest.textContent = text.slice(i);
-      if (i >= text.length) { finish(); return; }
-      setTimeout(tick, delay);
+      const chunk = chunks[n++];
+      const shown = (typed.textContent || "") + chunk;
+      typed.textContent = shown;
+      rest.textContent = text.slice(shown.length);
+      if (n >= chunks.length) { finish(); return; }
+      const word = chunk.trim();
+      let wait = (45 + Math.random() * 55) * pace;
+      if (/[.!?:]$/.test(word)) wait += 230 * pace;
+      else if (/[,;]$/.test(word)) wait += 110 * pace;
+      else if (word.length > 9) wait += 25 * pace;
+      setTimeout(tick, wait);
     }
 
     answerBox.addEventListener("click", finish, { once: true });
-    tick();
+    setTimeout(tick, 450);
   }
 
   btn.addEventListener('click', (e) => {
