@@ -2052,37 +2052,60 @@ h1, h2, h3,
   display: none !important;
 }
 
-/* Mobile: the DeFi / Predictions / Agents cards collapse to their title
-   so the sections stay short; tap a card to read the rest. */
-@media (max-width: 640px) {
-  .agentpay-grid .feat-card { cursor: pointer; padding: 16px 18px; -webkit-tap-highlight-color: transparent; }
+/* Single-column layouts (phones and small tablets): the DeFi / Predictions / Agents cards become a
+   light list of titles with hairline dividers; tap a row to read the rest. */
+@media (max-width: 860px) {
+  .agentpay-grid {
+    display: block;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--line-soft);
+    gap: 0;
+    margin-bottom: 24px;
+  }
+  .agentpay-grid .feat-card,
+  .agentpay-grid .feat-card:hover {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--line-soft);
+    border-radius: 0;
+    padding: 22px 2px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
   .agentpay-grid .feat-card .feat-icon { display: none; }
   .agentpay-grid .feat-card h3 {
     position: relative;
     margin: 0;
-    padding-right: 26px;
-    font-size: 15px;
+    padding-right: 34px;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+    color: var(--beige);
+    transition: color 0.25s ease;
   }
+  .agentpay-grid .feat-card.open h3 { color: var(--accent-strong); }
   .agentpay-grid .feat-card h3::after {
     content: "";
     position: absolute;
-    right: 4px;
+    right: 6px;
     top: 50%;
-    width: 8px; height: 8px;
-    border-right: 2px solid var(--accent-strong);
-    border-bottom: 2px solid var(--accent-strong);
+    width: 7px; height: 7px;
+    border-right: 1.5px solid var(--muted);
+    border-bottom: 1.5px solid var(--muted);
     transform: translateY(-75%) rotate(45deg);
-    transition: transform 0.25s ease;
+    transition: transform 0.25s ease, border-color 0.25s ease;
   }
-  .agentpay-grid .feat-card.open h3::after { transform: translateY(-25%) rotate(-135deg); }
+  .agentpay-grid .feat-card.open h3::after {
+    border-color: var(--accent-strong);
+    transform: translateY(-25%) rotate(-135deg);
+  }
   .agentpay-grid .feat-card .feat-platform,
   .agentpay-grid .feat-card p,
   .agentpay-grid .feat-card .feat-check { display: none; }
-  .agentpay-grid .feat-card.open .feat-platform { display: block; margin: 8px 0 10px; }
-  .agentpay-grid .feat-card.open p { display: block; }
-  .agentpay-grid .feat-card.open .feat-check { display: flex; }
+  .agentpay-grid .feat-card.open .feat-platform { display: block; margin: 12px 0 8px; }
+  .agentpay-grid .feat-card.open p { display: block; margin: 0 0 14px; font-size: 14px; line-height: 1.7; }
+  .agentpay-grid .feat-card.open .feat-check { display: flex; border-top: none; padding-top: 0; }
 }
-
 </style>
 </head>
 <body>
@@ -2559,7 +2582,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M7 8l-4-4 4-4M17 21V3M17 16l4 4-4 4"/></svg>
         </div>
-        <h3>Swap <span class="feat-status live">Live</span></h3>
+        <h3>Swap</h3>
         <div class="feat-platform">via KyberSwap</div>
         <p>Lyra finds the best route across DEX pools for your pair and reads its live rate before showing you a number. On Arc, USDC and EURC swap through Circle's own Swap Kit.</p>
         <div class="feat-check">
@@ -2572,7 +2595,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M2 12l6-6M2 12l6 6M22 12l-6-6M22 12l-6 6"/></svg>
         </div>
-        <h3>Bridge <span class="feat-status live">Live</span></h3>
+        <h3>Bridge</h3>
         <div class="feat-platform">via LI.FI · Circle Bridge Kit on Arc</div>
         <p>Every route is requested live from LI.FI, the engine behind Jumper, so what you see is exactly what gets signed. Bridges to and from Arc use Circle's own Bridge Kit.</p>
         <div class="feat-check">
@@ -2585,7 +2608,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         </div>
-        <h3>Stake <span class="feat-status live">Live</span></h3>
+        <h3>Stake</h3>
         <div class="feat-platform">via Aave V3 · Aave V4 on Arc</div>
         <p>Lyra checks the real market before proposing a deposit: current yield, lock status, and a plain-language risk level, not a static promise.</p>
         <div class="feat-check">
@@ -2598,7 +2621,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h16M4 18h10"/><path d="m17 4 3 2-3 2M17 16l3 2-3 2"/></svg>
         </div>
-        <h3>Several steps at once <span class="feat-status live">Live</span></h3>
+        <h3>Several steps at once</h3>
         <div class="feat-platform">one sentence, one ticket set</div>
         <p>Say &quot;swap then stake&quot; or &quot;bridge and swap&quot; and Lyra chains the steps in order, shows each one, and asks for a single hold to run them.</p>
         <div class="feat-check">
@@ -2611,7 +2634,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>
         </div>
-        <h3>Bring funds back <span class="feat-status live">Live</span></h3>
+        <h3>Bring funds back</h3>
         <div class="feat-platform">consolidate</div>
         <p>Sent funds to a chain Lyra doesn't actively use? Ask it to consolidate and it routes them back to your main balance.</p>
         <div class="feat-check">
@@ -2624,7 +2647,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>
         </div>
-        <h3>Ask before you act <span class="feat-status live">Live</span></h3>
+        <h3>Ask before you act</h3>
         <div class="feat-platform">research on demand</div>
         <p>Ask if a protocol looks risky or what a rate means. Lyra checks the contract on the explorer and answers from live data, or says it can't find a reliable answer.</p>
         <div class="feat-check">
@@ -2680,7 +2703,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         </div>
-        <h3>Find the market <span class="feat-status live">Live</span></h3>
+        <h3>Find the market</h3>
         <div class="feat-platform">via Polymarket</div>
         <p>Describe the event in your own words. Lyra searches Polymarket for the real, open market that matches it, and says so if nothing does instead of guessing.</p>
         <div class="feat-check">
@@ -2693,7 +2716,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
         </div>
-        <h3>Live price <span class="feat-status live">Live</span></h3>
+        <h3>Live price</h3>
         <div class="feat-platform">order book</div>
         <p>The price comes from Polymarket's live order book for the exact outcome you picked, and the ticket shows what you would get if it resolves your way.</p>
         <div class="feat-check">
@@ -2706,7 +2729,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
         </div>
-        <h3>One ticket, one hold <span class="feat-status live">Live</span></h3>
+        <h3>One ticket, one hold</h3>
         <div class="feat-platform">on Polygon</div>
         <p>The bet is a signed order on Polygon, prepared and shown as one ticket. Lyra can also bring in the funds it needs, like bridging or swapping into the right token.</p>
         <div class="feat-check">
@@ -2719,7 +2742,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         </div>
-        <h3>Cash out early <span class="feat-status live">Live</span></h3>
+        <h3>Cash out early</h3>
         <div class="feat-platform">before it resolves</div>
         <p>Changed your mind? Ask to cash out a position and Lyra prepares the sale at the current price, no waiting for the market to close.</p>
         <div class="feat-check">
@@ -2732,7 +2755,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </div>
-        <h3>Cancel an open order <span class="feat-status live">Live</span></h3>
+        <h3>Cancel an open order</h3>
         <div class="feat-platform">unfilled orders</div>
         <p>An order that hasn't been filled yet can be cancelled by asking. Lyra prepares the cancellation and waits for your hold.</p>
         <div class="feat-check">
@@ -2745,7 +2768,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
         </div>
-        <h3>Risk stays visible <span class="feat-status live">Live</span></h3>
+        <h3>Risk stays visible</h3>
         <div class="feat-platform">no hidden leverage</div>
         <p>A bet is a stake you can lose entirely. The ticket states the amount at risk and the payout, and Lyra never places a bet without an amount from you.</p>
         <div class="feat-check">
@@ -2809,7 +2832,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
         </div>
-        <h3>x402 payments <span class="feat-status live">Live</span></h3>
+        <h3>x402 payments</h3>
         <div class="feat-platform">via x402 · HTTP 402</div>
         <p>When a paid API answers "402 Payment Required", Lyra reads the price, shows you a ticket,
         and signs a USDC authorization once you hold the button. If the network is short of USDC, it can
@@ -2824,7 +2847,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         </div>
-        <h3>Find services <span class="feat-status live">Live</span></h3>
+        <h3>Find services</h3>
         <div class="feat-platform">via Circle's service directory</div>
         <p>Ask for what you need, like "a service for crypto prices". Lyra searches Circle's public
         directory of paid x402 services, keeps the simple ones it can pay straight from a chat, and lists
@@ -2839,7 +2862,7 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5c-.6-.9-1.6-1.3-2.5-1.3-1.4 0-2.5.8-2.5 1.9 0 2.6 5 1.2 5 3.8 0 1.1-1.1 1.9-2.5 1.9-1 0-2-.5-2.6-1.3M12 6.5v1.7m0 7.6v1.7"/></svg>
         </div>
-        <h3>Nanopayments <span class="feat-status live">Live</span></h3>
+        <h3>Nanopayments</h3>
         <div class="feat-platform">via Circle Gateway</div>
         <p>Deposit USDC once, then every payment is just a free signature: no gas, down to fractions of a
         cent, settled in batches by Circle. It works on Arc, Polygon, Base, and Ethereum, and a deposit
@@ -2854,11 +2877,11 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/></svg>
         </div>
-        <h3>A2A: hire other agents <span class="feat-status demo">Demo agent</span></h3>
+        <h3>A2A: hire other agents</h3>
         <div class="feat-platform">via the Agent2Agent protocol</div>
-        <p>Lyra can hand a task to another specialized agent: it reads that agent's public card, sends the
-        task, and brings the answer back into the chat. No money moves. Today the built-in agent is a demo
-        that returns simulated notes.</p>
+        <p><strong>Alpha for now:</strong> the built-in agent returns simulated notes. Lyra can hand a task to another
+        specialized agent: it reads that agent's public card, sends the task, and brings the answer back into
+        the chat. No money moves.</p>
         <div class="feat-check">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
           Designed for any agent that publishes an A2A card
@@ -2869,11 +2892,11 @@ h1, h2, h3,
         <div class="feat-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg>
         </div>
-        <h3>ACP: checkout in the chat <span class="feat-status demo">Demo merchant</span></h3>
+        <h3>ACP: checkout in the chat</h3>
         <div class="feat-platform">via the Agentic Commerce Protocol</div>
-        <p>Buy without leaving the conversation: say what you want, Lyra builds a checkout with line
-        items and a total, and one hold pays it over x402. Today the merchant is a demo, with no real
-        order behind it.</p>
+        <p><strong>Alpha for now:</strong> the merchant is a demo, with no real order behind it. Buy without leaving the
+        conversation: say what you want, Lyra builds a checkout with line items and a total, and one hold pays
+        it over x402.</p>
         <div class="feat-check">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
           Same spending limit as every x402 payment
@@ -4822,7 +4845,7 @@ h1, h2, h3,
 
 
 (function () {
-  const mq = window.matchMedia('(max-width: 640px)');
+  const mq = window.matchMedia('(max-width: 860px)');
   const cards = Array.from(document.querySelectorAll('.agentpay-grid .feat-card'));
   function sync() {
     cards.forEach((c) => {
