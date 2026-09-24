@@ -6,7 +6,7 @@
 <title>Lyra</title>
 
 <meta name="description" content="Lyra is a non-custodial iWallet live on Plasma, Ethereum, Base, Polygon, and Arc. Say what you want to send, swap, bridge, stake, bet on Polymarket, or pay for an API over x402, and Lyra researches the real rate and risk before you hold one button to confirm.">
-<meta name="keywords" content="Lyra, wallet, crypto wallet, AI agent, Plasma, Ethereum, Base, Polygon, Arc, DeFi, non-custodial, Uniswap, Aave, LI.FI, Polymarket, prediction markets, x402, A2A, ACP, Nanopayments, Circle, agent payments, multisig, MPC">
+<meta name="keywords" content="Lyra, wallet, crypto wallet, AI agent, Plasma, Ethereum, Base, Polygon, Arc, DeFi, non-custodial, KyberSwap, Aave, LI.FI, Polymarket, prediction markets, x402, A2A, ACP, Nanopayments, Circle, agent payments, multisig, MPC">
 <link rel="canonical" href="https://lyra.xyz/">
 
 <meta property="og:type" content="website">
@@ -2076,6 +2076,8 @@ h1, h2, h3,
     <div class="nav-links">
       <a href="#compare" data-view-link="home">Why an agent</a>
       <a href="#features" data-view-link="home">What it does</a>
+      <a href="#defi" data-view-link="home">DeFi</a>
+      <a href="#predictions" data-view-link="home">Predictions</a>
       <a href="#agentpay" data-view-link="home">Payments</a>
       <a href="#agent" data-view-link="home">How it thinks</a>
       <a href="#security" data-view-link="home">Security</a>
@@ -2090,6 +2092,8 @@ h1, h2, h3,
         <div class="nav-menu-panel" id="navMenuPanel" role="menu">
           <a href="#compare" data-view-link="home">Why an agent</a>
           <a href="#features" data-view-link="home">What it does</a>
+      <a href="#defi" data-view-link="home">DeFi</a>
+      <a href="#predictions" data-view-link="home">Predictions</a>
       <a href="#agentpay" data-view-link="home">Payments</a>
           <a href="#agent" data-view-link="home">How it thinks</a>
           <a href="#security" data-view-link="home">Security</a>
@@ -2164,7 +2168,7 @@ h1, h2, h3,
       <div class="hero-stats">
         <div class="hero-stat">
           <div class="n">9</div>
-          <div class="l">protocols wired in<br>(Uniswap, LI.FI, Aave, Polymarket, Circle, Safe, x402, A2A, ACP)</div>
+          <div class="l">protocols wired in<br>(KyberSwap, LI.FI, Aave, Polymarket, Circle, Safe, x402, A2A, ACP)</div>
         </div>
         <div class="hero-stat">
           <div class="n">1</div>
@@ -2279,7 +2283,7 @@ h1, h2, h3,
           <li>Lyra researches the real rate, fees, and risk, and prepares a ticket</li>
           <li>You check it, then hold one button to confirm</li>
         </ol>
-        <div class="compare-foot">3 steps · 1 screen · fully automated · ≈ 3 secondes</div>
+        <div class="compare-foot">3 steps · 1 screen · fully automated · ≈ 10 secondes</div>
       </div>
     </div>
   </div>
@@ -2300,9 +2304,9 @@ h1, h2, h3,
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M7 8l-4-4 4-4M17 21V3M17 16l4 4-4 4"/></svg>
         </div>
         <h3>Swap</h3>
-        <div class="feat-platform">via Uniswap V3</div>
-        <p>Lyra finds the exact pool that exists for your pair on Plasma and reads its live
-        rate before showing you a number. It never guesses a fee tier.</p>
+        <div class="feat-platform">via KyberSwap</div>
+        <p>Lyra finds the best route across DEX pools for your pair and reads its live
+        rate before showing you a number. It never guesses a route.</p>
         <div class="feat-check">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
           Rate and pool confirmed on-chain, not assumed
@@ -2387,9 +2391,9 @@ h1, h2, h3,
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M7 8l-4-4 4-4M17 21V3M17 16l4 4-4 4"/></svg>
             </div>
             <h3>Swap</h3>
-            <div class="feat-platform">via Uniswap V3</div>
-            <p>Lyra finds the exact pool that exists for your pair on Plasma and reads its live
-            rate before showing you a number. It never guesses a fee tier.</p>
+            <div class="feat-platform">via KyberSwap</div>
+            <p>Lyra finds the best route across DEX pools for your pair and reads its live
+            rate before showing you a number. It never guesses a route.</p>
             <div class="feat-check">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
               Rate and pool confirmed on-chain, not assumed
@@ -2483,10 +2487,256 @@ h1, h2, h3,
 </section>
 
 
+<section id="defi">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">03 / DeFi</span>
+      <h2 class="bt-pending">Swap, bridge, and stake by asking. Still one button to confirm.</h2>
+      <p>Lyra prepares real DeFi transactions across Plasma, Ethereum, Base, Polygon, and Arc. It reads the
+      live rate, route, and risk first, puts everything on one ticket, and only signs when you hold the button.
+      Several steps in one sentence still means one confirmation.</p>
+    </div>
+
+    <div class="demo-card agentpay-demo">
+      <div class="demo-label">Example: two steps, one confirmation</div>
+
+      <div class="demo-chat-msg">
+        <div class="who">You</div>
+        Swap 1,200 XPL to USDT0 and stake it.
+      </div>
+      <div class="demo-chat-msg">
+        <div class="who">Lyra</div>
+        I'll swap the XPL to USDT0 through KyberSwap, then stake the USDT0 on Aave. Check the details, then hold the button to confirm.
+      </div>
+
+      <div class="demo-ticket">
+        <div class="demo-ticket-title">Step 1 · Swap · KyberSwap</div>
+        <div class="demo-row"><span>Rate</span><strong>1 XPL ≈ 0.08 USDT0</strong></div>
+        <div class="demo-row"><span>You'll receive</span><strong>≈ 96 USDT0</strong></div>
+      </div>
+      <div class="demo-ticket">
+        <div class="demo-ticket-title">Step 2 · Stake · Aave V3</div>
+        <div class="demo-row"><span>Estimated yield</span><strong>≈ 4–6% APY</strong></div>
+        <div class="demo-row"><span>Risk level</span><strong class="risk-low">Low</strong></div>
+      </div>
+
+      <div class="demo-caption" style="opacity:1;">The numbers above are illustrative. In the app they come from the live protocol at the moment you ask.</div>
+    </div>
+
+    <div class="feat-grid agentpay-grid">
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v18M7 8l-4-4 4-4M17 21V3M17 16l4 4-4 4"/></svg>
+        </div>
+        <h3>Swap <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">via KyberSwap</div>
+        <p>Lyra finds the best route across DEX pools for your pair and reads its live rate before showing you a number. On Arc, USDC and EURC swap through Circle's own Swap Kit.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Rate confirmed live, never assumed
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M2 12l6-6M2 12l6 6M22 12l-6-6M22 12l-6 6"/></svg>
+        </div>
+        <h3>Bridge <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">via LI.FI · Circle Bridge Kit on Arc</div>
+        <p>Every route is requested live from LI.FI, the engine behind Jumper, so what you see is exactly what gets signed. Bridges to and from Arc use Circle's own Bridge Kit.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Live quote per request, never hardcoded
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        </div>
+        <h3>Stake <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">via Aave V3 · Aave V4 on Arc</div>
+        <p>Lyra checks the real market before proposing a deposit: current yield, lock status, and a plain-language risk level, not a static promise.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Withdraw anytime, same one-hold confirmation
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M4 12h16M4 18h10"/><path d="m17 4 3 2-3 2M17 16l3 2-3 2"/></svg>
+        </div>
+        <h3>Several steps at once <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">one sentence, one ticket set</div>
+        <p>Say &quot;swap then stake&quot; or &quot;bridge and swap&quot; and Lyra chains the steps in order, shows each one, and asks for a single hold to run them.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          You still see every step before it runs
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>
+        </div>
+        <h3>Bring funds back <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">consolidate</div>
+        <p>Sent funds to a chain Lyra doesn't actively use? Ask it to consolidate and it routes them back to your main balance.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Same ticket, same hold to confirm
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/></svg>
+        </div>
+        <h3>Ask before you act <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">research on demand</div>
+        <p>Ask if a protocol looks risky or what a rate means. Lyra checks the contract on the explorer and answers from live data, or says it can't find a reliable answer.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          It tells you when it doesn't know
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-note">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <div><strong>Final once confirmed.</strong>
+      Swaps and bridges are on-chain transactions: once you hold to confirm and they are broadcast, neither Lyra nor
+      anyone else can undo them. Read the ticket, especially the amount and the network, before you hold the button.</div>
+    </div>
+  </div>
+</section>
+
+<section id="predictions">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">04 / Predictions &amp; bets</span>
+      <h2 class="bt-pending">Bet on real-world outcomes in one sentence. Still one button to confirm.</h2>
+      <p>Ask about an event and Lyra finds the actual Polymarket market, reads the live price from its order book,
+      and prepares the bet on Polygon as a single ticket. You see the price and the possible payout before anything is signed.</p>
+    </div>
+
+    <div class="demo-card agentpay-demo">
+      <div class="demo-label">Example: from a sentence to a bet</div>
+
+      <div class="demo-chat-msg">
+        <div class="who">You</div>
+        Bet $20 that the Fed cuts rates in December.
+      </div>
+      <div class="demo-chat-msg">
+        <div class="who">Lyra</div>
+        Found it on Polymarket: "Fed cuts rates in December?" trading at 64¢ for Yes. I'll place a $20 market order on Polygon. Check the details, then hold the button to confirm.
+      </div>
+
+      <div class="demo-ticket">
+        <div class="demo-ticket-title">Prediction · Polymarket</div>
+        <div class="demo-row"><span>Market</span><strong>Fed cuts rates in December?</strong></div>
+        <div class="demo-row"><span>Outcome</span><strong>Yes @ 64¢</strong></div>
+        <div class="demo-row"><span>Stake</span><strong>$20</strong></div>
+        <div class="demo-row"><span>If it resolves Yes</span><strong>≈ $31.25</strong></div>
+      </div>
+
+      <div class="demo-caption" style="opacity:1;">The market and price above are an example. Lyra reads the real ones at the moment you ask.</div>
+    </div>
+
+    <div class="feat-grid agentpay-grid">
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        </div>
+        <h3>Find the market <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">via Polymarket</div>
+        <p>Describe the event in your own words. Lyra searches Polymarket for the real, open market that matches it, and says so if nothing does instead of guessing.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Only open markets, never invented ones
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        </div>
+        <h3>Live price <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">order book</div>
+        <p>The price comes from Polymarket's live order book for the exact outcome you picked, and the ticket shows what you would get if it resolves your way.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Price read fresh for every bet
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+        </div>
+        <h3>One ticket, one hold <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">on Polygon</div>
+        <p>The bet is a signed order on Polygon, prepared and shown as one ticket. Lyra can also bring in the funds it needs, like bridging or swapping into the right token.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Nothing is signed until you hold
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        </div>
+        <h3>Cash out early <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">before it resolves</div>
+        <p>Changed your mind? Ask to cash out a position and Lyra prepares the sale at the current price, no waiting for the market to close.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Same confirmation as any other action
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </div>
+        <h3>Cancel an open order <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">unfilled orders</div>
+        <p>An order that hasn't been filled yet can be cancelled by asking. Lyra prepares the cancellation and waits for your hold.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          Cancellation also waits for your hold
+        </div>
+      </div>
+
+      <div class="feat-card">
+        <div class="feat-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+        </div>
+        <h3>Risk stays visible <span class="feat-status live">Live</span></h3>
+        <div class="feat-platform">no hidden leverage</div>
+        <p>A bet is a stake you can lose entirely. The ticket states the amount at risk and the payout, and Lyra never places a bet without an amount from you.</p>
+        <div class="feat-check">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+          It asks for an amount instead of guessing one
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-note">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <div><strong>You can lose your whole stake.</strong>
+      Prediction markets are risky and may not be available in every country. Only bet what you can afford to lose,
+      and check that Polymarket is allowed where you live before you use it.</div>
+    </div>
+  </div>
+</section>
+
 <section id="agentpay">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">03 / Agents &amp; payments</span>
+      <span class="eyebrow">05 / Agents &amp; payments</span>
       <h2 class="bt-pending">Your agent can find, pay, hire, and shop. Still one button to confirm.</h2>
       <p>Lyra speaks the open standards AI agents use to transact with the web and with each other:
       pay an API over HTTP, search a directory of paid services, hand a task to another agent, or
@@ -2612,7 +2862,7 @@ h1, h2, h3,
 <section class="agent-section" id="agent">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">04 / How it thinks</span>
+      <span class="eyebrow">06 / How it thinks</span>
       <h2 class="bt-pending">It doesn't answer from memory. It goes and checks.</h2>
       <p>Every ticket Lyra shows you comes from the same three-step loop | no cached rates,
       no assumed contract addresses, nothing invented to fill a gap.</p>
@@ -2646,7 +2896,7 @@ h1, h2, h3,
 <section id="ask">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">05 / Beyond the buttons</span>
+      <span class="eyebrow">07 / Beyond the buttons</span>
       <h2 class="bt-pending">Ask it anything, not just what to click</h2>
       <p>Lyra is also who you ask before you act. It's the same research loop :
       real search, real contract checks. Turned toward your questions instead
@@ -2673,7 +2923,7 @@ h1, h2, h3,
 <section id="security">
   <div class="wrap">
     <div class="section-head">
-      <span class="eyebrow">06 / Security model</span>
+      <span class="eyebrow">08 / Security model</span>
       <h2 class="bt-pending">An agent that can propose anything and move nothing.</h2>
       <p>Automation and custody are two different problems. Lyra solves the first,
       your device still solves the second.</p>
@@ -2734,7 +2984,7 @@ h1, h2, h3,
 <section class="download-section" id="download">
   <div class="wrap">
     <div class="download-head">
-      <span class="eyebrow">07 / Get Lyra</span>
+      <span class="eyebrow">09 / Get Lyra</span>
       <h2 style="font-family:var(--display);font-size:clamp(26px,3.2vw,34px);font-weight:600;letter-spacing:-0.01em;line-height:1.2;margin:14px 0 14px;">
         Available on desktop, to start
       </h2>
@@ -2955,7 +3205,7 @@ h1, h2, h3,
             <span class="qtext">Which protocols does Lyra actually use?</span>
             <span class="qicon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
           </button>
-          <div class="faq-a"><div class="faq-a-inner"><p>Nine, today: Uniswap V3 for swaps, LI.FI for bridging (the same routing engine behind Jumper), Aave for staking (V3, and V4 on Arc), Polymarket for prediction markets, Circle for Arc swaps and bridges and for Nanopayments, Safe for multisig, and the open x402, A2A, and ACP standards for agent payments, service search, and checkout. The DeFi ones are verified, live contracts, not simulated, across Plasma, Ethereum, Base, Polygon, and Arc. The A2A agent and the ACP merchant Lyra ships with are demos.</p></div></div>
+          <div class="faq-a"><div class="faq-a-inner"><p>Nine, today: KyberSwap for swaps, LI.FI for bridging (the same routing engine behind Jumper), Aave for staking (V3, and V4 on Arc), Polymarket for prediction markets, Circle for Arc swaps and bridges and for Nanopayments, Safe for multisig, and the open x402, A2A, and ACP standards for agent payments, service search, and checkout. The DeFi ones are verified, live contracts, not simulated, across Plasma, Ethereum, Base, Polygon, and Arc. The A2A agent and the ACP merchant Lyra ships with are demos.</p></div></div>
         </div>
 
         <div class="faq-item">
@@ -3904,7 +4154,7 @@ h1, h2, h3,
     },
     swap_feature: {
       keywords: ['swap', 'exchange tokens', 'uniswap', 'trade tokens'],
-      answer: "Swaps run through Uniswap V3. Lyra finds the exact pool for your pair on whichever network you're using and reads the live rate before showing you a number."
+      answer: "Swaps run through KyberSwap, an aggregator that finds the best route across DEX pools for your pair on whichever network you're using, and reads the live rate before showing you a number."
     },
     bridge_feature: {
       keywords: ['bridge', 'bridging', 'move between chains', 'cross chain', 'li.fi', 'lifi'],
@@ -3952,7 +4202,7 @@ h1, h2, h3,
     },
     protocols_supported: {
       keywords: ['which protocols', 'protocols wired', 'integrations'],
-      answer: "Nine today: Uniswap V3 for swaps, LI.FI for bridging, Aave for staking, Polymarket for predictions, Circle for Arc and Nanopayments, Safe for multisig, and the open x402, A2A, and ACP standards for agent payments. The DeFi ones are verified, live contracts; the A2A agent and ACP merchant are demos."
+      answer: "Nine today: KyberSwap for swaps, LI.FI for bridging, Aave for staking, Polymarket for predictions, Circle for Arc and Nanopayments, Safe for multisig, and the open x402, A2A, and ACP standards for agent payments. The DeFi ones are verified, live contracts; the A2A agent and ACP merchant are demos."
     },
     roadmap_next: {
       keywords: ["what's next", 'whats next', 'roadmap', 'coming soon', 'future plans'],
@@ -4333,9 +4583,9 @@ h1, h2, h3,
     },
     {
       question: "Can you swap 1,200 XPL to USDT0 and stake them?",
-      answer: "I'll swap 1,200 XPL to USDT0 on Uniswap V3, then stake the USDT0 on Aave. Check the details, then hold the button to confirm.",
+      answer: "I'll swap 1,200 XPL to USDT0 via KyberSwap, then stake the USDT0 on Aave. Check the details, then hold the button to confirm.",
       tickets: [
-        { title: "Step 1 · Swap · Uniswap V3", rows: [["Rate", "1 XPL ≈ 0.08 USDT0"], ["You'll receive", "≈ 96 USDT0"]] },
+        { title: "Step 1 · Swap · KyberSwap", rows: [["Rate", "1 XPL ≈ 0.08 USDT0"], ["You'll receive", "≈ 96 USDT0"]] },
         { title: "Step 2 · Stake · Aave V3", rows: [["Estimated yield", "≈ 4–6% APY"], ["Risk level", "Low"]] }
       ],
       success: "✓ Confirmed, swapped, then staked."
