@@ -2052,6 +2052,37 @@ h1, h2, h3,
   display: none !important;
 }
 
+/* Mobile: the DeFi / Predictions / Agents cards collapse to their title
+   so the sections stay short; tap a card to read the rest. */
+@media (max-width: 640px) {
+  .agentpay-grid .feat-card { cursor: pointer; padding: 16px 18px; -webkit-tap-highlight-color: transparent; }
+  .agentpay-grid .feat-card .feat-icon { display: none; }
+  .agentpay-grid .feat-card h3 {
+    position: relative;
+    margin: 0;
+    padding-right: 26px;
+    font-size: 15px;
+  }
+  .agentpay-grid .feat-card h3::after {
+    content: "";
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    width: 8px; height: 8px;
+    border-right: 2px solid var(--accent-strong);
+    border-bottom: 2px solid var(--accent-strong);
+    transform: translateY(-75%) rotate(45deg);
+    transition: transform 0.25s ease;
+  }
+  .agentpay-grid .feat-card.open h3::after { transform: translateY(-25%) rotate(-135deg); }
+  .agentpay-grid .feat-card .feat-platform,
+  .agentpay-grid .feat-card p,
+  .agentpay-grid .feat-card .feat-check { display: none; }
+  .agentpay-grid .feat-card.open .feat-platform { display: block; margin: 8px 0 10px; }
+  .agentpay-grid .feat-card.open p { display: block; }
+  .agentpay-grid .feat-card.open .feat-check { display: flex; }
+}
+
 </style>
 </head>
 <body>
@@ -4789,6 +4820,37 @@ h1, h2, h3,
   onScroll();
 })();
 
+
+(function () {
+  const mq = window.matchMedia('(max-width: 640px)');
+  const cards = Array.from(document.querySelectorAll('.agentpay-grid .feat-card'));
+  function sync() {
+    cards.forEach((c) => {
+      if (mq.matches) {
+        c.setAttribute('role', 'button');
+        c.setAttribute('tabindex', '0');
+        c.setAttribute('aria-expanded', c.classList.contains('open') ? 'true' : 'false');
+      } else {
+        c.removeAttribute('role');
+        c.removeAttribute('tabindex');
+        c.removeAttribute('aria-expanded');
+      }
+    });
+  }
+  function toggle(c) {
+    if (!mq.matches) return;
+    c.classList.toggle('open');
+    c.setAttribute('aria-expanded', c.classList.contains('open') ? 'true' : 'false');
+  }
+  cards.forEach((c) => {
+    c.addEventListener('click', () => toggle(c));
+    c.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(c); }
+    });
+  });
+  if (mq.addEventListener) mq.addEventListener('change', sync); else mq.addListener(sync);
+  sync();
+})();
 
 (function () {
   const targets = document.querySelectorAll('.feat-card:not(.wallet-card), .sec-card');
