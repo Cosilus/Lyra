@@ -47,6 +47,55 @@ function drawBooks(group, x0, x1, shelves) {
   }
 }
 
+/* Discord/X balloons: each rises from below the window sill to its own
+   resting spot and stays there, clickable, all the way to the end (unless
+   popped). Position is plain JS (own transform attribute on the .balloon
+   <a>); the pop burst is a separate CSS animation on an inner group, see
+   base.css. */
+/* Window frame splits the glass into 4 panes (vertical divider x:792-808,
+   horizontal divider y:322-336, see the "frame on top of glass" rects in
+   index.html). Each balloon rests in a BOTTOM pane, centered horizontally
+   (bottom-left x:452-792, bottom-right x:808-1148) but sat a bit above
+   dead-center vertically (pane is y:336-578) so the string trails down
+   into view below the body instead of ending right at the sill. */
+const BALLOONS = [
+  { id: "balloonDiscord", x: 622, restY: 420, swayPhase: 0 },
+  { id: "balloonX", x: 978, restY: 420, swayPhase: 2.1 },
+];
+const BALLOON_START_Y = 700; // below the sill (glass clip ends at y=578), hidden until it rises
+
+function setupBalloons() {
+  const popped = new Set();
+  const els = BALLOONS.map((b) => {
+    const el = document.getElementById(b.id);
+    el.addEventListener("click", () => {
+      if (popped.has(b.id)) return;
+      popped.add(b.id);
+      el.classList.add("popped");
+      // Inline style always beats a stylesheet rule, and update() below
+      // stops touching this element from here on -- so without this, the
+      // pointerEvents:"auto" left over from its last visible frame would
+      // outrank .popped's own pointer-events:none in base.css forever.
+      el.style.pointerEvents = "none";
+    });
+    return { ...b, el };
+  });
+
+  return {
+    update(tl) {
+      const { balloonRise: rise = 0, balloonOpacity: op = 0, p } = tl;
+      for (const b of els) {
+        if (popped.has(b.id)) continue; // stays exactly as the pop animation left it
+        const y = BALLOON_START_Y - (BALLOON_START_Y - b.restY) * rise;
+        const sway = Math.sin(p * 50 + b.swayPhase) * 5;
+        b.el.setAttribute("transform", `translate(${(b.x + sway).toFixed(1)} ${y.toFixed(1)})`);
+        b.el.style.opacity = op.toFixed(3);
+        b.el.style.pointerEvents = op > 0.05 ? "auto" : "none";
+      }
+    },
+  };
+}
+
 export function createScene() {
   drawStars($("#stars"));
   drawSkyline($("#cityFar"), 578, 70, 210, "#27337a", 0.16);
@@ -55,6 +104,7 @@ export function createScene() {
   drawBooks($("#booksR"), 1266, 1520, [352, 496, 650]);
 
   const moon = $("#moon"), clouds = $("#clouds");
+  const balloons = setupBalloons();
 
   return {
     /* The drawing is fitted with "slice" (cover). `sc` and `oy` locate it inside the stage. */
@@ -63,10 +113,12 @@ export function createScene() {
       const oy = (H - 900 * sc) / 2;
       return { W, H, sc, oy, deskY: oy + 772 * sc, desk: oy + 826 * sc };
     },
-    update({ p }) {
+    update(tl) {
+      const p = tl.p;
       const mx = 560 + 470 * p, my = 330 - 150 * Math.sin(Math.PI * Math.pow(clamp(p), 0.9));
       moon.setAttribute("transform", `translate(${mx.toFixed(1)} ${my.toFixed(1)}) scale(${(1 + 0.12 * Math.sin(Math.PI * p)).toFixed(3)})`);
       clouds.setAttribute("transform", `translate(${(-p * 240).toFixed(1)} 0)`);
+      balloons.update(tl);
     },
   };
 }

@@ -57,6 +57,14 @@ export function phases(p) {
     zoomIn: ease(ramp(p, INTRO + 45, INTRO + OPEN + 30)),
     closeT: ease(ramp(p, END_VH + 8, END_VH + 62)),
     zoomOut: ease(ramp(p, END_VH + 66, END_VH + 122)),
+    // Discord/X balloons: rise once the device has finished closing (so
+    // it never competes with the legal paper sliding in later), then stay
+    // risen and clickable all the way to the end -- they never fade out.
+    // Opacity ramps in over a much shorter window than the position does
+    // (10vh vs 32vh), so they read as solid/opaque almost as soon as they
+    // appear instead of looking translucent while still floating up.
+    balloonRise: ease(ramp(p, END_VH + 58, END_VH + 90)),
+    balloonOpacity: ease(ramp(p, END_VH + 58, END_VH + 68)),
     paperT: easeOut(ramp(p, END_VH + 112, END_VH + 170)),
     textOn: ramp(p, END_VH + 130, END_VH + 165),
     chapter, chapterT,

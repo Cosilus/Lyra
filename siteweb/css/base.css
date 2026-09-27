@@ -46,7 +46,13 @@ em { font-style: normal; }
 
 .world { position: absolute; inset: 0; will-change: transform; }
 
-.layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* pointer-events: none by default -- these are purely decorative scene
+   SVGs stacked on top of one another (room, furn, ...), and an SVG root
+   captures clicks over its whole box even where nothing is painted, so
+   without this the top-most layer blocks clicks on anything underneath
+   it, including interactive elements like .balloon (which re-enables
+   pointer-events on itself explicitly, see scene.js/base.css). */
+.layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 
 .tint {
   position: absolute; inset: 0; pointer-events: none;
@@ -93,6 +99,40 @@ em { font-style: normal; }
 }
 
 .busy #stars circle, .busy .lit, .busy .leaf { animation-play-state: paused; }
+
+/* Netlify's own free-plan badge, an iframe it injects at runtime (id
+   nl-badge-frame) -- not part of this page's markup, so it can't be
+   removed, only hidden. Ported from the old site (see commit "site: hide
+   the Netlify free-plan badge"), lost when this page replaced it. */
+#nl-badge-frame { display: none !important; }
+
+/* Discord/X balloons in the window (markup in index.html, positioned and
+   faded in per-frame from scene.js using timeline.js's balloonRise/
+   balloonOpacity). Cursor/hover here; the pop burst is its own keyframe so
+   a click can layer it on top of whatever position transform JS is setting. */
+.balloon { cursor: pointer; opacity: 0; pointer-events: none; }
+
+.balloon:hover .balloon-shape, .balloon:focus-visible .balloon-shape { filter: brightness(1.12); }
+
+/* Animated on .balloon-body, an inner group, never on .balloon itself:
+   .balloon's own transform is set every frame from JS (scene.js) to
+   position it in the window, and a CSS animation's transform would
+   otherwise fight that positional one for the same attribute. */
+.balloon-body { transform-box: fill-box; transform-origin: 50% 50%; }
+
+.balloon.popped .balloon-body { animation: balloonPop .38s ease forwards; }
+
+.balloon.popped { pointer-events: none; }
+
+@keyframes balloonPop {
+  0% { transform: scale(1); opacity: 1; }
+  35% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .balloon.popped { animation: none; opacity: 0; }
+}
 
 
 [hidden] { display: none !important; }
