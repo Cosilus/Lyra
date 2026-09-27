@@ -1,0 +1,46 @@
+/* Key terms in the chat: a wave of light runs through the letters (same idea as "Lyra is thinking"),
+   and a small bubble explains the term on hover. */
+.term {
+  cursor: help; white-space: pre-wrap; font-weight: 600; outline: none;
+  background: linear-gradient(100deg, var(--accent) 0%, var(--accent) 38%, #fff 50%, var(--accent) 62%, var(--accent) 100%);
+  background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+  animation: termWave 2.6s linear infinite;
+  border-bottom: 1px dashed rgba(167, 139, 250, .55);
+}
+.term:hover, .term:focus-visible { border-bottom-color: #fff; }
+.msg.user .term { background-image: linear-gradient(100deg, #c4b0ff 0%, #c4b0ff 38%, #fff 50%, #c4b0ff 62%, #c4b0ff 100%); }
+/* The travel distance (from - to) must be an exact multiple of half the
+   background-size (260% / 2 = 130%) for the loop to restart seamlessly,
+   otherwise the highlight jumps at the seam instead of looping smoothly
+   (same rule as the real app's own .thinking-shimmer, see styles.css).
+   The old 130% -> -130% traveled the FULL background-size (260%, not
+   half of it), so each restart landed 0.6 of a gradient period off from
+   where it should -- invisible most loops, but the error compounds and
+   the snap-back becomes an obvious cut every couple of cycles. 130% -> 0%
+   is a 130% sweep, and both ends land in the flat accent stretch of the
+   gradient (0-38%/62-100%), so the restart is invisible. */
+@keyframes termWave { from { background-position: 130% 0; } to { background-position: 0% 0; } }
+@media (prefers-reduced-motion: reduce) { .term { animation: none; background-position: 50% 0; } }
+
+.tip {
+  position: absolute; z-index: 9; width: min(31em, calc(100% - 16px)); overflow: hidden;
+  padding: .85em 1em .9em; border-radius: .8em; font-size: 1em; line-height: 1.45; text-align: left; color: var(--beige);
+  background: linear-gradient(#211736, #171026); border: 1px solid #4a3690; box-shadow: 0 14px 34px #000c, 0 0 0 1px #0d0916;
+  opacity: 0; transform: translateY(4px) scale(.98); transition: opacity .15s ease, transform .15s ease; pointer-events: auto;
+}
+.tip.on { opacity: 1; transform: none; }
+.tip::after {
+  content: ""; position: absolute; left: var(--ax, 50%); bottom: -6px; width: 10px; height: 10px; transform: translateX(-50%) rotate(45deg);
+  background: #171026; border-right: 1px solid #4a3690; border-bottom: 1px solid #4a3690;
+}
+.tip.below::after { bottom: auto; top: -6px; transform: translateX(-50%) rotate(225deg); }
+.tip-title { display: block; font-family: var(--display); font-size: 1.25em; font-weight: 600; color: #fff; }
+.tip-lead { margin: .3em 0 .55em; color: rgba(243, 235, 255, .8); font-size: 1em; }
+.tip ul { margin: 0; padding: 0 0 0 1.1em; }
+.tip li { margin: .25em 0; font-size: 1em; color: #fff; }
+.tip li::marker { color: var(--accent-strong); }
+.tip-note { margin: .6em 0 0; padding-top: .5em; border-top: 1px solid #ffffff18; font-family: var(--mono); font-size: .85em; color: rgba(243, 235, 255, .75); }
+.tip[hidden] { display: none; }
+.tip.wide { width: min(46em, calc(100% - 16px)); }
+.tip.wide ul { columns: 2; column-gap: 1.6em; }
+.tip.wide li { break-inside: avoid; }
