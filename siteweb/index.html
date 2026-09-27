@@ -2,6 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>
+/* Coarse-pointer devices (phones, tablets -- touch is the PRIMARY input)
+   get the old, lighter site instead of this one. The cinematic scroll
+   build turned out to have real, repeated rendering/perf problems on
+   real phones (confirmed on camera: corrupted text, the scene going
+   blank, ticket content staying invisible for seconds) that several
+   rounds of fixes didn't fully resolve. A laptop/desktop with a
+   touchscreen still reports pointer:fine as long as mouse/trackpad is
+   its PRIMARY input, so this doesn't catch those, only true phones/
+   tablets. Placed as the very first tag in <head>, before anything
+   else, so a phone never fetches a single byte of the heavy build
+   before leaving. ?cinema on the URL bypasses this, for testing. */
+if (matchMedia("(pointer: coarse)").matches && !location.search.includes("cinema")) location.replace("classic.html");
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Lyra · Say what you want. Lyra handles the chain.</title>
 <meta name="description" content="Lyra is an Intelligent Conversational Wallet (ICW). Tell it what you want to do and it researches the real rate, route and risk before you hold one button to confirm.">
