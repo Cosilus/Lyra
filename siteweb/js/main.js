@@ -21,16 +21,35 @@ const chat = createChat({ devices, pages });
 const overlay = createOverlay();
 createTooltip();
 
-let view = null, target = 0, shown = -1, lastP = -1, moving = false;
+let view = null, target = 0, shown = -1, lastP = -1, moving = false, stageH = 0;
 track.style.height = TRACK_VH + "vh";
 const debugP = new URLSearchParams(location.search).get("p");
 
 function layout() {
-  view = scene.layout(stage.clientWidth, stage.clientHeight);
+  stageH = stage.clientHeight;
+  view = scene.layout(stage.clientWidth, stageH);
   const { x, y } = devices.layout(view);
   world.style.transformOrigin = `${x}px ${y}px`;
   overlay.layout(view);
   lastP = -1;
+}
+
+// Android/iOS collapse and re-expand the browser's own address/tab bar
+// WHILE the page scrolls, firing a burst of "resize" events as it
+// animates -- each one changing window/stage height by itself, with no
+// real layout change on our end. Un-debounced, that both re-runs the
+// (somewhat expensive) layout() many times a second during every scroll
+// AND, worse, feeds a constantly-shifting stageH into readScroll()'s own
+// math below, making the computed scroll progress itself jitter -- the
+// actual cause of stutter/skipped content on phones that never shows up
+// on desktop, where there's no such dynamic toolbar. Debouncing this
+// (re-layout only once things settle) fixes both at once. A screen
+// rotation is the one case genuinely worth reacting to instantly, so it
+// bypasses the debounce.
+let layoutTimer = null;
+function layoutDebounced() {
+  clearTimeout(layoutTimer);
+  layoutTimer = setTimeout(layout, 200);
 }
 
 function render(p) {
@@ -54,7 +73,7 @@ function render(p) {
 function readScroll() {
   if (window.__p !== undefined) return clamp(window.__p);          // test hook
   if (debugP !== null) return clamp(parseFloat(debugP));           // ?p=0.4 freezes the scene
-  return clamp(-track.getBoundingClientRect().top / (track.offsetHeight - stage.clientHeight));
+  return clamp(-track.getBoundingClientRect().top / (track.offsetHeight - stageH));
 }
 
 function frame() {
@@ -71,7 +90,7 @@ function frame() {
 
 layout();
 playLoader();
-addEventListener("resize", layout);
+addEventListener("resize", layoutDebounced);
 addEventListener("orientationchange", layout);
 window.__frame = frame;
 requestAnimationFrame(frame);
