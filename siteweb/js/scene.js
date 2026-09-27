@@ -100,16 +100,20 @@ export function createScene() {
   drawStars($("#stars"));
   drawSkyline($("#cityFar"), 578, 70, 210, "#27337a", 0.16);
   drawSkyline($("#cityNear"), 590, 40, 150, "#161d4c", 0.3);
-  drawBooks($("#booksL"), 96, 340, [508, 644]);
+  // Same fix as shelfR just below: 644 was 18px short of the bottom
+  // plank's own top edge (662, the shared bottom-bar y for both shelves
+  // in index.html), leaving the bottom row floating above it.
+  drawBooks($("#booksL"), 96, 340, [508, 662]);
   // Baseline must land on each shelf plank's TOP edge (its rect starts at
-  // that y and extends downward), same as shelfL's own [508, 644] above --
-  // 340/484 are the top edges of the 2nd/3rd plank rects in index.html's
-  // #shelfR (y="340" h="12" and y="484" h="12"). This shelf had 352/496
-  // instead, each plank's BOTTOM edge, so every book (drawn from its own
-  // random height up to this baseline) swallowed the whole plank behind
-  // it rather than resting on top of it -- looked like books sinking into
-  // the shelf instead of sitting on a solid support.
-  drawBooks($("#booksR"), 1266, 1520, [340, 484, 650]);
+  // that y and extends downward), same as shelfL's own [508, 662] above --
+  // 340/484/662 are the top edges of the 2nd/3rd/4th plank rects in
+  // index.html's #shelfR (y="340" h="12", y="484" h="12", y="662" h="14").
+  // This shelf originally had 352/496, each plank's BOTTOM edge instead of
+  // its top, so every book on those two rows swallowed the whole plank
+  // behind it rather than resting on top of it; the 650 for row 3 was
+  // fixed for that (no overlap) but still landed 12px short of the
+  // bottom plank's own top edge (662), floating just above it.
+  drawBooks($("#booksR"), 1266, 1520, [340, 484, 662]);
 
   const moon = $("#moon"), clouds = $("#clouds");
   const balloons = setupBalloons();

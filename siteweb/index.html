@@ -194,7 +194,11 @@ if (matchMedia("(pointer: coarse)").matches && !location.search.includes("cinema
           <rect x="1256" y="208" width="272" height="456" fill="#111845"/>
           <g fill="#28347d"><rect x="1244" y="196" width="296" height="14"/><rect x="1244" y="340" width="296" height="12"/><rect x="1244" y="484" width="296" height="12"/><rect x="1244" y="662" width="296" height="14"/></g>
           <g id="booksR"></g>
-          <g transform="translate(1440 574)"><path d="M-30 20 L30 20 L22 -8 L-22 -8Z" fill="#6b4a63"/>
+          <!-- Pot's own bottom edge is local y=20, so translate-y + 20 must
+               land on the bottom plank's top edge (662, see #shelfR's own
+               divider rects above): 642 + 20 = 662. Was 574 (+20 = 594),
+               68px short, floating above the shelf. -->
+          <g transform="translate(1440 642)"><path d="M-30 20 L30 20 L22 -8 L-22 -8Z" fill="#6b4a63"/>
             <circle cx="0" cy="-24" r="26" fill="#2f6f68"/><circle cx="-16" cy="-14" r="16" fill="#3c8a7c"/><circle cx="17" cy="-16" r="16" fill="#35796f"/></g>
           <g transform="translate(1490 296)"><rect x="-22" y="-2" width="44" height="46" rx="4" fill="#5b4a8c"/><rect x="-22" y="-2" width="44" height="8" fill="#7460b0"/></g>
         </g>
