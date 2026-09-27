@@ -94,6 +94,21 @@ em { font-style: normal; }
   opacity: 0; pointer-events: none; mix-blend-mode: screen;
 }
 
+/* Each animated star/lit-window/steam puff is its own always-running CSS
+   animation (opacity/transform), and browsers commonly promote those to
+   their own GPU compositor layer -- dozens of them, running forever, not
+   just during scroll. Fine on a desktop GPU; on weaker/mid mobile GPUs
+   this is a plausible cause of the stutter and outright rendering
+   corruption (garbled text, a scene that goes blank for a frame) seen on
+   a real phone but never on desktop. Cut here, not case by case: stars
+   and lit windows stay visible as a fixed frame instead of animated; the
+   coffee steam's own base style is opacity:0 (its animation is what ever
+   makes it visible), so on mobile it simply doesn't puff, a small enough
+   detail to trade for not corrupting the screen behind it. */
+@media (max-width: 700px), (pointer: coarse) {
+  #stars circle, #cityNear .lit, #cityFar .lit, .steam { animation: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #stars circle, .leaf, .steam, .boot img, .hint i { animation: none; }
 }

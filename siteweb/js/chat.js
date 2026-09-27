@@ -30,7 +30,13 @@ function drawHold(canvas, pct) {
 /* Build the DOM of one chapter (everything hidden) and return update(tau) + detach(). */
 function createView(index, chat) {
   const c = CH[index], plan = plans[index];
-  const show = (node, on) => { node.hidden = !on; };
+  // Reading offsetHeight right after un-hiding forces the browser to
+  // actually lay out and paint the node synchronously, instead of only
+  // queuing that for later. Seen on a real phone under scroll load (never
+  // on desktop): a ticket/hold-button's own background painted right
+  // away but its text inside stayed invisible for seconds, exactly what
+  // a delayed/dropped paint on newly-shown content looks like.
+  const show = (node, on) => { node.hidden = !on; if (on) void node.offsetHeight; };
   const user = el("div", "msg user", richHtml(c.q, c.qSpans));
   const row = el("div", "msg lyra", AVATAR + '<div class="lyra-body"></div>');
   const body = row.lastChild;
