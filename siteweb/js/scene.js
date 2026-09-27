@@ -101,7 +101,15 @@ export function createScene() {
   drawSkyline($("#cityFar"), 578, 70, 210, "#27337a", 0.16);
   drawSkyline($("#cityNear"), 590, 40, 150, "#161d4c", 0.3);
   drawBooks($("#booksL"), 96, 340, [508, 644]);
-  drawBooks($("#booksR"), 1266, 1520, [352, 496, 650]);
+  // Baseline must land on each shelf plank's TOP edge (its rect starts at
+  // that y and extends downward), same as shelfL's own [508, 644] above --
+  // 340/484 are the top edges of the 2nd/3rd plank rects in index.html's
+  // #shelfR (y="340" h="12" and y="484" h="12"). This shelf had 352/496
+  // instead, each plank's BOTTOM edge, so every book (drawn from its own
+  // random height up to this baseline) swallowed the whole plank behind
+  // it rather than resting on top of it -- looked like books sinking into
+  // the shelf instead of sitting on a solid support.
+  drawBooks($("#booksR"), 1266, 1520, [340, 484, 650]);
 
   const moon = $("#moon"), clouds = $("#clouds");
   const balloons = setupBalloons();
