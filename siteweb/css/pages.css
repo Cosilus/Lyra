@@ -29,22 +29,20 @@
 
 .menu-btn:hover::after { transform: translate(.2em, -50%); }
 
-/* Pointer-reactive 3D tilt, same mechanic as lyrapp.to's own feature
-   cards: wired up in pages.js on mousemove/mouseleave, which sets this
-   transform every frame the cursor moves.
-   lyrapp.to's cards also have a cursor-following radial-gradient glow
-   riding along with the tilt (::before, background-position driven by
-   --mx/--my). Deliberately not ported here: these cards live inside the
-   laptop device's own scaled-down 3D rig (mount() + the laptop's own
-   transform: scale(k)), and getBoundingClientRect() there reflects the
-   POST-scale visual size while a percentage-based radial-gradient is
-   positioned against the PRE-scale layout box -- the two didn't agree,
-   so the glow rendered as a hard-edged blob covering only part of the
-   card (reported as "only the top of the card" highlighting on hover)
-   instead of a smooth glow across all of it. The tilt + accent-purple
-   border above don't depend on that math and are unaffected. */
-.tilt-3d { transform-style: preserve-3d; will-change: transform; transition: transform .15s ease-out, box-shadow .35s ease; }
-.tilt-3d:hover { box-shadow: 0 24px 60px rgba(0, 0, 0, .38); }
+/* Flat 2D hover lift, not a pointer-reactive 3D tilt: these cards live
+   inside the laptop device's own scaled-down 3D rig (mount() + the
+   laptop's own transform: scale(k), plus its own CSS perspective for the
+   lid/screen). A per-card rotateX/rotateY tilt (and, before that, a
+   cursor-following glow) both relied on getBoundingClientRect() inside
+   that nested 3D context, and both reproduced the exact same failure on
+   real hardware we can't repro here: only part of the card's hover
+   highlight painted (top row half-lit, bottom row not lit at all),
+   getting worse toward the bottom of the grid -- consistent with the
+   nested perspective/scale compounding rather than a one-off math bug.
+   A plain translateY with no rotation/perspective doesn't depend on that
+   math at all, so it can't drift out of sync with the visible card. */
+.tilt-3d { transition: transform .15s ease-out, box-shadow .35s ease; }
+.tilt-3d:hover { transform: translateY(-3px); box-shadow: 0 24px 60px rgba(0, 0, 0, .38); }
 
 .pg-bar { display: flex; align-items: center; gap: 1em; padding: .7em 1.2em; border-bottom: 1px solid var(--line); }
 
