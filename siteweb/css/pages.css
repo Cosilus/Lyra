@@ -29,24 +29,22 @@
 
 .menu-btn:hover::after { transform: translate(.2em, -50%); }
 
-/* Pointer-reactive 3D tilt + cursor-glow, same mechanic (and same class
-   name) as lyrapp.to's own feature cards: wired up in pages.js on
-   mousemove/mouseleave, JS sets transform + the --mx/--my custom
-   properties this glow reads, both left alone here since JS drives
-   them every frame the cursor moves. ::before, not ::after: .menu-btn
-   already uses its own ::after for the arrow/chevron indicator below,
-   and an element only ever has one ::after -- reusing it here made the
-   glow's own background paint inside that indicator's small box instead
-   of across the card, showing as a stray dot on hover. */
+/* Pointer-reactive 3D tilt, same mechanic as lyrapp.to's own feature
+   cards: wired up in pages.js on mousemove/mouseleave, which sets this
+   transform every frame the cursor moves.
+   lyrapp.to's cards also have a cursor-following radial-gradient glow
+   riding along with the tilt (::before, background-position driven by
+   --mx/--my). Deliberately not ported here: these cards live inside the
+   laptop device's own scaled-down 3D rig (mount() + the laptop's own
+   transform: scale(k)), and getBoundingClientRect() there reflects the
+   POST-scale visual size while a percentage-based radial-gradient is
+   positioned against the PRE-scale layout box -- the two didn't agree,
+   so the glow rendered as a hard-edged blob covering only part of the
+   card (reported as "only the top of the card" highlighting on hover)
+   instead of a smooth glow across all of it. The tilt + accent-purple
+   border above don't depend on that math and are unaffected. */
 .tilt-3d { transform-style: preserve-3d; will-change: transform; transition: transform .15s ease-out, box-shadow .35s ease; }
 .tilt-3d:hover { box-shadow: 0 24px 60px rgba(0, 0, 0, .38); }
-.tilt-3d::before {
-  content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit;
-  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(167, 139, 250, .18), transparent 65%);
-  opacity: 0; transition: opacity .4s ease; pointer-events: none;
-}
-.tilt-3d:hover::before { opacity: 1; }
-.tilt-3d > * { position: relative; z-index: 1; }
 
 .pg-bar { display: flex; align-items: center; gap: 1em; padding: .7em 1.2em; border-bottom: 1px solid var(--line); }
 
