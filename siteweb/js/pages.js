@@ -60,23 +60,17 @@ async function submitContact(form) {
   finally { button.disabled = false; }
 }
 
-// Pointer-reactive 3D tilt, same mechanic as lyrapp.to's own .feat-card
-// tilt: rotateX/Y from cursor position within the element, eased back to
-// flat on mouseleave via the .tilt-3d CSS transition (see pages.css).
-// Skipped for touch (no hover to react to) and reduced-motion.
-const canTilt = matchMedia("(pointer: fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Flat hover lift (.tilt-3d, see pages.css): no JS needed, plain CSS
+// :hover handles it now. Was previously a pointer-reactive rotateX/rotateY
+// tilt computed from getBoundingClientRect() on mousemove, same mechanic
+// as lyrapp.to's own .feat-card tilt -- removed because these cards live
+// inside the laptop device's own nested 3D rig (mount()'s transform:
+// scale(k) plus its own perspective), and that math reproduced the same
+// "only part of the card lit on hover" failure on real hardware as the
+// cursor-glow before it (see the removed .tilt-3d::before comment this
+// replaced). Kept as a function so callers don't need to change.
 function addTilt(el) {
-  if (!canTilt) return;
   el.classList.add("tilt-3d");
-  el.addEventListener("mousemove", (e) => {
-    const r = el.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
-    const ry = ((px - 0.5) * 12).toFixed(2), rx = ((0.5 - py) * 12).toFixed(2);
-    el.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-3px)`;
-  });
-  el.addEventListener("mouseleave", () => {
-    el.style.transform = "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0)";
-  });
 }
 
 export function createPages() {
