@@ -60,17 +60,30 @@ async function submitContact(form) {
   finally { button.disabled = false; }
 }
 
-// Flat hover lift (.tilt-3d, see pages.css): no JS needed, plain CSS
-// :hover handles it now. Was previously a pointer-reactive rotateX/rotateY
-// tilt computed from getBoundingClientRect() on mousemove, same mechanic
-// as lyrapp.to's own .feat-card tilt -- removed because these cards live
-// inside the laptop device's own nested 3D rig (mount()'s transform:
-// scale(k) plus its own perspective), and that math reproduced the same
-// "only part of the card lit on hover" failure on real hardware as the
-// cursor-glow before it (see the removed .tilt-3d::before comment this
-// replaced). Kept as a function so callers don't need to change.
+// Pointer-reactive 3D tilt, same mechanic as lyrapp.to's own .feat-card
+// tilt: rotateX/Y from cursor position within the element, eased back to
+// flat on mouseleave via the .tilt-3d CSS transition (see pages.css).
+// Skipped for touch (no hover to react to) and reduced-motion.
+// Was removed for a while chasing a "half-lit card" bug that turned out
+// to be the laptop lid itself never resting perfectly flat (see
+// devices/laptop.js pose() -- it always held a 10deg rotateX, even at
+// rest, so the whole screen's hit-testing was projected through a tilted
+// 3D quad). Now that the lid snaps to exactly 0deg once open and idle,
+// this card-level tilt's own getBoundingClientRect() math is measuring
+// a genuinely flat box again, so it's safe to bring back.
+const canTilt = matchMedia("(pointer: fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches;
 function addTilt(el) {
   el.classList.add("tilt-3d");
+  if (!canTilt) return;
+  el.addEventListener("mousemove", (e) => {
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+    const ry = ((px - 0.5) * 12).toFixed(2), rx = ((0.5 - py) * 12).toFixed(2);
+    el.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-3px)`;
+  });
+  el.addEventListener("mouseleave", () => {
+    el.style.transform = "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0)";
+  });
 }
 
 export function createPages() {
