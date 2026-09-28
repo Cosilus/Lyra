@@ -70,12 +70,23 @@ export function createLaptop() {
         const r = rig.getBoundingClientRect(), s = r.width / NATURAL_W || 1, t = tip.getBoundingClientRect();
         tipX = (t.left + t.width / 2 - r.left) / s; tipY = (t.top + t.height / 2 - r.top) / s;
       }
+      /* Hands live inside this same rig, so their travel distance below
+         (420/260/460/520/700px) shrinks with the rig's own transform:
+         scale(k) just like the laptop itself -- on a smaller screen (a
+         tablet's smaller k) the hands end up moving noticeably less in
+         absolute terms, even though the motion is proportionally
+         identical to the laptop's own size. `motion` gives that travel
+         distance a small boost on smaller screens (capped at +35%) so it
+         still reads as movement without fully decoupling it from the
+         laptop's size the way a flat, screen-size-independent distance
+         would. */
+      const motion = k < 1 ? Math.min(1.35, k ** -0.3) : 1;
       const vis = tl.handIn * (1 - tl.handOut);
       handOpen.style.opacity = vis > 0.01 ? 1 : 0;
-      handOpen.style.transform = `translate(${(tipX - 125 + (1 - tl.handIn) * 420 + tl.handOut * 260).toFixed(1)}px, ${(tipY - 30 + (1 - tl.handIn) * 460 + tl.handOut * 520).toFixed(1)}px) rotate(${(-14 + 10 * (tl.closing ? 1 - tl.closeT : tl.open)).toFixed(1)}deg)`;
+      handOpen.style.transform = `translate(${(tipX - 125 + (1 - tl.handIn) * 420 * motion + tl.handOut * 260 * motion).toFixed(1)}px, ${(tipY - 30 + (1 - tl.handIn) * 460 * motion + tl.handOut * 520 * motion).toFixed(1)}px) rotate(${(-14 + 10 * (tl.closing ? 1 - tl.closeT : tl.open)).toFixed(1)}deg)`;
 
       hands.style.opacity = tl.typeIn > 0.01 ? 1 : 0;
-      hands.style.transform = `translateY(${(350 + (1 - tl.typeIn) * 700).toFixed(1)}px)`;
+      hands.style.transform = `translateY(${(350 + (1 - tl.typeIn) * 700 * motion).toFixed(1)}px)`;
 
       return { screenOn: clamp((angle + 40) / 30) };
     },
