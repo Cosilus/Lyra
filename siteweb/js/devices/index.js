@@ -20,15 +20,19 @@ import { createTablet } from "./tablet.js";
 const MODES = ["laptop", "phone-portrait", "phone-landscape", "tablet-portrait", "tablet-landscape"];
 
 /* Which device fits this viewport?
-     portrait viewport  -> phone if narrow (< 600px), tablet otherwise
-     touch, landscape   -> phone if short (<= 520px), tablet if up to 900px tall
-     anything else      -> laptop */
+     portrait viewport  -> phone if narrow (< 600px), laptop (PC version) otherwise
+     touch, landscape   -> phone if short (<= 520px), laptop (PC version) otherwise
+     anything else      -> laptop
+   Tablets used to get their own tablet-portrait/tablet-landscape rig here;
+   now routed to "laptop" instead so tablet shows the same PC build as
+   desktop. tablet.js and the tablet-* CSS/MODES entries are left in place
+   (still reachable via ?device=tablet-portrait for testing) in case this
+   needs reverting, just no longer picked automatically. */
 export function modeFor(W, H, coarse = matchMedia("(pointer: coarse)").matches) {
   const forced = new URLSearchParams(location.search).get("device");   // ?device=tablet-landscape (testing)
   if (MODES.includes(forced)) return forced;
-  if (W / H < 0.85) return W < 600 ? "phone-portrait" : "tablet-portrait";
+  if (W / H < 0.85) return W < 600 ? "phone-portrait" : "laptop";
   if (coarse && H <= 520) return "phone-landscape";
-  if (coarse && H <= 900 && W <= 1400) return "tablet-landscape";
   return "laptop";
 }
 
