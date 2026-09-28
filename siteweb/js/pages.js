@@ -73,8 +73,6 @@ function addTilt(el) {
     const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
     const ry = ((px - 0.5) * 12).toFixed(2), rx = ((0.5 - py) * 12).toFixed(2);
     el.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-3px)`;
-    el.style.setProperty("--mx", px * 100 + "%");
-    el.style.setProperty("--my", py * 100 + "%");
   });
   el.addEventListener("mouseleave", () => {
     el.style.transform = "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0)";
