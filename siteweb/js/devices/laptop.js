@@ -45,7 +45,24 @@ export function createLaptop() {
 
     /* Per-frame pose. Returns how lit the screen is (0..1) and whether the app is ready. */
     pose(tl) {
-      const angle = -90 + 100 * tl.open * (1 - tl.closeT);
+      /* -90 + 100 * tl.open * (1 - tl.closeT) never actually reaches 0deg
+         at rest (tl.open=1, tl.closeT=0 gives 10deg, a deliberate cinematic
+         tilt) -- meaning the screen's real interactive content, being a
+         child of this rotated lid, is hit-tested by the browser against a
+         perspective-projected quad rather than a plain rectangle for its
+         entire resting/interactive lifetime, not just during the opening
+         animation. That 3D-vs-flat mismatch reproduced as real, unfixable
+         clicks landing on the outer .laptop shell instead of any menu
+         button on a real user's screen (confirmed via their own devtools:
+         e.target was DIV.laptop, worse toward the bottom of the screen,
+         further from the hinge -- not reproducible in our own test
+         browser, so viewport/DPR-dependent). Snapping to exactly flat
+         once fully open and not transitioning removes 3D projection from
+         hit-testing entirely for the whole time the screen is actually
+         interactive; the tilt still plays during the open/close animation
+         itself, where nothing is clickable yet anyway. */
+      const atRest = tl.open >= 0.999 && tl.closeT <= 0.001;
+      const angle = atRest ? 0 : -90 + 100 * tl.open * (1 - tl.closeT);
       lid.style.transform = `rotateX(${angle}deg)`;
 
       /* the hand that opens the lid follows the lid's free edge */
