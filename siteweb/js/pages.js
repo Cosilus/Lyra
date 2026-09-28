@@ -60,6 +60,27 @@ async function submitContact(form) {
   finally { button.disabled = false; }
 }
 
+// Pointer-reactive 3D tilt, same mechanic as lyrapp.to's own .feat-card
+// tilt: rotateX/Y from cursor position within the element, eased back to
+// flat on mouseleave via the .tilt-3d CSS transition (see pages.css).
+// Skipped for touch (no hover to react to) and reduced-motion.
+const canTilt = matchMedia("(pointer: fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+function addTilt(el) {
+  if (!canTilt) return;
+  el.classList.add("tilt-3d");
+  el.addEventListener("mousemove", (e) => {
+    const r = el.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+    const ry = ((px - 0.5) * 12).toFixed(2), rx = ((0.5 - py) * 12).toFixed(2);
+    el.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-3px)`;
+    el.style.setProperty("--mx", px * 100 + "%");
+    el.style.setProperty("--my", py * 100 + "%");
+  });
+  el.addEventListener("mouseleave", () => {
+    el.style.transform = "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0)";
+  });
+}
+
 export function createPages() {
   const root = $("#pages"), menu = $("#pgMenu"), grid = $("#pgGrid"), detail = $("#pgDetail");
   const scroll = $("#pgScroll"), back = $("#pgBack"), crumb = $("#pgCrumb"), appTop = $(".app-top");
@@ -68,6 +89,7 @@ export function createPages() {
   for (const [id, label, desc] of MENU) {
     const b = el("button", "menu-btn", `<b>${label}</b><span>${desc}</span>`);
     b.type = "button"; b.dataset.id = id;
+    addTilt(b);
     grid.appendChild(b);
   }
 

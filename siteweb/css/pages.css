@@ -17,7 +17,7 @@
 
 .pg-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(13em, 1fr)); align-content: start; gap: .7em; padding: .6em 1.4em 1.4em; }
 
-.menu-btn { position: relative; text-align: left; cursor: pointer; font: inherit; color: var(--beige); background: rgba(167, 139, 250, .12); border: 1px solid var(--line); border-radius: .85em; padding: .9em 2.4em .9em 1em; display: flex; flex-direction: column; gap: .3em; transition: border-color .2s, background .2s, transform .2s; }
+.menu-btn { position: relative; text-align: left; cursor: pointer; font: inherit; color: var(--beige); background: rgba(167, 139, 250, .12); border: 1px solid var(--line); border-radius: .85em; padding: .9em 2.4em .9em 1em; display: flex; flex-direction: column; gap: .3em; transition: border-color .2s, background .2s, box-shadow .35s ease; }
 
 .menu-btn b { font-family: var(--display); font-weight: 600; font-size: 1.05em; }
 
@@ -25,9 +25,24 @@
 
 .menu-btn::after { content: "→"; position: absolute; right: .9em; top: 50%; transform: translateY(-50%); color: var(--accent-strong); transition: transform .2s; }
 
-.menu-btn:hover { border-color: var(--accent); background: rgba(167, 139, 250, .2); transform: translateY(-2px); }
+.menu-btn:hover { border-color: var(--accent-deep); background: rgba(167, 139, 250, .2); }
 
 .menu-btn:hover::after { transform: translate(.2em, -50%); }
+
+/* Pointer-reactive 3D tilt + cursor-glow, same mechanic (and same class
+   name) as lyrapp.to's own feature cards: wired up in pages.js on
+   mousemove/mouseleave, JS sets transform + the --mx/--my custom
+   properties this glow reads, both left alone here since JS drives
+   them every frame the cursor moves. */
+.tilt-3d { transform-style: preserve-3d; will-change: transform; transition: transform .15s ease-out, box-shadow .35s ease; }
+.tilt-3d:hover { box-shadow: 0 24px 60px rgba(0, 0, 0, .38); }
+.tilt-3d::after {
+  content: ""; position: absolute; inset: 0; z-index: 0; border-radius: inherit;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(167, 139, 250, .18), transparent 65%);
+  opacity: 0; transition: opacity .4s ease; pointer-events: none;
+}
+.tilt-3d:hover::after { opacity: 1; }
+.tilt-3d > * { position: relative; z-index: 1; }
 
 .pg-bar { display: flex; align-items: center; gap: 1em; padding: .7em 1.2em; border-bottom: 1px solid var(--line); }
 
@@ -141,7 +156,14 @@
 
 .pg-head { align-items: center; text-align: center; padding: 1.1em 1.4em .5em; }
 
-.pg-grid { flex: 1 1 auto; min-height: 0; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; align-content: stretch; gap: .8em; padding: .6em 1.4em 1.4em; }
+/* minmax(0, 1fr), not bare 1fr: bare 1fr still respects each row's own
+   content-driven minimum height as a floor, so on a wide-but-short real
+   screen (a laptop device rendered at some aspect ratios) 2 rows of 8
+   buttons could need more height than actually available and overflow
+   past this grid's own box -- silently unclickable since .pg-grid also
+   sets overflow:hidden. minmax(0, ...) lets rows actually shrink to fit,
+   so the whole menu always stays fully on-screen and clickable. */
+.pg-grid { flex: 1 1 auto; min-height: 0; grid-template-columns: repeat(4, 1fr); grid-auto-rows: minmax(0, 1fr); align-content: stretch; gap: .8em; padding: .6em 1.4em 1.4em; }
 
 .menu-btn { align-items: center; justify-content: center; text-align: center; padding: .6em 1.6em; }
 
