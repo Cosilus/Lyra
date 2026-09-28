@@ -164,8 +164,16 @@
    buttons could need more height than actually available and overflow
    past this grid's own box -- silently unclickable since .pg-grid also
    sets overflow:hidden. minmax(0, ...) lets rows actually shrink to fit,
-   so the whole menu always stays fully on-screen and clickable. */
-.pg-grid { flex: 1 1 auto; min-height: 0; grid-template-columns: repeat(4, 1fr); grid-auto-rows: minmax(0, 1fr); align-content: stretch; gap: .8em; padding: .6em 1.4em 1.4em; }
+   so the whole menu always stays fully on-screen and clickable.
+   Shrink-to-fit still isn't a hard guarantee on every real window size
+   (a real user reported the bottom row unreachable on their own laptop,
+   not reproducible here), so overflow-y: auto is the actual safety net:
+   whenever the two rows genuinely don't fit, the grid scrolls instead of
+   silently clipping the bottom row past an invisible, unclickable edge.
+   Both .pg-scroll and .pg-grid already hide their scrollbar by design
+   (see the scrollbar-width/::-webkit-scrollbar rules above), so this
+   changes nothing visually in the common case where everything fits. */
+.pg-grid { flex: 1 1 auto; min-height: 0; grid-template-columns: repeat(4, 1fr); grid-auto-rows: minmax(0, 1fr); align-content: stretch; gap: .8em; padding: .6em 1.4em 1.4em; overflow-y: auto; }
 
 .menu-btn { align-items: center; justify-content: center; text-align: center; padding: .6em 1.6em; }
 
@@ -182,7 +190,14 @@
 .stage[data-device^="phone"] .menu-btn::after { right: .6em; }
 
 /* menu buttons: title lifted, a down chevron at the bottom centre (final override) */
-.menu-btn, .stage[data-device$="-portrait"] .menu-btn, .stage[data-device^="phone"] .menu-btn { padding: .5em .6em; justify-content: center; }
+/* min-height: 0 is required here, not just on .pg-grid's own grid-auto-rows
+   (minmax(0, 1fr) above): a grid ITEM's automatic minimum height defaults
+   to its content size regardless of how small its track is allowed to go,
+   so without this the button still refused to shrink below its natural
+   content height on a genuinely short real window -- overflowing past
+   .pg-grid's own overflow:hidden box and making the bottom row silently
+   unclickable, same failure mode as before but one CSS layer deeper. */
+.menu-btn, .stage[data-device$="-portrait"] .menu-btn, .stage[data-device^="phone"] .menu-btn { padding: .5em .6em; justify-content: center; min-height: 0; }
 .menu-btn b { transform: none; }
 .menu-btn::after, .stage[data-device^="phone"] .menu-btn::after {
   content: ""; right: auto; left: 50%; top: auto; bottom: 1.35em; width: .55em; height: .55em;
