@@ -3,7 +3,7 @@
  *   scroll -> progress p -> timeline phases -> scene / device / overlay / chat
  */
 import { $, clamp } from "./util.js";
-import { phases, TRACK_VH } from "./timeline.js";
+import { phases, TRACK_VH, chapterStartP } from "./timeline.js";
 import { createScene } from "./scene.js";
 import { createDevices } from "./devices/index.js";
 import { createPages } from "./pages.js";
@@ -18,11 +18,31 @@ const scene = createScene();
 const devices = createDevices();
 const pages = createPages();
 const chat = createChat({ devices, pages });
-const overlay = createOverlay();
-createTooltip();
 
 let view = null, target = 0, shown = -1, lastP = -1, moving = false, stageH = 0;
 track.style.height = TRACK_VH + "vh";
+
+// Same inverse math as readScroll() below (scrollY -> p), run backwards
+// (p -> scrollY), so a chapter dot click lands exactly where that
+// chapter's own progress range says it should, not an approximation.
+function scrollToChapter(i) {
+  const raw = chapterStartP[i];
+  if (raw == null) return;
+  // Landing EXACTLY on a chapter's opening boundary is ambiguous:
+  // phases() decides the chapter with a strict "<", so float rounding
+  // in this reverse (p -> scrollY) math vs. the forward (scrollY -> p)
+  // math readScroll() does could round either side of that shared seam
+  // -- confirmed live, it landed back in the PREVIOUS chapter instead.
+  // A tiny nudge past the boundary keeps it solidly inside the target
+  // chapter regardless of which way the rounding goes.
+  const p = clamp(raw + 1e-4);
+  const trackTop = track.getBoundingClientRect().top + window.scrollY;
+  const targetY = trackTop + p * (track.offsetHeight - stageH);
+  window.scrollTo({ top: targetY, behavior: "smooth" });
+}
+
+const overlay = createOverlay({ onDotClick: scrollToChapter });
+createTooltip();
 const debugP = new URLSearchParams(location.search).get("p");
 
 function layout() {

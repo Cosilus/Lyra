@@ -34,6 +34,11 @@ export const TRACK_VH = TOTAL_VH + 100;
 const V = (vh) => vh / TOTAL_VH;                      // vh -> progress
 const ramp = (p, a, b) => clamp((p - V(a)) / (V(b) - V(a)));
 
+/* Progress p at the START of each chapter dot (see overlay.js's #dots):
+   one entry per chat chapter (index 0..N-1), plus one more for the menu
+   step at the end. Lets a dot click jump straight to that chapter. */
+export const chapterStartP = [...starts.map(V), V(MENU_START)];
+
 export const T_OPEN0 = V(INTRO);
 export const T_OPEN1 = V(INTRO + OPEN);
 export const T_END = V(END_VH);
