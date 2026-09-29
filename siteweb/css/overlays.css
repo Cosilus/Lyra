@@ -29,9 +29,20 @@
 
 .dots { position: absolute; right: clamp(12px, 2.4vw, 32px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; z-index: 5; }
 
-.dots i { width: 8px; height: 8px; border-radius: 50%; background: #ffffff30; transition: .3s; }
+/* Clickable chapter markers (a video scrubber's chapter marks): the
+   visible dot stays exactly as small as before -- ::before adds an
+   invisible, absolutely-positioned (out of flow, doesn't touch the
+   flex gap/spacing above) hit area around it so it's still comfortably
+   clickable/tappable without changing how the indicator looks. */
+.dots i { position: relative; width: 8px; height: 8px; border-radius: 50%; background: #ffffff30; transition: background .3s, box-shadow .3s, transform .3s; cursor: pointer; }
+
+.dots i::before { content: ""; position: absolute; inset: -10px; }
+
+.dots i:hover { background: #ffffff60; }
 
 .dots i.on { background: var(--accent-strong); box-shadow: 0 0 12px var(--accent); transform: scale(1.4); }
+
+.dots i:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 
 .hint { position: absolute; left: 50%; bottom: 3.5vh; transform: translateX(-50%); z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: #cfd6ff; pointer-events: none; }
 

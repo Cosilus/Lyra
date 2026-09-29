@@ -2,10 +2,24 @@
 import { $, clamp } from "./util.js";
 import { CH, N, TOTAL } from "./story.js";
 
-export function createOverlay() {
+export function createOverlay({ onDotClick } = {}) {
   const hero = $("#hero"), hint = $("#hint"), cta = $("#cta"), legal = $("#legal"), paper = $("#paper");
   const label = $("#chapter"), num = $("#chNum"), title = $("#chTitle"), dots = $("#dots");
-  for (let i = 0; i < TOTAL; i++) dots.appendChild(document.createElement("i"));
+  for (let i = 0; i < TOTAL; i++) {
+    const dot = document.createElement("i");
+    // Jump straight to that chapter, same idea as a video scrubber's
+    // chapter marks. Real <button>s (not the bare <i>s this was before)
+    // so they're keyboard-reachable and screen readers announce them,
+    // not just mouse-clickable divs.
+    dot.setAttribute("role", "button");
+    dot.setAttribute("tabindex", "0");
+    dot.setAttribute("aria-label", i < N ? `Go to "${CH[i].title}"` : "Go to the menu");
+    dot.addEventListener("click", () => onDotClick?.(i));
+    dot.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDotClick?.(i); }
+    });
+    dots.appendChild(dot);
+  }
 
   let paperX = 0, paperY = 0, paperScale = 1, W = 0, H = 0;
 
