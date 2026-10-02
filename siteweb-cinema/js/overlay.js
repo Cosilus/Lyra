@@ -28,6 +28,27 @@ export function createOverlay({ onDotClick } = {}) {
       W = view.W; H = view.H;
       paperX = view.W / 2; paperY = view.deskY;
       paperScale = Math.min(view.sc, view.W / 520);
+
+      /* The sheet lands on the desk, but on a wide, short window it is big and
+         its lower edge ran over the legal line at the very bottom, hiding that
+         text. Work out where the sheet's lower edge ends up on screen (same
+         transform as update() below: rotateX(50deg) under a 1200px perspective,
+         plus the 3deg twist lifting its far corner) and, if it would reach the
+         legal line, shrink it a little, slide it up the desk, and only then shrink it more. */
+      const legalTop = H - H * 0.022 - legal.offsetHeight - 10;
+      const rot = (50 * Math.PI) / 180, twist = Math.sin((3 * Math.PI) / 180);
+      const lowerEdge = (s) => {
+        const y = 90 * s + 230 * s * twist;          // lowest point of the flat sheet
+        return (y * Math.cos(rot) * 1200) / (1200 - y * Math.sin(rot));
+      };
+      const over = () => paperY + lowerEdge(paperScale) - legalTop;
+      const fullScale = paperScale;
+      // 1) shrink a little, but keep the sheet readable (links are 14px at scale 1)
+      while (over() > 0 && paperScale > fullScale * 0.75 && paperScale > 0.6) paperScale -= 0.02;
+      // 2) slide it up the desk for whatever is left
+      if (over() > 0) paperY -= Math.min(over(), H * 0.25);
+      // 3) last resort, shrink more
+      while (over() > 0 && paperScale > 0.4) paperScale -= 0.02;
     },
 
     update(tl) {
