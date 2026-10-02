@@ -135,6 +135,68 @@ export const DEFI_STATUS_BY_NETWORK = {
       riskLevel: "low",
     },
   },
+  // No staking entry: Aave isn't wired up on Polygon, not asked for.
+  // Added so a user can bridge in POL and swap it to USDC.e (Polymarket's
+  // collateral) entirely through Lyra instead of an external bridge/exchange.
+  polygon: {
+    swap: {
+      enabled: true,
+      addressesVerified: true,
+      platform: "Uniswap V3",
+      network: "Polygon",
+      router: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
+      quoter: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",
+      factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      limitation: "POL and USDC.e are available (native POL is wrapped into WMATIC first).",
+      riskLevel: "low",
+    },
+    bridge: {
+      enabled: true,
+      addressesVerified: true,
+      platform: "LI.FI (used by Jumper Exchange)",
+      network: "Polygon",
+      contract: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+      quoteApi: "https://li.quest/v1/quote",
+      riskLevel: "moderate",
+    },
+  },
+  // Arc (Circle's own L1, mainnet launched 16.09.2026) has no
+  // Uniswap/LI.FI deployment, its swap and bridge run on Circle's own
+  // App Kit SDKs client-side instead (@circle-fin/swap-kit,
+  // @circle-fin/bridge-kit over real CCTP), so there's no router/
+  // quoteApi to record here the way the other networks have. Staking
+  // is real Aave V4 (a different, Hub-and-Spoke contract architecture
+  // from the Aave V3 used everywhere else), addresses cross-verified
+  // 16.09.2026 against Arc's own Blockscout explorer (its "Read/Write
+  // proxy" tab) and aave-dao/aave-address-book's AaveV4Arc.sol.
+  arc: {
+    swap: {
+      enabled: true,
+      addressesVerified: true,
+      platform: "Circle Swap Kit (an App Kit SDK, not Uniswap)",
+      network: "Arc Mainnet",
+      limitation: "USDC and EURC only, converted directly through Circle's own SDK client-side.",
+      riskLevel: "low",
+    },
+    bridge: {
+      enabled: true,
+      addressesVerified: true,
+      platform: "Circle Bridge Kit (real CCTP v2, not LI.FI)",
+      network: "Arc Mainnet",
+      contract: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d", // TokenMessengerV2, CCTP domain 26
+      riskLevel: "low",
+    },
+    staking: {
+      enabled: true,
+      addressesVerified: true,
+      platform: "Aave V4",
+      network: "Arc Mainnet",
+      spoke: "0xB843bdC3a87A05E77E07Df9FE48928b3A34b134d", // MAIN_SPOKE
+      hub: "0x17288dfc86205301064577b98B02b81017e6F79C", // CORE_HUB
+      lock: false,
+      riskLevel: "low",
+    },
+  },
 };
 
 export function isDefiFeatureEnabled(networkKey, feature) {

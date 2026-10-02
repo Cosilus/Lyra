@@ -1,14 +1,14 @@
 // WebAuthn-based biometric helpers for wallet unlock.
 //
 // Two tiers, auto-selected based on what the browser/authenticator supports
-// — the user never has to pick, registerBiometric() figures it out:
+//. The user never has to pick, registerBiometric() figures it out:
 //
 // - "prf" tier: the authenticator supports the WebAuthn PRF extension
 //   (Touch ID / Windows Hello / recent Chrome+platform authenticators),
 //   which lets us derive a stable, secret, device+biometric-bound AES key.
 //   That key encrypts a *second* copy of the private key (alongside the
 //   password-encrypted one already used by the app). Unlocking via
-//   biometric decrypts using this key directly — no password needed again
+//   biometric decrypts using this key directly. No password needed again
 //   on that device, even after the extension is fully closed and reopened.
 //
 // - "gate" tier: PRF isn't available on this device/browser. Biometric
@@ -17,7 +17,7 @@
 //   with the password *in the current browser session* (kept in memory,
 //   never written to disk). If the extension popup fully closes (memory
 //   is wiped) or the browser restarts, that cached copy is gone and the
-//   password is required again — biometric alone can never re-derive it
+//   password is required again. Biometric alone can never re-derive it
 //   in this tier. This is a real limitation of the Web Authentication
 //   API without PRF, not something that can be worked around safely.
 
@@ -64,7 +64,7 @@ export function isWebAuthnAvailable() {
 
 // Registers a platform authenticator (Touch ID / Windows Hello / Android
 // biometrics) for this wallet address. Returns a record describing which
-// tier was actually granted — the caller doesn't need to guess.
+// tier was actually granted. The caller doesn't need to guess.
 export async function registerBiometric(address) {
   const challenge = randomBytes(CHALLENGE_BYTES);
   const userId = randomBytes(16);
@@ -95,7 +95,7 @@ export async function registerBiometric(address) {
 }
 
 // Re-derives the PRF-based AES key at unlock time. Returns null if the
-// authenticator doesn't honor the PRF extension this time — the caller
+// authenticator doesn't honor the PRF extension this time. The caller
 // should treat that as "fall back to gate tier / password".
 export async function getBiometricAesKey(credentialId, prfSaltB64) {
   const assertion = await navigator.credentials.get({

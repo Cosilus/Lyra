@@ -59,7 +59,10 @@ export const POLYGON_MAINNET = {
   name: "Polygon",
   chainId: 137,
   chainIdHex: "0x89",
-  rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_POLYGON_RPC_URL) || "https://polygon-rpc.com",
+  // polygon-rpc.com was returning 401 "tenant disabled" as of 09.09.2026
+  // (a real outage on their end, not a config issue), publicnode's free
+  // endpoint verified working live instead.
+  rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_POLYGON_RPC_URL) || "https://polygon-bor-rpc.publicnode.com",
   nativeSymbol: "POL",
   explorer: "https://polygonscan.com",
   color: "#8247E5",
@@ -70,11 +73,42 @@ export const POLYGON_MAINNET = {
   description: "A fast, low-cost Ethereum sidechain, home to Polymarket's prediction markets.",
 };
 
+// Circle's own L1, public mainnet went live 16.09.2026. Its gas token
+// isn't a separate volatile coin, USDC itself is the native currency
+// (confirmed live: eth_chainId on rpc.mainnet.arc.io returns 0x13b2 =
+// 5042, and a real account's eth_getBalance came back as an
+// 18-decimal wei-style value, e.g. 0x38320c900bbb5b6d590 = ~16,586,
+// a plausible dollar amount, not the ~16.6 trillion it'd be under
+// USDC's usual 6 decimals). So nativeSymbol "USDC" works with the
+// rest of the app's existing ethers.formatEther-everywhere logic with
+// no special-casing, same as any other native coin. No DEX/lending/
+// bridge contracts exist for it yet anywhere (it's hours old), so it
+// intentionally has no TOKENS_BY_NETWORK.arc or
+// DEFI_CONTRACTS_BY_NETWORK.arc entries yet, balance/send/receive
+// only for now, and it's also not in multisig.js's
+// SAFE_SUPPORTED_NETWORK_KEYS (Safe's Transaction Service doesn't
+// list it) or LI.FI's bridge chain list in App.jsx.
+export const ARC_MAINNET = {
+  key: "arc",
+  name: "Arc",
+  chainId: 5042,
+  chainIdHex: "0x13b2",
+  rpcUrl: "https://rpc.mainnet.arc.io",
+  nativeSymbol: "USDC",
+  explorer: "https://explorer.arc.io",
+  color: "#1473E6",
+  kyberSlug: null,
+  // Arc's native currency already IS USDC, so its USD price tracks
+  // the real usd-coin market instead of floating unpegged.
+  coingeckoId: "usd-coin",
+  description: "Circle's stablecoin-native L1, USDC itself pays the gas, sub-second finality, built for payments and tokenized assets.",
+};
+
 // Ordered list of supported networks, drives the network switcher UI
 // directly. Add a network here (plus its TOKENS_BY_NETWORK and
 // DEFI_CONTRACTS_BY_NETWORK entries below) and it shows up everywhere,
 // no other hardcoded list to update.
-export const NETWORKS = [PLASMA_MAINNET, ETHEREUM_MAINNET, BASE_MAINNET, POLYGON_MAINNET];
+export const NETWORKS = [PLASMA_MAINNET, ETHEREUM_MAINNET, BASE_MAINNET, POLYGON_MAINNET, ARC_MAINNET];
 
 // Default network on first launch. Persisted afterward in
 // localStorage under "plasma_active_network_v1".
@@ -168,6 +202,14 @@ export const WNATIVE_BY_NETWORK = {
     address: "0x4200000000000000000000000000000000000006", // official Base predeploy, verified via Uniswap Base deployments docs
     decimals: 18,
   },
+  polygon: {
+    // Still named WMATIC on-chain (predates the MATIC -> POL rebrand),
+    // verified via Etherscan-v2's multichain API against Polygon.
+    symbol: "WMATIC",
+    name: "Wrapped Matic",
+    address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+    decimals: 18,
+  },
 };
 
 export const WETH9_ABI = [
@@ -251,7 +293,149 @@ export const DEFI_CONTRACTS_BY_NETWORK = {
       diamond: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
     },
   },
+  polygon: {
+    // Canonical Uniswap V3 deployment, verified via Uniswap's official
+    // Polygon deployments docs 09.09.2026, identical to Ethereum's own
+    // addresses (Base has its own distinct deployment, these don't).
+    uniswapV3: {
+      router: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",   // SwapRouter02
+      quoter: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e",    // QuoterV2
+      factory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",   // UniswapV3Factory
+    },
+    // Verified via LI.FI's own /v1/chains API 09.09.2026 (key "pol",
+    // same diamond address as Ethereum/Base).
+    lifi: {
+      diamond: "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+    },
+    // Polymarket's own contracts. ctfExchange handles plain binary
+    // (2-outcome) markets, negRiskExchange handles multi-outcome markets
+    // (e.g. any 3-way match result, most team-sport markets), where a
+    // group of yes/no markets is meant to sum to 100%.
+    //
+    // These are the V2 exchange deployments, confirmed live 10.09.2026
+    // against Polymarket's own CLOB API (GET https://clob.polymarket.com
+    // /version returned {"version":2}) and against Polymarket's official
+    // clob-client-v2 source (src/config.ts MATIC_CONTRACTS.exchangeV2 /
+    // negRiskExchangeV2). The original V1 addresses (still deployed, but
+    // no longer accepted by the live CLOB: "invalid order version, please
+    // use the latest clob-client") were 0x4bFb41d5B3570DeFd03C39a9A4D8dE6
+    // Bd8B8982E / 0xC5d563A36AE78145C45a50134d48A1215220f80a. Both V1 and
+    // V2 resolve the same Gnosis Safe address for a given owner (verified
+    // via eth_call), just under a renamed view function: V1 exposed
+    // getSafeAddress(signer), V2 exposes getSafeWalletAddress(signer).
+    polymarket: {
+      ctfExchange: "0xE111180000d2663C0091e4f400237545B87B996B",
+      negRiskExchange: "0xe2222d279d744050d28e00520010520000310F59",
+      conditionalTokens: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045",
+      // Polymarket's newer "deposit wallet" system, mandatory since their
+      // 2026 migration (a legacy Gnosis Safe account gets a one-time
+      // "upgrade your account" prompt on polymarket.com; once migrated,
+      // the old Safe stops being usable as maker at all). This is
+      // DepositWalletFactory, confirmed live on PolygonScan: it's also
+      // the "beacon" a deployed wallet proxy queries for its current
+      // implementation(). factory.predictWalletAddress(anyImplementation,
+      // bytes32(uint256(uint160(ownerAddress)))) deterministically
+      // resolves an owner's deposit wallet address (verified against a
+      // real deployed wallet's own WalletDeployed event, where the
+      // indexed "id" is exactly the owner's address left-padded).
+      depositWalletFactory: "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07",
+    },
+  },
+  // Aave V4 (not V3, a genuinely different contract architecture,
+  // Hub-and-Spoke rather than a single Pool), Circle's own DAO
+  // proposal for Arc's launch. No REST API/SDK for this part, read
+  // straight off the verified "MAIN_SPOKE" contract via Arc's own
+  // Blockscout explorer (its "Read/Write proxy" tab, since the address
+  // below is an EIP-1967 proxy) and cross-checked against aave-dao/
+  // aave-address-book's AaveV4Arc.sol, both 16.09.2026 (launch day).
+  // reserveId isn't the asset's address like Aave V3, it's a small
+  // sequential per-Spoke index, confirmed live via getReserve(id).
+  // underlying == USDC/EURC's own address for id 0/1 respectively.
+  arc: {
+    aaveV4: {
+      spoke: "0xB843bdC3a87A05E77E07Df9FE48928b3A34b134d", // MAIN_SPOKE
+      hub: "0x17288dfc86205301064577b98B02b81017e6F79C", // CORE_HUB
+      reserves: {
+        USDC: { id: 0, address: "0x3600000000000000000000000000000000000000", decimals: 6 },
+        EURC: { id: 1, address: "0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1", decimals: 6 },
+      },
+    },
+  },
 };
+
+// A deposit wallet's real trading collateral is NOT USDC.e, it's a
+// separate token Polymarket calls "pUSD" (Polymarket USD), confirmed
+// live from an actual settled trade's on-chain transfers: USDC.e sent to
+// Polymarket's own deposit-intake address gets minted 1:1 as pUSD into
+// the deposit wallet (a mint event, from the zero address), and it's
+// pUSD (not USDC.e) that actually moves against the V2 exchange when an
+// order fills. This is also the exact "collateral" address in
+// clob-client-v2's own MATIC_CONTRACTS (src/config.ts), which was easy
+// to misread as "just USDC.e" since V1's exchange really did use plain
+// USDC.e directly. Only relevant for POLY_1271 (deposit wallet) makers;
+// a legacy Gnosis Safe or plain EOA maker still uses USDC.e directly,
+// see executePredictionTicket in App.jsx.
+export const POLYMARKET_PUSD_COLLATERAL = {
+  address: "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB",
+  symbol: "pUSD",
+  decimals: 6,
+};
+
+// EIP-712 domain/types for a Polymarket CLOB order (V2 struct), straight
+// from Polymarket/clob-client-v2's ctfExchangeV2TypedData.ts /
+// exchangeOrderBuilderV2.ts (shared by both the plain and neg-risk V2
+// exchange, only the domain's verifyingContract differs between them).
+// Unlike V1, expiration/nonce/feeRateBps/taker are NOT part of the signed
+// struct (expiration still rides along in the API payload, just unsigned;
+// nonce/feeRateBps/taker are gone entirely), and timestamp/metadata/
+// builder were added.
+export const POLYMARKET_ORDER_DOMAIN_NAME = "Polymarket CTF Exchange";
+export const POLYMARKET_ORDER_DOMAIN_VERSION = "2";
+export const POLYMARKET_ORDER_TYPES = {
+  Order: [
+    { name: "salt", type: "uint256" },
+    { name: "maker", type: "address" },
+    { name: "signer", type: "address" },
+    { name: "tokenId", type: "uint256" },
+    { name: "makerAmount", type: "uint256" },
+    { name: "takerAmount", type: "uint256" },
+    { name: "side", type: "uint8" },
+    { name: "signatureType", type: "uint8" },
+    { name: "timestamp", type: "uint256" },
+    { name: "metadata", type: "bytes32" },
+    { name: "builder", type: "bytes32" },
+  ],
+};
+// 0 = BUY, 1 = SELL (Side enum in OrderStructs.sol)
+export const POLYMARKET_ORDER_SIDE_BUY = 0;
+export const POLYMARKET_ORDER_SIDE_SELL = 1;
+// metadata/builder are unused optional bytes32 slots in the V2 struct,
+// always zero unless attaching a builder code (not used here).
+export const POLYMARKET_BYTES32_ZERO = "0x" + "0".repeat(64);
+// SignatureType enum in OrderStructs.sol. EOA is a plain wallet acting
+// as its own maker. POLY_GNOSIS_SAFE is for a legacy Polymarket account
+// still backed directly by its original Gnosis Safe (pre-migration,
+// never upgraded), a standard ECDSA signature from the Safe's owner,
+// just with maker (the Safe) and signer (the owner) as different
+// addresses, verified directly against getSafeWalletAddress(signer) on
+// the exchange contract itself. POLY_1271 is Polymarket's newer
+// "deposit wallet" (mandatory since their 2026 account-upgrade flow,
+// see depositWalletFactory above): maker AND signer both equal the
+// deposit wallet's own address, and the signature itself is an ERC-1271
+// "nested EIP-712" wrapper (Solady's ERC1271 mixin, confirmed straight
+// from the deposit wallet's own verified source) rather than a plain
+// ECDSA signature the exchange can ecrecover directly, see
+// signPolymarketOrderERC1271 in App.jsx. POLY_PROXY (the older
+// Polymarket Proxy wallet system, distinct from both of the above)
+// isn't handled, not needed for any case Lyra actually supports.
+export const POLYMARKET_SIGNATURE_TYPE_EOA = 0;
+export const POLYMARKET_SIGNATURE_TYPE_GNOSIS_SAFE = 2;
+export const POLYMARKET_SIGNATURE_TYPE_POLY_1271 = 3;
+// The deposit wallet's own EIP-712 domain (distinct from the order's
+// domain above), confirmed live via eip712Domain() on a real deployed
+// deposit wallet: {name:"DepositWallet", version:"1", salt: bytes32(0)}.
+export const POLYMARKET_DEPOSIT_WALLET_DOMAIN_NAME = "DepositWallet";
+export const POLYMARKET_DEPOSIT_WALLET_DOMAIN_VERSION = "1";
 
 export function getDefiContracts(networkKey) {
   return DEFI_CONTRACTS_BY_NETWORK[networkKey] || {};
@@ -292,6 +476,19 @@ export const AAVE_POOL_ABI = [
 export const AAVE_DATA_PROVIDER_ABI = [
   "function getUserReserveData(address asset, address user) view returns (uint256 currentATokenBalance, uint256 currentStableDebt, uint256 currentVariableDebt, uint256 principalStableDebt, uint256 scaledVariableDebt, uint256 stableBorrowRate, uint256 liquidityRate, uint40 stableRateLastUpdated, bool usageAsCollateralEnabled)",
   "function getReserveData(address asset) view returns (uint256 unbacked, uint256 accruedToTreasuryScaled, uint256 totalAToken, uint256 totalStableDebt, uint256 totalVariableDebt, uint256 liquidityRate, uint256 variableBorrowRate, uint256 stableBorrowRate, uint256 averageStableBorrowRate, uint256 liquidityIndex, uint256 variableBorrowIndex, uint40 lastUpdateTimestamp)"
+];
+
+// Aave V4's Spoke (see DEFI_CONTRACTS_BY_NETWORK.arc.aaveV4 above), a
+// different shape from AAVE_POOL_ABI: assets are addressed by a small
+// sequential reserveId instead of their own address, there's no
+// referralCode, and there's no separate data-provider contract, the
+// Spoke itself exposes the user's real supplied balance directly.
+// Both function signatures verified live against the real deployed
+// (proxied) contract's own ABI via Arc's Blockscout explorer.
+export const AAVE_V4_SPOKE_ABI = [
+  "function supply(uint256 reserveId, uint256 amount, address onBehalfOf) returns (uint256, uint256)",
+  "function withdraw(uint256 reserveId, uint256 amount, address onBehalfOf) returns (uint256, uint256)",
+  "function getUserSuppliedAssets(uint256 reserveId, address user) view returns (uint256)"
 ];
 
 // Default slippage tolerance for swaps (0.5%, standard default for a

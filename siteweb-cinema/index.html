@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lyra · Say what you want. Lyra handles the chain.</title>
+<meta name="description" content="Lyra is an Intelligent Conversational Wallet (ICW). Tell it what you want to do and it researches the real rate, route and risk before you hold one button to confirm.">
+<meta name="theme-color" content="#0b1030">
+<link rel="icon" href="favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=chillax@500,600,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/laptop.css">
+<link rel="stylesheet" href="css/screen.css">
+<link rel="stylesheet" href="css/pages.css">
+<link rel="stylesheet" href="css/terms.css">
+<link rel="stylesheet" href="css/loader.css">
+<link rel="stylesheet" href="css/hands.css">
+<link rel="stylesheet" href="css/overlays.css">
+<link rel="stylesheet" href="css/handheld.css">
+</head>
+<body>
+
+<div class="loader" id="loader" aria-hidden="true">
+  <div class="loader-squares" id="loaderSquares"></div>
+  <div class="loader-text" id="loaderText"><div class="loader-line" id="loaderLine1"></div><div class="loader-line" id="loaderLine2"></div></div>
+</div>
+
+<main id="top">
+<section class="track" id="track">
+  <div class="stage" id="stage">
+
+    <div class="world" id="world">
+
+      <!-- ============ ROOM: wall, window, night sky, moon, city ============ -->
+      <svg class="layer" id="room" style="overflow:visible" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="wall" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="900">
+            <stop offset="0" stop-color="#1c2760"/><stop offset=".6" stop-color="#141c4b"/><stop offset="1" stop-color="#0f1540"/>
+          </linearGradient>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#121c55"/><stop offset=".55" stop-color="#26357f"/><stop offset="1" stop-color="#4658a8"/>
+          </linearGradient>
+          <radialGradient id="halo">
+            <stop offset="0" stop-color="#fff6cf" stop-opacity=".55"/><stop offset=".35" stop-color="#fff2c0" stop-opacity=".16"/><stop offset="1" stop-color="#fff2c0" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="wallGlow" cx=".5" cy=".38" r=".6">
+            <stop offset="0" stop-color="#6f86e6" stop-opacity=".22"/><stop offset="1" stop-color="#6f86e6" stop-opacity="0"/>
+          </radialGradient>
+          <clipPath id="glass"><rect x="452" y="82" width="696" height="496"/></clipPath>
+        </defs>
+
+        <rect x="-3200" y="-1800" width="8000" height="4500" fill="url(#wall)"/>
+        <rect width="1600" height="900" fill="url(#wallGlow)"/>
+
+        <!-- wall poster: Lyra logo -->
+        <g transform="translate(268 44) scale(.8) rotate(-1.5 80 110)">
+          <rect x="6" y="10" width="160" height="220" fill="#060a26" opacity=".45"/>
+          <rect width="160" height="220" rx="3" fill="#0a1035" stroke="#2c3888" stroke-width="5"/>
+          <circle cx="30" cy="30" r="1.2" fill="#dfe4ff" opacity="0.80"/><circle cx="118" cy="24" r="1" fill="#dfe4ff" opacity="0.75"/><circle cx="132" cy="60" r="1.4" fill="#dfe4ff" opacity="0.85"/><circle cx="26" cy="84" r="1" fill="#dfe4ff" opacity="0.75"/><circle cx="112" cy="104" r="1" fill="#dfe4ff" opacity="0.75"/><circle cx="40" cy="140" r="1.2" fill="#dfe4ff" opacity="0.80"/><circle cx="124" cy="150" r="1" fill="#dfe4ff" opacity="0.75"/><circle cx="70" cy="28" r="0.9" fill="#dfe4ff" opacity="0.72"/><circle cx="24" cy="190" r="1" fill="#dfe4ff" opacity="0.75"/><circle cx="136" cy="196" r="1.2" fill="#dfe4ff" opacity="0.80"/><circle cx="92" cy="186" r="0.9" fill="#dfe4ff" opacity="0.72"/><circle cx="52" cy="112" r="0.8" fill="#dfe4ff" opacity="0.70"/>
+          <image href="logo.svg" x="50" y="62" width="60" height="60" opacity=".95"/>
+          <text x="80" y="152" text-anchor="middle" font-family="Chillax, Inter, sans-serif" font-weight="600" font-size="30" fill="#dfe4ff" letter-spacing="1">Lyra</text>
+        </g>
+
+        <!-- window -->
+        <rect x="430" y="60" width="740" height="540" rx="6" fill="#0d1334"/>
+        <g clip-path="url(#glass)">
+          <rect x="452" y="82" width="696" height="496" fill="url(#sky)"/>
+          <g id="stars"></g>
+          <g id="moon">
+            <circle r="230" fill="url(#halo)"/>
+            <circle r="86" fill="#f4efd2"/>
+            <circle cx="-26" cy="-22" r="17" fill="#dcd5b3"/>
+            <circle cx="30" cy="-38" r="11" fill="#dcd5b3"/>
+            <circle cx="24" cy="26" r="21" fill="#e2dcbb"/>
+            <circle cx="-40" cy="34" r="9" fill="#dcd5b3"/>
+            <circle cx="-2" cy="4" r="7" fill="#dcd5b3"/>
+            <path d="M-86 0a86 86 0 0 1 86-86a86 86 0 0 0 0 172a86 86 0 0 1-86-86z" fill="#0d1a58" opacity=".0"/>
+          </g>
+          <g id="clouds" opacity=".9">
+            <g fill="#5566b6" opacity=".55"><ellipse cx="520" cy="200" rx="90" ry="22"/><ellipse cx="580" cy="186" rx="60" ry="24"/><ellipse cx="470" cy="192" rx="46" ry="16"/></g>
+            <g fill="#4a5aa8" opacity=".5"><ellipse cx="900" cy="140" rx="110" ry="24"/><ellipse cx="960" cy="126" rx="64" ry="24"/><ellipse cx="850" cy="132" rx="50" ry="16"/></g>
+            <g fill="#5566b6" opacity=".45"><ellipse cx="1080" cy="300" rx="100" ry="20"/><ellipse cx="1130" cy="288" rx="52" ry="20"/></g>
+            <g fill="#4a5aa8" opacity=".4"><ellipse cx="640" cy="330" rx="84" ry="16"/><ellipse cx="690" cy="320" rx="46" ry="16"/></g>
+          </g>
+          <g id="cityFar"></g>
+          <g id="cityNear"></g>
+
+          <!-- Discord/X balloons: rise from below the sill after the laptop
+               closes and stay risen, clickable, to the end (see
+               balloonRise/balloonOpacity in timeline.js and scene.js's
+               positioning). Positioned/faded by JS; this markup is just
+               the artwork at local (0,0) origin. -->
+          <g id="balloons">
+            <a id="balloonDiscord" class="balloon" href="https://discord.gg/PUCym8qCdB" target="_blank" rel="noopener" aria-label="Join Lyra's Discord">
+              <g class="balloon-body">
+                <circle class="balloon-hit" r="60" fill="transparent"/>
+                <path class="balloon-string" d="M0 54 C 8 76, -8 96, 0 118" fill="none" stroke="#a9b2ff" stroke-width="2" opacity=".5"/>
+                <path d="M-7 50 L7 50 L0 61 Z" fill="#4752c4"/>
+                <ellipse class="balloon-shape" rx="46" ry="55" fill="#5865F2"/>
+                <ellipse cx="-15" cy="-20" rx="13" ry="19" fill="#fff" opacity=".16"/>
+                <!-- Official Discord glyph (Simple Icons, viewBox 0 0 24 24), recentered/scaled to the balloon's local origin. -->
+                <g transform="translate(-4 -9) scale(1.35) translate(-12 -12)" fill="#fff"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></g>
+              </g>
+            </a>
+            <a id="balloonX" class="balloon" href="https://x.com/0xlyratech" target="_blank" rel="noopener" aria-label="Follow Lyra on X">
+              <g class="balloon-body">
+                <circle class="balloon-hit" r="60" fill="transparent"/>
+                <path class="balloon-string" d="M0 54 C -8 76, 8 96, 0 118" fill="none" stroke="#a9b2ff" stroke-width="2" opacity=".5"/>
+                <path d="M-7 50 L7 50 L0 61 Z" fill="#141520"/>
+                <ellipse class="balloon-shape" rx="46" ry="55" fill="#1d1f2b"/>
+                <ellipse cx="-15" cy="-20" rx="13" ry="19" fill="#fff" opacity=".08"/>
+                <!-- Official X glyph (Simple Icons, viewBox 0 0 24 24), recentered/scaled to the balloon's local origin. -->
+                <g transform="translate(-3 -9) scale(1.35) translate(-12 -12)" fill="#fff"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></g>
+              </g>
+            </a>
+          </g>
+        </g>
+        <!-- frame on top of the glass -->
+        <rect x="792" y="82" width="16" height="496" fill="#0d1334"/>
+        <rect x="452" y="322" width="696" height="14" fill="#0d1334"/>
+        <rect x="452" y="82" width="696" height="496" fill="none" stroke="#0d1334" stroke-width="6"/>
+        <rect x="410" y="598" width="780" height="24" rx="3" fill="#232d6c"/>
+        <rect x="410" y="598" width="780" height="4" fill="#4a5bb3" opacity=".6"/>
+        <!-- glass reflection -->
+        <path d="M470 90 L620 90 L500 330 L470 330 Z" fill="#fff" opacity=".035"/>
+        <path d="M660 90 L700 90 L560 330 L520 330 Z" fill="#fff" opacity=".025"/>
+      </svg>
+
+      <!-- ============ FURNITURE: shelves, plant, lamps, desk ============ -->
+      <svg class="layer" id="furn" style="overflow:visible" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="deskTop" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3c4790"/><stop offset="1" stop-color="#2b3475"/>
+          </linearGradient>
+          <radialGradient id="lampGlow"><stop offset="0" stop-color="#ffe6a6" stop-opacity=".55"/><stop offset="1" stop-color="#ffe6a6" stop-opacity="0"/></radialGradient>
+          <linearGradient id="cone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe6a6" stop-opacity=".28"/><stop offset="1" stop-color="#ffe6a6" stop-opacity="0"/></linearGradient>
+        </defs>
+
+        <!-- left bookshelf -->
+        <g id="shelfL">
+          <rect x="70" y="236" width="290" height="440" rx="4" fill="#182054"/>
+          <rect x="82" y="248" width="266" height="416" fill="#111845"/>
+          <g fill="#28347d"><rect x="70" y="236" width="290" height="14"/><rect x="70" y="372" width="290" height="12"/><rect x="70" y="508" width="290" height="12"/><rect x="70" y="662" width="290" height="14"/></g>
+          <g id="booksL"></g>
+          <!-- small plant on shelf -->
+          <g transform="translate(120 322)"><rect x="-16" y="10" width="32" height="40" rx="6" fill="#5b4a8c"/>
+            <path d="M0 10 C-26 -6 -22 -30 -8 -34 C-2 -18 2 -6 0 10Z" fill="#3c8a7c"/><path d="M0 10 C24 -4 28 -26 14 -34 C6 -20 2 -6 0 10Z" fill="#2f6f68"/><path d="M0 10 C-4 -14 4 -30 0 -40 C10 -26 8 -12 0 10Z" fill="#4aa090"/></g>
+        </g>
+
+        <!-- right bookshelf -->
+        <g id="shelfR">
+          <rect x="1244" y="196" width="296" height="480" rx="4" fill="#182054"/>
+          <rect x="1256" y="208" width="272" height="456" fill="#111845"/>
+          <g fill="#28347d"><rect x="1244" y="196" width="296" height="14"/><rect x="1244" y="340" width="296" height="12"/><rect x="1244" y="484" width="296" height="12"/><rect x="1244" y="662" width="296" height="14"/></g>
+          <g id="booksR"></g>
+          <!-- Pot's own bottom edge is local y=20, so translate-y + 20 must
+               land on the bottom plank's top edge (662, see #shelfR's own
+               divider rects above): 642 + 20 = 662. Was 574 (+20 = 594),
+               68px short, floating above the shelf. -->
+          <g transform="translate(1440 642)"><path d="M-30 20 L30 20 L22 -8 L-22 -8Z" fill="#6b4a63"/>
+            <circle cx="0" cy="-24" r="26" fill="#2f6f68"/><circle cx="-16" cy="-14" r="16" fill="#3c8a7c"/><circle cx="17" cy="-16" r="16" fill="#35796f"/></g>
+          <g transform="translate(1490 296)"><rect x="-22" y="-2" width="44" height="46" rx="4" fill="#5b4a8c"/><rect x="-22" y="-2" width="44" height="8" fill="#7460b0"/></g>
+        </g>
+
+        <!-- big plant, left front -->
+        <g id="plant" transform="translate(96 700)">
+          <path d="M-46 0 L46 0 L34 110 L-34 110Z" fill="#7a5563"/><rect x="-50" y="-8" width="100" height="16" rx="6" fill="#8d6473"/>
+          <g class="leaf" style="--r:-3deg"><path d="M0 -6 C-60 -60 -70 -160 -40 -230 C-10 -170 6 -90 0 -6Z" fill="#2c6d66"/><path d="M0 -6 C-30 -80 -38 -150 -40 -230" stroke="#1f5852" stroke-width="3" fill="none"/></g>
+          <g class="leaf" style="--r:2deg"><path d="M0 -6 C60 -70 84 -150 70 -240 C24 -170 4 -80 0 -6Z" fill="#3a8a7c"/><path d="M0 -6 C40 -80 62 -160 70 -240" stroke="#2c6d66" stroke-width="3" fill="none"/></g>
+          <g class="leaf" style="--r:-2deg"><path d="M0 -6 C-100 -30 -150 -80 -150 -150 C-80 -130 -20 -70 0 -6Z" fill="#33796f"/></g>
+          <g class="leaf" style="--r:3deg"><path d="M0 -6 C10 -90 -4 -170 20 -270 C50 -190 30 -80 0 -6Z" fill="#47a08f"/></g>
+        </g>
+
+        <!-- desk -->
+        <g transform="translate(0 30)">
+        <rect x="-3200" y="690" width="8000" height="112" fill="url(#deskTop)"/>
+        <rect x="-3200" y="690" width="8000" height="3" fill="#8b99e8" opacity=".45"/>
+        <rect x="-3200" y="802" width="8000" height="12" fill="#1a2058"/>
+        <rect x="-3200" y="814" width="8000" height="1800" fill="#202763"/>
+        <rect x="-3200" y="802" width="8000" height="2" fill="#5766c2" opacity=".6"/>
+
+        <!-- left desk lamp (cool) -->
+        <g id="lampL" transform="translate(-170 0)">
+          <ellipse cx="330" cy="768" rx="52" ry="11" fill="#171d4f"/>
+          <path d="M330 764 L356 640 L470 578" stroke="#3a4696" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="356" cy="640" r="7" fill="#5a6bd0"/>
+          <path d="M452 560 L488 560 L514 612 L426 612Z" fill="#4657b4"/>
+          <path d="M452 560 L466 560 L442 612 L426 612Z" fill="#7284e0"/>
+          <path d="M426 612 L514 612 L560 770 L380 770Z" fill="url(#cone)" opacity=".75"/>
+          <ellipse cx="470" cy="614" rx="46" ry="12" fill="#ffe6a6"/>
+          <circle cx="470" cy="622" r="62" fill="url(#lampGlow)" opacity=".7"/>
+        </g>
+
+        <!-- right desk lamp -->
+        <g id="lampR" transform="translate(170 0)">
+          <ellipse cx="1290" cy="768" rx="52" ry="11" fill="#171d4f"/>
+          <path d="M1290 764 L1264 640 L1170 578" stroke="#3a4696" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="1264" cy="640" r="7" fill="#5a6bd0"/>
+          <path d="M1152 560 L1188 560 L1214 612 L1126 612Z" fill="#4657b4"/>
+          <path d="M1152 560 L1166 560 L1142 612 L1126 612Z" fill="#7284e0"/>
+          <path d="M1126 612 L1214 612 L1260 770 L1080 770Z" fill="url(#cone)" opacity=".75"/>
+          <ellipse cx="1170" cy="614" rx="46" ry="12" fill="#ffe6a6"/>
+          <circle cx="1170" cy="622" r="62" fill="url(#lampGlow)" opacity=".7"/>
+        </g>
+
+        <!-- glowing side lamp -->
+        <g>
+          <circle cx="1440" cy="700" r="120" fill="url(#lampGlow)" opacity=".55"/>
+          <rect x="1426" y="726" width="28" height="60" rx="6" fill="#2c357a"/>
+          <ellipse cx="1440" cy="788" rx="44" ry="9" fill="#171d4f"/>
+          <circle cx="1440" cy="700" r="34" fill="#ffe9b0"/><circle cx="1440" cy="700" r="34" fill="#fff" opacity=".25"/>
+        </g>
+
+        <!-- mug with steam -->
+        <g transform="translate(1110 770)">
+          <ellipse cx="0" cy="4" rx="30" ry="7" fill="#171d4f"/>
+          <rect x="-24" y="-38" width="48" height="44" rx="8" fill="#6b5bc0"/>
+          <path d="M24 -26 h10 a10 10 0 0 1 0 22 h-10" fill="none" stroke="#6b5bc0" stroke-width="7"/>
+          <ellipse cx="0" cy="-38" rx="24" ry="6" fill="#2a2266"/>
+          <path class="steam" d="M-8 -50 C-16 -62 0 -68 -8 -82" stroke="#cfd6ff" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <path class="steam s2" d="M6 -50 C-2 -62 14 -68 6 -82" stroke="#cfd6ff" stroke-width="3" fill="none" stroke-linecap="round"/>
+        </g>
+      </g>
+      </svg>
+
+      <!-- laptop light on the desk -->
+      <div class="screen-glow" id="glow"></div>
+
+      <!-- ============ LAPTOP ============ -->
+      <div class="lp rig" id="rigLaptop">
+        <div class="scene3d">
+          <div class="laptop">
+            <div class="base">
+              <div class="deck">
+                <div class="keys" id="keys"></div>
+                <div class="pad"></div>
+              </div>
+            </div>
+            <div class="base-edge"></div>
+            <div class="lid" id="lid">
+              <div class="lid-face lid-front">
+                <div class="screen" id="screen">
+                  <div class="boot" id="boot"><img src="logo.svg" alt="" width="84" height="84"></div>
+                  <div class="app" id="app">
+                    <div class="app-top">
+                      <div class="app-brand"><img src="logo.svg" alt="" width="22" height="22"><b>Lyra</b></div>
+                      <a class="app-dl" href="#">Download <em>Soon</em></a>
+                    </div>
+                    <div class="chat" id="chat"><div class="empty"><img src="logo.svg" alt=""><b>What do you want to do?</b><small>swap · bridge · stake · bet · pay</small></div></div>
+                    <div class="pages" id="pages">
+                      <div class="pg-menu" id="pgMenu">
+                        <div class="pg-head"><b>Everything else</b><span>Pick a tab. Lyra walks you through it.</span></div>
+                        <div class="pg-grid" id="pgGrid"></div>
+                      </div>
+                      <div class="pg-detail" id="pgDetail">
+                        <div class="pg-bar"><button type="button" class="pg-back" id="pgBack"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Back</button><span class="pg-crumb" id="pgCrumb"></span></div>
+                        <div class="pg-scroll" id="pgScroll"></div>
+                      </div>
+                    </div>
+                    <div class="composer">
+                      <div class="input" id="input"><span id="typed"></span><i class="caret"></i><em class="composer-ph">Ask Lyra anything…</em></div>
+                      <div class="send"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="lid-face lid-back"><span class="lid-name">Lyra</span></div>
+              <div class="lid-tip" id="lidTip"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- the hand that opens the lid -->
+        <div class="hand-open" id="handOpen">
+          <svg viewBox="0 0 200 1400" width="250" height="1750" aria-hidden="true"><use href="#handShape"/></svg>
+        </div>
+
+        <!-- both hands on the keyboard -->
+        <div class="hands" id="hands">
+          <svg class="hand hand-l" viewBox="0 0 200 1200" width="250" height="1500" aria-hidden="true"><use href="#handShape"/></svg>
+          <svg class="hand hand-r" viewBox="0 0 200 1200" width="250" height="1500" aria-hidden="true"><use href="#handShape"/></svg>
+        </div>
+      </div>
+      </div>
+
+    <!-- hand definition (seen from behind, fingers up) -->
+    
+
+    <div class="tint"></div>
+
+    <!-- overlays -->
+    <div class="hero" id="hero">
+      <h1>Say what you want.<br><em>Lyra</em> handles the chain.</h1>
+    </div>
+    <div class="chapter" id="chapter"><span id="chNum">01</span><b id="chTitle"></b></div>
+    <div class="dots" id="dots"></div>
+    <div class="hint" id="hint"><span>Scroll</span><i></i></div>
+
+    <div class="paper" id="paper" aria-label="Legal">
+      <div class="paper-in">
+        <span class="paper-kicker">Legal</span>
+        <div class="paper-links">
+          <a href="https://lyrapp.to/#terms" target="_blank" rel="noopener">Terms of Service</a>
+          <a href="https://lyrapp.to/#privacy" target="_blank" rel="noopener">Privacy Policy</a>
+          <a href="https://lyrapp.to/#legal" target="_blank" rel="noopener">Legal Notice</a>
+          <a href="https://lyrapp.to/#cookies" target="_blank" rel="noopener">Cookie Policy</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="legal" id="legal">
+      <p>© 2026 Lyra. Not financial advice. Lyra is non-custodial software. You remain solely responsible for your funds and for reviewing every transaction before confirming it.</p>
+    </div>
+
+    <div class="cta" id="cta">
+      <h2>Your wallet. <em>You just ask.</em></h2>
+      <a class="btn" href="#">Download Lyra <em>Soon</em></a>
+    </div>
+  </div>
+</section>
+
+
+</main>
+
+<script src="data.js"></script>
+<script type="module" src="js/main.js"></script>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="handShape" viewBox="0 0 200 1400" overflow="visible">
+          <linearGradient id="fadeG" gradientUnits="userSpaceOnUse" x1="0" y1="202" x2="0" y2="166"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#fff"/></linearGradient>
+          <mask id="fadeBase" maskUnits="userSpaceOnUse" x="-60" y="0" width="320" height="210"><rect x="-60" y="0" width="320" height="210" fill="url(#fadeG)"/></mask>
+          <clipPath id="palmClip"><path d="M72 298 C56 272 44 232 43 200 C42 180 50 166 64 162 C72 160 80 163 88 160 C96 156 102 153 110 155 C118 157 124 160 132 160 C144 160 154 165 159 176 C165 191 163 212 157 234 C153 252 146 276 130 298Z"/></clipPath>
+          <linearGradient id="skinG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#eeb597"/><stop offset=".45" stop-color="#f6c9ae"/><stop offset=".8" stop-color="#e6a888"/><stop offset="1" stop-color="#d5906f"/></linearGradient>
+          <linearGradient id="palmG" gradientUnits="userSpaceOnUse" x1="43" y1="155" x2="160" y2="340"><stop offset="0" stop-color="#f4c2a4"/><stop offset=".6" stop-color="#ebb094"/><stop offset="1" stop-color="#d9957a"/></linearGradient>
+          <linearGradient id="nailG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fce8dc"/><stop offset="1" stop-color="#f3cbb6"/></linearGradient>
+          <linearGradient id="sleeveG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6553cc"/><stop offset=".5" stop-color="#5847b6"/><stop offset="1" stop-color="#43358f"/></linearGradient>
+
+          <!-- sleeve: soft knit with a rounded cuff -->
+          <path d="M34 326 Q100 314 166 326 L172 1500 L28 1500Z" fill="url(#sleeveG)"/>
+          <path d="M36 326 Q100 314 164 326 L165 352 Q100 342 35 352Z" fill="#4c3ba6"/>
+          <path d="M60 380 C64 540 58 720 66 920M132 372 C136 560 130 740 138 960" stroke="#3a2d86" stroke-width="4" fill="none" opacity=".16" stroke-linecap="round"/>
+          <path d="M162 334 L167 900" stroke="#9d8bf0" stroke-width="3" opacity=".3" stroke-linecap="round"/>
+
+          <!-- wrist -->
+          <path d="M70 268 C67 292 67 310 70 332 Q100 340 132 332 C135 310 135 292 132 268Z" fill="url(#palmG)"/>
+          <path d="M104 300 C110 312 114 320 112 336 Q124 336 132 332 C135 316 134 304 130 300Z" fill="#c47c62" opacity=".2"/>
+
+          <g class="thumb">
+            <path d="M73.2 234.8 L70.6 234.3 L68.1 233.6 L65.8 232.8 L63.5 231.9 L61.3 230.8 L59.2 229.6 L57.1 228.1 L55.1 226.5 L53.1 224.6 L51.1 222.6 L49.2 220.2 L47.4 217.6 L45.7 214.8 L44 211.7 L42.4 208.3 L40.9 204.7 L39.5 200.7 L38.3 196.6 L37.1 192.1 L36.1 187.5 L35.2 182.5 L34.5 177.3 L33.6 173.8 L31.6 170.7 L28.7 168.6 L25.2 167.6 L21.5 167.8 L18.2 169.3 L15.5 171.8 L13.9 175.1 L13.5 178.7 L13.6 184.6 L13.9 190.3 L14.4 195.8 L15 201.2 L15.8 206.5 L16.8 211.5 L18 216.5 L19.3 221.3 L20.9 225.9 L22.7 230.4 L24.8 234.8 L27 239 L29.5 243 L32.3 246.8 L35.3 250.5 L38.5 253.9 L42 257.1 L45.8 260.1 L49.7 262.8 L53.9 265.2 L58.3 267.4 L62.8 269.2Z" fill="url(#skinG)" stroke="url(#skinG)" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M52 200 C58 216 68 232 84 240 L68 258 C60 246 54 226 52 200Z" fill="#c47c62" opacity=".2"/>
+            <path d="M59.2 229.6 C49.1 222.6 42.4 208.3 39.3 200.6" stroke="#ffe9dc" stroke-width="4.5" stroke-linecap="round" fill="none" opacity=".4"/>
+            <path d="M18 182 C18 172 30 172 30 182 L29 194 Q24 198 19 194Z" fill="url(#nailG)" opacity=".92"/>
+          </g>
+
+          <path d="M72 298 C56 272 44 232 43 200 C42 180 50 166 64 162 C72 160 80 163 88 160 C96 156 102 153 110 155 C118 157 124 160 132 160 C144 160 154 165 159 176 C165 191 163 212 157 234 C153 252 146 276 130 298Z" fill="url(#palmG)"/>
+          <g clip-path="url(#palmClip)">
+            <path d="M128 150 L172 150 L172 284 L130 298 C150 250 156 200 150 160Z" fill="#c47c62" opacity=".24"/>
+            <path d="M40 160 L56 160 C52 196 56 250 70 298 L40 298Z" fill="#fff" opacity=".1"/>
+            <ellipse cx="62" cy="172" rx="8" ry="5" fill="#ffe9dc" opacity=".3"/>
+            <ellipse cx="89" cy="166" rx="8.5" ry="5" fill="#ffe9dc" opacity=".3"/>
+            <ellipse cx="117" cy="169" rx="8" ry="5" fill="#ffe9dc" opacity=".28"/>
+            <ellipse cx="143" cy="175" rx="7" ry="4.5" fill="#ffe9dc" opacity=".22"/>
+            <path d="M84 190 C82 214 84 240 90 262M112 186 C112 212 114 240 118 262" stroke="#b8705a" stroke-width="5" fill="none" stroke-linecap="round" opacity=".07"/>
+          </g>
+
+          <g transform="rotate(-6 60 178)" mask="url(#fadeBase)"><g class="fg f1">
+    <path d="M44.5 196 C44.6 145.6 47.1 92.3 50 64 C50 49 73 49 73 64 C75 92.3 76.3 145.6 75.5 196Z" fill="url(#skinG)"/>
+    <path d="M64.7 196 C65.7 145.6 65.7 92.3 67.2 60 C73 56 73 64 73 64 C75 92.3 76.3 145.6 75.5 196Z" fill="#c47c62" opacity=".22"/>
+    <path d="M52.9 152.2 C52.4 108.2 55.3 82 57.6 74" stroke="#ffe9dc" stroke-width="5.3" stroke-linecap="round" fill="none" opacity=".38"/>
+    <ellipse cx="60.7" cy="118.2" rx="9.6" ry="3.4" fill="#b8705a" opacity=".2"/>
+    <path d="M52.5 78.8 C52.5 63 55.2 59 61.5 59 C67.8 59 70.5 63 70.5 78.8 Q61.5 81.8 52.5 78.8Z" fill="url(#nailG)" opacity=".92"/>
+    <path d="M57.9 65 Q61.5 62.5 64.6 65" stroke="#fff" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".55"/>
+  </g></g>
+          <g transform="rotate(-1.5 91 178)" mask="url(#fadeBase)"><g class="fg f2">
+    <path d="M75 196 C74.8 140.7 76.9 82.2 79.7 50 C79.7 35 103.3 35 103.3 50 C105.8 82.2 107.5 140.7 107 196Z" fill="url(#skinG)"/>
+    <path d="M95.8 196 C96.6 140.7 96.1 82.2 97.4 46 C103.3 42 103.3 50 103.3 50 C105.8 82.2 107.5 140.7 107 196Z" fill="#c47c62" opacity=".22"/>
+    <path d="M83.2 144.7 C82.5 100.7 85.1 68 87.5 60" stroke="#ffe9dc" stroke-width="5.4" stroke-linecap="round" fill="none" opacity=".38"/>
+    <ellipse cx="91.2" cy="110.7" rx="9.9" ry="3.4" fill="#b8705a" opacity=".2"/>
+    <path d="M82.2 65.4 C82.2 49 85 45 91.5 45 C98 45 100.8 49 100.8 65.4 Q91.5 68.4 82.2 65.4Z" fill="url(#nailG)" opacity=".92"/>
+    <path d="M87.8 51 Q91.5 48.5 94.7 51" stroke="#fff" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".55"/>
+  </g></g>
+          <g transform="rotate(3.5 121 178)" mask="url(#fadeBase)"><g class="fg f3">
+    <path d="M106 196 C105.4 143.5 106.8 88 108.9 58 C108.9 43 131.1 43 131.1 58 C133.8 88 136 143.5 136 196Z" fill="url(#skinG)"/>
+    <path d="M125.5 196 C125.8 143.5 124.8 88 125.5 54 C131.1 50 131.1 58 131.1 58 C133.8 88 136 143.5 136 196Z" fill="#c47c62" opacity=".22"/>
+    <path d="M113.1 149 C112.2 105 114 76 116.3 68" stroke="#ffe9dc" stroke-width="5.1" stroke-linecap="round" fill="none" opacity=".38"/>
+    <ellipse cx="120.5" cy="115" rx="9.3" ry="3.4" fill="#b8705a" opacity=".2"/>
+    <path d="M111.3 72.3 C111.3 57 113.9 53 120 53 C126.1 53 128.7 57 128.7 72.3 Q120 75.3 111.3 72.3Z" fill="url(#nailG)" opacity=".92"/>
+    <path d="M116.5 59 Q120 56.5 123 59" stroke="#fff" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".55"/>
+  </g></g>
+          <g transform="rotate(9 148 178)" mask="url(#fadeBase)"><g class="fg f4">
+    <path d="M135.5 196 C134.7 152.6 135.3 106.7 136.8 84 C136.8 69 155.3 69 155.3 84 C157.8 106.7 160.2 152.6 160.5 196Z" fill="url(#skinG)"/>
+    <path d="M151.8 196 C151.7 152.6 150.3 106.7 150.6 80 C155.3 76 155.3 84 155.3 84 C157.8 106.7 160.2 152.6 160.5 196Z" fill="#c47c62" opacity=".22"/>
+    <path d="M140.9 163 C139.9 119 141 102 142.9 94" stroke="#ffe9dc" stroke-width="4.3" stroke-linecap="round" fill="none" opacity=".38"/>
+    <ellipse cx="147.1" cy="129" rx="7.8" ry="3.4" fill="#b8705a" opacity=".2"/>
+    <path d="M138.8 95.4 C138.8 83 140.9 79 146 79 C151.1 79 153.3 83 153.3 95.4 Q146 98.4 138.8 95.4Z" fill="url(#nailG)" opacity=".92"/>
+    <path d="M143.1 85 Q146 82.5 148.5 85" stroke="#fff" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".55"/>
+  </g></g>
+        </symbol></defs></svg>
+</body>
+</html>
