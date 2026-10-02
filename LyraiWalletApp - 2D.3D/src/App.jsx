@@ -6,6 +6,7 @@ import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, Wal
 import { API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx, KYBERSWAP_API_BASE, NATIVE_PSEUDO_ADDRESS, KYBERSWAP_CLIENT_ID, POLYMARKET_ORDER_DOMAIN_NAME, POLYMARKET_ORDER_DOMAIN_VERSION, POLYMARKET_ORDER_TYPES, POLYMARKET_ORDER_SIDE_BUY, POLYMARKET_ORDER_SIDE_SELL, POLYMARKET_BYTES32_ZERO, POLYMARKET_SIGNATURE_TYPE_EOA, POLYMARKET_SIGNATURE_TYPE_GNOSIS_SAFE, POLYMARKET_SIGNATURE_TYPE_POLY_1271, POLYMARKET_DEPOSIT_WALLET_DOMAIN_NAME, POLYMARKET_DEPOSIT_WALLET_DOMAIN_VERSION, POLYMARKET_PUSD_COLLATERAL, AAVE_V4_SPOKE_ABI } from "./config";
 import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
+import { LYRA_TREASURY, LYRA_FEE_PERCENT_LABEL, feeOf, splitOnTop, toRaw, isFeeExempt, assetInfo, usdPerUnit, feeIsWorthCharging, includedFeePreview, collectLyraFee, runWithLyraFee, estimateAfterFee } from "./fees.js";
 import { parseUiModeCommand } from "./uiModeCommand.js";
 import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiometricPresence, encryptWithKey, decryptWithKey } from "./Biometric";
 import { splitPrivateKey, combineFragments, registerMpcWallet, getMpcStatus, setMpcDailyLimit, releaseFragment2, recoverFragment2 } from "./mpc";
@@ -2939,7 +2940,31 @@ async function unlockWithBiometric() {
   return tx;
 }
 
+ // Lyra's 0.25% fee on swaps, bridges and staking deposits: taken out of the
+ // amount, sent to the treasury only AFTER the action succeeded (src/fees.js).
+ // The *Core functions below are the original executors.
+ function lyraFeeCtx() {
+  return { nativeSymbol: activeNetwork.nativeSymbol, tokens, xplPriceUSD, erc20Abi: ERC20_ABI, onFee: reportLyraFee };
+ }
+ function reportLyraFee(result) {
+  if (result.collected) {
+    setMessages(m => [...m, { role: "ai", text: `Lyra fee (${LYRA_FEE_PERCENT_LABEL}): ${result.amount} ${result.asset} sent to the Lyra treasury.` }]);
+    logAuditEvent({ category: "fee", action: "lyra-fee", networkKey: activeNetworkKey, asset: result.asset, amount: result.amount, counterparty: LYRA_TREASURY, txHash: result.hash });
+  } else {
+    console.warn("Lyra fee not collected:", result.reason);
+  }
+ }
  async function executeSwapTicket(signer, ticket) {
+  return runWithLyraFee({ signer, ticket, core: executeSwapTicketCore, ctx: lyraFeeCtx() });
+ }
+ async function executeStakeTicket(signer, ticket) {
+  return runWithLyraFee({ signer, ticket, core: executeStakeTicketCore, ctx: lyraFeeCtx() });
+ }
+ async function executeBridgeTicket(signer, ticket) {
+  return runWithLyraFee({ signer, ticket, core: executeBridgeTicketCore, ctx: lyraFeeCtx() });
+ }
+
+ async function executeSwapTicketCore(signer, ticket) {
   if (activeNetworkKey === "arc") {
     return executeArcSwapTicket(signer, ticket);
   }
@@ -3046,7 +3071,7 @@ function aaveV4Reserve(ticketAsset) {
   return defi.aaveV4?.reserves?.[ticketAsset] || null;
 }
 
-async function executeStakeTicket(signer, ticket) {
+async function executeStakeTicketCore(signer, ticket) {
   const v4Reserve = aaveV4Reserve(ticket.asset);
   if (v4Reserve) {
     const amount = ethers.parseUnits(String(ticket.amount), v4Reserve.decimals);
@@ -3205,7 +3230,7 @@ async function executeUnstakeTicket(signer, ticket) {
     return tx;
   }
 
-  async function executeBridgeTicket(signer, ticket) {
+  async function executeBridgeTicketCore(signer, ticket) {
   if (activeNetworkKey === "arc" || ticket.destinationChainKey === "arc") {
     return executeArcBridgeTicket(signer, ticket);
   }
@@ -5144,6 +5169,17 @@ function decimalsOfAsset(asset) {
           setStepTxHashes(prev => { const next = [...prev]; next[i] = tx.hash; return next; });
           setMessages(m => [...m, { role: "ai", text: `${stepLabel} sent (send). Hash: ${shortAddress(tx.hash)}` }]);
           await tx.wait();
+          {
+            // Lyra's 0.25% on top, after the transfer confirmed
+            const info = assetInfo(step.asset, lyraFeeCtx());
+            const rawSent = info ? toRaw(amountToUse, info.decimals) : null;
+            if (info && rawSent && !isFeeExempt(signer.address, recipient)) {
+              const feeRaw = feeOf(rawSent);
+              if (feeIsWorthCharging(feeRaw, info.decimals, usdPerUnit(step.asset, lyraFeeCtx()))) {
+                reportLyraFee(await collectLyraFee({ signer, asset: step.asset, feeRaw, ctx: lyraFeeCtx() }));
+              }
+            }
+          }
           advanceExecutionTo(1);
           setMessages(m => [...m, { role: "ai", text: `✅ ${stepLabel} confirmed.\n\n[View on Explorer Here](${explorerTx(tx.hash, activeNetwork)})` }]);
 
@@ -5329,12 +5365,16 @@ function decimalsOfAsset(asset) {
 
     const feePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
     const reserve = gasEstimate * (feePerGas * 130n / 100n);
+    // with Lyra's fee there are two transfers to pay gas for
+    const reserveAll = isFeeExempt(wallet.address, recipient) ? reserve : reserve * 2n;
 
-    if (rawBalance <= reserve) {
+    if (rawBalance <= reserveAll) {
       throw new Error(`Your ${activeNetwork.nativeSymbol} balance is too low to cover the network fee, there's nothing left to send.`);
     }
 
-    return ethers.formatEther(rawBalance - reserve);
+    if (isFeeExempt(wallet.address, recipient)) return ethers.formatEther(rawBalance - reserve);
+    const split = splitOnTop(rawBalance - reserveAll);
+    return ethers.formatEther(feeIsWorthCharging(feeOf(split.amount), 18, usdPerUnit(activeNetwork.nativeSymbol, { nativeSymbol: activeNetwork.nativeSymbol, xplPriceUSD })) ? split.amount : rawBalance - reserve);
   }
 
   async function signAndSend() {
@@ -5392,6 +5432,15 @@ const signer = new ethers.Wallet(
 
     let tx;
 
+    // Lyra's 0.25% on top of the amount (the recipient always gets the exact
+    // amount). Skipped for sends to yourself or to the treasury, for dust, and
+    // when the balance can't cover it. It is sent only after the main transfer
+    // confirmed, so a failed send never costs a fee.
+    const feeExempt = isFeeExempt(signer.address, sendTo);
+    const sendFeeDecimals = isTokenSend ? sendToken.decimals : 18;
+    const sendFeeWorth = (raw) => feeIsWorthCharging(feeOf(raw), sendFeeDecimals, usdPerUnit(sendAssetSymbol, { nativeSymbol: activeNetwork.nativeSymbol, xplPriceUSD }));
+    let lyraFeeRaw = 0n;
+
     if (isTokenSend) {
       const contract = new ethers.Contract(sendToken.address, ERC20_ABI, signer);
       const current = await contract.balanceOf(signer.address);
@@ -5400,7 +5449,19 @@ const signer = new ethers.Wallet(
       // the network fee) rather than round-tripping through the
       // display string, which avoids leaving dust behind from a
       // formatUnits/parseUnits rounding step.
-      const value = sendIsMax ? current : ethers.parseUnits(sendAmount, sendToken.decimals);
+      let value;
+      if (sendIsMax) {
+        if (feeExempt) {
+          value = current;
+        } else {
+          const split = splitOnTop(current);
+          value = sendFeeWorth(split.amount) ? split.amount : current;
+          lyraFeeRaw = value === split.amount ? split.fee : 0n;
+        }
+      } else {
+        value = ethers.parseUnits(sendAmount, sendToken.decimals);
+        if (!feeExempt && sendFeeWorth(value) && current >= value + feeOf(value)) lyraFeeRaw = feeOf(value);
+      }
 
       if (current < value) {
         throw new Error(`Insufficient ${sendAssetSymbol} balance for this transfer.`);
@@ -5422,18 +5483,31 @@ const signer = new ethers.Wallet(
         const feePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
         const gasEstimate = await RPC.estimateGas({ from: signer.address, to: sendTo, value: 1n }).catch(() => 21000n);
         const reserve = gasEstimate * (feePerGas * 130n / 100n);
+        // two transfers (the send and the Lyra fee) need gas when a fee applies
+        const reserveAll = feeExempt ? reserve : reserve * 2n;
 
-        if (current <= reserve) {
+        if (current <= reserveAll) {
           throw new Error(`Your ${activeNetwork.nativeSymbol} balance is too low to cover the network fee, there's nothing left to send.`);
         }
 
-        value = current - reserve;
+        if (feeExempt) {
+          value = current - reserve;
+        } else {
+          const split = splitOnTop(current - reserveAll);
+          if (sendFeeWorth(split.amount)) {
+            value = split.amount;
+            lyraFeeRaw = split.fee;
+          } else {
+            value = current - reserve;
+          }
+        }
       } else {
         value = ethers.parseEther(sendAmount);
 
         if (current < value) {
           throw new Error(`Insufficient ${activeNetwork.nativeSymbol} balance for this transfer.`);
         }
+        if (!feeExempt && sendFeeWorth(value) && current >= value + feeOf(value)) lyraFeeRaw = feeOf(value);
       }
 
       setStatus("Sending the transaction…");
@@ -5452,6 +5526,11 @@ const signer = new ethers.Wallet(
     ]);
 
     await tx.wait();
+
+    if (lyraFeeRaw > 0n) {
+      setStatus("Collecting the Lyra fee…");
+      reportLyraFee(await collectLyraFee({ signer, asset: sendAssetSymbol, feeRaw: lyraFeeRaw, ctx: lyraFeeCtx() }));
+    }
 
     setStatus("Transaction confirmed");
 
@@ -6681,7 +6760,9 @@ setPendingTransaction({
           if (resolvedToken?.address) {
             const contract = new ethers.Contract(resolvedToken.address, ERC20_ABI, RPC);
             const raw = await contract.balanceOf(wallet.address);
-            setSendAmount(ethers.formatUnits(raw, resolvedToken.decimals));
+            // leave room for Lyra's 0.25% on top of the amount
+            const room = isFeeExempt(wallet.address, recipient) ? raw : splitOnTop(raw).amount;
+            setSendAmount(ethers.formatUnits(room, resolvedToken.decimals));
           } else {
             setSendAmount(await estimateMaxSendableNative(recipient));
           }
@@ -7500,6 +7581,21 @@ function handleHoldEnd() {
         <strong>{activeNetwork.name}</strong>
       </div>
 
+      {(() => {
+        // Lyra's fee on a send: shown before the user holds the button
+        const decimals = isTokenSend ? sendToken?.decimals : 18;
+        const raw = sendAmount && decimals != null ? toRaw(sendAmount, decimals) : null;
+        if (!raw || raw <= 0n || isFeeExempt(wallet?.address, sendTo)) return null;
+        const fee = feeOf(raw);
+        if (!feeIsWorthCharging(fee, decimals, usdPerUnit(sendAssetSymbol, { nativeSymbol: activeNetwork.nativeSymbol, xplPriceUSD }))) return null;
+        return (
+          <div className="transaction-row">
+            <span>Lyra fee ({LYRA_FEE_PERCENT_LABEL}, on top)</span>
+            <strong>{ethers.formatUnits(fee, decimals)} {sendAssetSymbol}</strong>
+          </div>
+        );
+      })()}
+
       <div className="transaction-row">
         <span>Fee</span>
         <strong>
@@ -7794,6 +7890,16 @@ function handleHoldEnd() {
           <strong>{defiTicket.platform || "—"}</strong>
         </div>
 
+        {(defiTicket.feature === "swap" || defiTicket.feature === "bridge" || (defiTicket.feature === "staking" && defiTicket.intent !== "UNSTAKE_XPL")) && (() => {
+          const p = includedFeePreview(defiTicket, lyraFeeCtx());
+          return p ? (
+            <div className="transaction-row">
+              <span>Lyra fee ({LYRA_FEE_PERCENT_LABEL}, included)</span>
+              <strong>{p.fee} {p.asset}</strong>
+            </div>
+          ) : null;
+        })()}
+
         {defiTicket.feature === "staking" && (
           <>
             <div className="transaction-row">
@@ -7815,7 +7921,7 @@ function handleHoldEnd() {
             </div>
             <div className="transaction-row">
               <span>You'll receive approximately</span>
-              <strong>{defiTicket.estimatedReceive || "—"}</strong>
+              <strong>{defiTicket.estimatedReceive ? (includedFeePreview(defiTicket, lyraFeeCtx()) ? estimateAfterFee(defiTicket.estimatedReceive) : defiTicket.estimatedReceive) : "—"}</strong>
             </div>
           </>
         )}
@@ -8273,6 +8379,14 @@ function handleHoldEnd() {
                 <>
                   <div className="transaction-row"><span>Recipient</span><strong>{step.contactName || shortAddress(step.recipient)}</strong></div>
                   <div className="transaction-row"><span>Amount</span><strong>{step.amountIsEstimate ? "≈ " : ""}{step.amount ?? "…"} {step.asset}</strong></div>
+                  {!step.amountIsEstimate && (() => {
+                    const info = assetInfo(step.asset, lyraFeeCtx());
+                    const raw = info ? toRaw(step.amount, info.decimals) : null;
+                    if (!info || !raw || raw <= 0n || isFeeExempt(wallet?.address, step.recipient)) return null;
+                    const fee = feeOf(raw);
+                    if (!feeIsWorthCharging(fee, info.decimals, usdPerUnit(step.asset, lyraFeeCtx()))) return null;
+                    return <div className="transaction-row"><span>Lyra fee ({LYRA_FEE_PERCENT_LABEL}, on top)</span><strong>{ethers.formatUnits(fee, info.decimals)} {step.asset}</strong></div>;
+                  })()}
                   {step.amountIsEstimate && (
                     <div className="ticket-note">Exact amount depends on the previous step's real result resolved right before this step runs.</div>
                   )}
@@ -8287,10 +8401,17 @@ function handleHoldEnd() {
                 <>
                   <div className="transaction-row"><span>Platform</span><strong>{t?.platform || "—"}</strong></div>
 
+                  {(step.kind === "swap" || step.kind === "bridge" || step.kind === "stake") && !step.amountIsEstimate && (() => {
+                    const p = includedFeePreview({ asset: step.asset, amount: step.amount }, lyraFeeCtx());
+                    return p ? (
+                      <div className="transaction-row"><span>Lyra fee ({LYRA_FEE_PERCENT_LABEL}, included)</span><strong>{p.fee} {p.asset}</strong></div>
+                    ) : null;
+                  })()}
+
                   {step.kind === "swap" && (
                     <>
                       <div className="transaction-row"><span>Rate</span><strong>{t?.rate || "—"}</strong></div>
-                      <div className="transaction-row"><span>You'll receive</span><strong>{t?.estimatedReceive || "—"}</strong></div>
+                      <div className="transaction-row"><span>You'll receive</span><strong>{t?.estimatedReceive ? (!step.amountIsEstimate && includedFeePreview({ asset: step.asset, amount: step.amount }, lyraFeeCtx()) ? estimateAfterFee(t.estimatedReceive) : t.estimatedReceive) : "—"}</strong></div>
                     </>
                   )}
 

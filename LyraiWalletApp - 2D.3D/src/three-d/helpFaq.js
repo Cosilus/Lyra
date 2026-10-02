@@ -72,6 +72,10 @@ export const HELP_FAQ = [
     label: "Send & receive",
     items: [
       {
+        q: "Does Lyra charge fees?",
+        a: "Yes: 0.25% on swaps, bridges, staking deposits and sends, shown on the ticket before you confirm. On a swap, bridge or staking deposit it is taken out of the amount you typed. On a send it is added on top, so the recipient always gets the exact amount. It is paid only after the action has gone through, never on a withdrawal from staking, and not on sends to your own address. On top of that you pay the normal network fee, which Lyra does not control.",
+      },
+      {
         q: "How do I send something?",
         a: "Tell Lyra, for example \"Send 10 USDT to Alex\", or paste an address. Lyra opens a ticket with the amount, the full recipient address, the network and the fee. Check it, then hold the confirm button to send.",
       },
