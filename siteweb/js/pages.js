@@ -34,7 +34,7 @@ function renderPage(id) {
         <input type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
         <div><button type="submit" class="pg-send">Send message</button> <span class="pg-status"></span></div>
       </form>
-      <div class="pg-links"><a href="https://x.com/0xlyratech" target="_blank" rel="noopener">X</a><a href="https://discord.gg/PUCym8qCdB" target="_blank" rel="noopener">Discord</a></div>`;
+      <div class="pg-links"><a href="https://x.com/0xlyratech" target="_blank" rel="noopener">X</a><a href="https://discord.gg/bffmxw4yDc" target="_blank" rel="noopener">Discord</a></div>`;
   }
   return "";
 }
