@@ -113,7 +113,12 @@ em { font-style: normal; }
   #stars circle, .leaf, .steam, .boot img, .hint i { animation: none; }
 }
 
-.busy #stars circle, .busy .lit, .busy .leaf { animation-play-state: paused; }
+/* The scene's ambient animations (twinkling stars, flickering windows, swaying plant leaves)
+   used to be PAUSED while the stage had the "busy" class, which flips twice during the scroll
+   (when the chat starts and when the closing starts). Pausing/resuming ~100 animations in one
+   frame made the browser re-promote their layers, and on a fast scroll that showed as a dark box
+   flashing at the sides of the scene for a moment. They now simply keep running: on phones and
+   touch screens they are switched off anyway (see the max-width / coarse-pointer rule above). */
 
 /* Netlify's own free-plan badge, an iframe it injects at runtime (id
    nl-badge-frame) -- not part of this page's markup, so it can't be
