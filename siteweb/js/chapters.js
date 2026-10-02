@@ -7,7 +7,7 @@ import { clamp } from "./util.js";
 
 /* speeds, in virtual ms */
 const TYPE_CHAR = 38, ANSWER_CHAR = 13, PUNCT = 110, SEND = 260, THINK = 380;
-const STEP = 460, CHIP = 90, TICKET = 240, HOLD_PAUSE = 320, HOLD = 1700, AFTER_PAUSE = 260, DWELL = 700;
+const STEP = 460, CHIP = 90, TICKET = 240, HOLD_PAUSE = 320, HOLD = 1700, AFTER_PAUSE = 260, DWELL = 700, VISUAL = 1800;
 
 const punct = (s) => (s.match(/[.,]/g) || []).length;
 
@@ -30,6 +30,7 @@ export function planOf(c, lead = 0) {
   plan.ticketsStart = t;
   plan.ticketsEnd = mark((c.tickets ? c.tickets.length : 0) * TICKET);
   if (c.tickets) { mark(HOLD_PAUSE); plan.holdStart = t; plan.holdEnd = mark(HOLD); }
+  if (c.visual) { mark(200); plan.visualStart = t; plan.visualEnd = mark(VISUAL); }
   if (c.after) { mark(AFTER_PAUSE); plan.afterStart = t; plan.afterEnd = mark(c.after.length * ANSWER_CHAR + punct(c.after) * PUNCT); }
   plan.total = mark(DWELL);
   return plan;
@@ -53,6 +54,8 @@ export function stateAt(plan, tau) {
     tickets: c.tickets ? nOf(plan.ticketsStart, plan.ticketsEnd, c.tickets.length, tau) : 0,
     hold: c.tickets ? clamp((tau - plan.holdStart) / (plan.holdEnd - plan.holdStart)) : 0,
     holdShown: c.tickets ? tau >= plan.ticketsEnd : false,
+    visual: c.visual ? clamp((tau - plan.visualStart) / (plan.visualEnd - plan.visualStart)) : 0,
+    visualShown: c.visual ? tau >= plan.visualStart : false,
     after: c.after ? (tau < plan.afterStart ? 0 : upTo(c.after, plan.afterStart, plan.afterEnd, tau)) : 0,
     afterShown: c.after ? tau >= plan.afterStart : false,
   };

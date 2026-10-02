@@ -12,7 +12,7 @@ const sectionHtml = (s) => `<h3 class="pg-h">${esc(s.title)}</h3><p class="pg-le
 
 function renderPage(id) {
   const S = SITE();
-  if (id === "defi" || id === "predictions" || id === "payments") return sectionHtml(S[id]);
+  if (id === "defi" || id === "control" || id === "networks") return sectionHtml(S[id]);
   if (id === "thinks") return sectionHtml({ ...S.thinks, note: "" });
   if (id === "security") return sectionHtml({ ...S.security, note: (S.security.note || "").replace(/^Every transaction shown[^.]*\.\s*/, "") });
   if (id === "ask") {

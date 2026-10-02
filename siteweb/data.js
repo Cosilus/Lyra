@@ -1,4 +1,4 @@
-/* generated from siteweb/index.html by build-data.mjs */
+/* generated from siteweb/index.html by build-data.mjs, then edited by hand: predictions and payments/agents sections replaced by control and networks */
 window.SITE = {
  "defi": {
   "eyebrow": "03 / DeFi",
@@ -44,87 +44,93 @@ window.SITE = {
   ],
   "note": "Final once confirmed. Swaps and bridges are on-chain transactions: once you hold to confirm and they are broadcast, neither Lyra nor anyone else can undo them. Read the ticket, especially the amount and the network, before you hold the button."
  },
- "predictions": {
-  "eyebrow": "04 / Predictions & bets",
-  "title": "Bet on real-world outcomes in one sentence. Still one button to confirm.",
-  "lead": "Ask about an event and Lyra finds the actual Polymarket market, reads the live price from its order book, and prepares the bet on Polygon as a single ticket. You see the price and the possible payout before anything is signed.",
+ "control": {
+  "eyebrow": "04 / Control by chat",
+  "title": "Run the whole wallet from the chat. Still one button to confirm.",
+  "lead": "Anything you would click in the wallet, you can ask for: switch network, open your history, change the view, send to a saved contact. Lyra prepares and navigates, but nothing moves until you hold the button.",
   "cards": [
    {
-    "title": "Find the market",
-    "tag": "via Polymarket",
-    "text": "Describe the event in your own words. Lyra searches Polymarket for the real, open market that matches it, and says so if nothing does instead of guessing.",
-    "check": "Only open markets, never invented ones"
+    "title": "Switch network",
+    "tag": "6 networks",
+    "text": "Say \"switch to Base\" and Lyra changes the network for you, the same as the network menu.",
+    "check": "Plasma, Ethereum, Base, Polygon, Arc, Hyperliquid"
    },
    {
-    "title": "Live price",
-    "tag": "order book",
-    "text": "The price comes from Polymarket's live order book for the exact outcome you picked, and the ticket shows what you would get if it resolves your way.",
-    "check": "Price read fresh for every bet"
+    "title": "Open your history",
+    "tag": "sent · received · swaps · bridges · stakes",
+    "text": "Ask to see what you sent, received, swapped, bridged, or staked, and Lyra opens that list.",
+    "check": "Same list as the History menu"
    },
    {
-    "title": "One ticket, one hold",
-    "tag": "on Polygon",
-    "text": "The bet is a signed order on Polygon, prepared and shown as one ticket. Lyra can also bring in the funds it needs, like bridging or swapping into the right token.",
-    "check": "Nothing is signed until you hold"
+    "title": "Change the view",
+    "tag": "2D or 3D",
+    "text": "Say \"switch to 3D\" or \"switch to 2D\" and the interface follows, with the setting updated for you.",
+    "check": "You can still change it in Settings"
    },
    {
-    "title": "Cash out early",
-    "tag": "before it resolves",
-    "text": "Changed your mind? Ask to cash out a position and Lyra prepares the sale at the current price, no waiting for the market to close.",
-    "check": "Same confirmation as any other action"
+    "title": "Send to a name",
+    "tag": "contacts",
+    "text": "Save a contact, then say \"send 10 USDC to Alice\". Lyra resolves the name, checks the address, and prepares the ticket.",
+    "check": "The address is checked before you confirm"
    },
    {
-    "title": "Cancel an open order",
-    "tag": "unfilled orders",
-    "text": "An order that hasn't been filled yet can be cancelled by asking. Lyra prepares the cancellation and waits for your hold.",
-    "check": "Cancellation also waits for your hold"
+    "title": "Check before you sign",
+    "tag": "explorer badges · scam lists",
+    "text": "Paste an address or a contract and Lyra reads its explorer badges and public scam lists first, and tells you what it finds.",
+    "check": "It tells you when it can't verify something"
    },
    {
-    "title": "Risk stays visible",
-    "tag": "no hidden leverage",
-    "text": "A bet is a stake you can lose entirely. The ticket states the amount at risk and the payout, and Lyra never places a bet without an amount from you.",
-    "check": "It asks for an amount instead of guessing one"
+    "title": "Money still needs your hold",
+    "tag": "hold to confirm",
+    "text": "The chat can navigate, explain, and prepare. Anything that moves funds still becomes a ticket that only you can confirm.",
+    "check": "Lyra can't sign on its own"
    }
   ],
-  "note": "You can lose your whole stake. Prediction markets are risky and may not be available in every country. Only bet what you can afford to lose, and check that Polymarket is allowed where you live before you use it."
+  "note": "Lyra answers questions about your wallet, Web3, crypto, and blockchains, and nothing else. Moving funds always goes through a ticket you confirm with the hold button."
  },
- "payments": {
-  "eyebrow": "05 / Agents & payments",
-  "title": "Your agent can find, pay, hire, and shop. Still one button to confirm.",
-  "lead": "Lyra speaks the open standards AI agents use to transact with the web and with each other: pay an API over HTTP, search a directory of paid services, hand a task to another agent, or check out without leaving the chat. Every payment shows its price first and waits for you.",
+ "networks": {
+  "eyebrow": "05 / Networks",
+  "title": "Six networks, one wallet. Switch by asking.",
+  "lead": "Lyra works on six networks today. Each one keeps its own balance and history, and you can move between them in a sentence. What you can do depends on what each network offers.",
   "cards": [
    {
-    "title": "x402 payments",
-    "tag": "via x402 · HTTP 402",
-    "text": "When a paid API answers \"402 Payment Required\", Lyra reads the price, shows you a ticket, and signs a USDC authorization once you hold the button. If the network is short of USDC, it can bridge funds in first, under the same confirmation.",
-    "check": "Capped by a spending limit you set"
+    "title": "Plasma",
+    "tag": "native coin XPL",
+    "text": "A purpose-built L1 for stablecoins: near-instant, low-fee USD₮ transfers with full EVM compatibility. Lyra's home network.",
+    "check": "Send · swap · bridge · stake"
    },
    {
-    "title": "Find services",
-    "tag": "via Circle's service directory",
-    "text": "Ask for what you need, like \"a service for crypto prices\". Lyra searches Circle's public directory of paid x402 services, keeps the simple ones it can pay straight from a chat, and lists a few cheap options with their prices.",
-    "check": "You see the price and confirm first"
+    "title": "Ethereum",
+    "tag": "native coin ETH",
+    "text": "The original smart-contract blockchain, the most decentralized and battle-tested, home to most of DeFi.",
+    "check": "Send · swap · bridge · stake"
    },
    {
-    "title": "Nanopayments",
-    "tag": "via Circle Gateway",
-    "text": "Deposit USDC once, then every payment is just a free signature: no gas, down to fractions of a cent, settled in batches by Circle. It works on Arc, Polygon, Base, and Ethereum, and a deposit on Arc is credited in about a second.",
-    "check": "Used automatically when your balance covers the price"
+    "title": "Base",
+    "tag": "native coin ETH",
+    "text": "Coinbase's Ethereum L2: fast, low-cost transactions secured by Ethereum itself.",
+    "check": "Send · swap · bridge · stake"
    },
    {
-    "title": "A2A: hire other agents",
-    "tag": "via the Agent2Agent protocol",
-    "text": "Alpha for now: the built-in agent returns simulated notes. Lyra can hand a task to another specialized agent: it reads that agent's public card, sends the task, and brings the answer back into the chat. No money moves.",
-    "check": "Designed for any agent that publishes an A2A card"
+    "title": "Polygon",
+    "tag": "native coin POL",
+    "text": "A fast, low-cost Ethereum sidechain.",
+    "check": "Send · swap · bridge"
    },
    {
-    "title": "ACP: checkout in the chat",
-    "tag": "via the Agentic Commerce Protocol",
-    "text": "Alpha for now: the merchant is a demo, with no real order behind it. Buy without leaving the conversation: say what you want, Lyra builds a checkout with line items and a total, and one hold pays it over x402.",
-    "check": "Same spending limit as every x402 payment"
+    "title": "Arc",
+    "tag": "gas paid in USDC",
+    "text": "Circle's stablecoin-native L1: USDC itself pays the gas, sub-second finality, built for payments and tokenized assets. Swaps and bridges run through Circle's own kits.",
+    "check": "Send · swap USDC/EURC · bridge · stake"
+   },
+   {
+    "title": "Hyperliquid",
+    "tag": "native coin HYPE",
+    "text": "Hyperliquid's own EVM (HyperEVM), home to its perps and spot order books, with HYPE itself paying gas.",
+    "check": "Send · swap · bridge"
    }
   ],
-  "note": "What's real and what's a demo. x402 payments and Nanopayments work with real third-party services. The A2A agent and the ACP merchant are demos we built to show the flow, with nothing real behind them. A payment is final once it settles: Lyra can't reverse it, so keep your spending limit low and pay services you trust."
+  "note": "More networks will follow as they are verified. Staking is offered where Aave runs."
  },
  "thinks": {
   "eyebrow": "06 / How it thinks",
@@ -178,7 +184,8 @@ window.SITE = {
    },
    {
     "title": "Spending limits",
-    "text": "A cap you set on x402 payments and checkouts, enforced before anything is signed, plus an optional biometric re-check above an amount you choose."
+    "text": "With the 2-of-2 key protection you can set a daily limit in USD: above it, Lyra's backend refuses to release its half of the key. You can also require a biometric re-check above an amount you choose.",
+    "check": "Enforced before anything is signed"
    },
    {
     "title": "Multisig with Safe",
@@ -199,7 +206,7 @@ window.SITE = {
     "items": [
      {
       "q": "What exactly is Lyra?",
-      "a": "Lyra is an ICW (an Intelligent Conversational Wallet), non-custodial, live on Plasma, Ethereum, Base, Polygon, Arc, and Hyperliquid. Instead of clicking through a protocol's own interface, you describe what you want in plain language, and Lyra researches the rate, the fees, and the risk before preparing a transaction for you to approve. It can also pay for services over x402, hand tasks to other agents, and check out in the chat."
+      "a": "Lyra is an ICW (an Intelligent Conversational Wallet), non-custodial, live on Plasma, Ethereum, Base, Polygon, Arc, and Hyperliquid. Instead of clicking through a protocol's own interface, you describe what you want in plain language, and Lyra researches the rate, the fees, and the risk before preparing a transaction for you to approve. You can also ask it questions about Web3 and control the whole wallet from the chat."
      },
      {
       "q": "How is this different from just using Uniswap, Aave, or LI.FI directly?",
@@ -211,7 +218,11 @@ window.SITE = {
      },
      {
       "q": "Can I ask Lyra questions without making a transaction?",
-      "a": "Yes. Lyra uses the same research loop as live web search and on-chain checks to answer questions like whether a contract looks risky, without preparing anything to sign."
+      "a": "Yes. Lyra uses the same research loop as live web search and on-chain checks to answer questions like whether a contract looks risky, without preparing anything to sign. It only answers about your wallet, Web3, crypto, and blockchains."
+     },
+     {
+      "q": "Can I control the whole wallet from the chat?",
+      "a": "Most of it, yes. You can switch network, open your history, change between the 2D and 3D view, send to a saved contact, and prepare swaps, bridges, and staking. Anything that moves funds still becomes a ticket that only you can confirm with the hold button."
      },
      {
       "q": "Can I receive funds from any chain, or only the network I'm on?",
@@ -257,7 +268,7 @@ window.SITE = {
      },
      {
       "q": "What are spending limits?",
-      "a": "In Settings you set a spending limit for x402 payments and checkouts. Anything above it is blocked before it's ever signed. You can also require a biometric confirmation above an amount you choose, on top of the hold-to-confirm."
+      "a": "With the 2-of-2 key protection you can set a daily limit in USD: above it, Lyra's backend refuses to release its half of the key, so nothing can be signed. You can also require a biometric confirmation above an amount you choose, on top of the hold-to-confirm."
      },
      {
       "q": "Can I set up a shared wallet with several owners?",
@@ -265,7 +276,7 @@ window.SITE = {
      },
      {
       "q": "Is there a record of what Lyra did?",
-      "a": "Yes. The audit trail is a local log of what was sent, swapped, bridged, staked, bet, paid, or delegated, including anything that was blocked."
+      "a": "Yes. The audit trail is a local log of what was sent, swapped, bridged, or staked, including anything that was blocked."
      }
     ]
    },
@@ -275,7 +286,7 @@ window.SITE = {
     "items": [
      {
       "q": "Which protocols does Lyra actually use?",
-      "a": "Nine, today: KyberSwap for swaps, LI.FI for bridging (the same routing engine behind Jumper), Aave for staking (V3, and V4 on Arc), Polymarket for prediction markets, Circle for Arc swaps and bridges and for Nanopayments, Safe for multisig, and the open x402, A2A, and ACP standards for agent payments, service search, and checkout. The DeFi ones are verified, live contracts, not simulated, across Plasma, Ethereum, Base, Polygon, Arc, and Hyperliquid. The A2A agent and the ACP merchant Lyra ships with are demos."
+      "a": "Five, today: KyberSwap for swaps, LI.FI for bridging (the same routing engine behind Jumper), Aave for staking (V3, and V4 on Arc), Circle for swaps and bridges on Arc, and Safe for multisig. They are verified, live contracts, not simulated, across Plasma, Ethereum, Base, Polygon, Arc, and Hyperliquid, wherever each one is available."
      },
      {
       "q": "Are the rates Lyra shows me actually live?",
@@ -292,86 +303,6 @@ window.SITE = {
     ]
    },
    {
-    "id": "agents",
-    "label": "Agents & payments",
-    "items": [
-     {
-      "q": "What is x402?",
-      "a": "x402 is an open standard for paying over the web. A service answers a request with \"402 Payment Required\" and a price, Lyra shows you that price as a ticket, and when you hold the button it signs a USDC payment and retries. No card, no account, no invoice."
-     },
-     {
-      "q": "How do I pay for a service with Lyra?",
-      "a": "Tell Lyra to pay for a service and give it the link of the paid API or resource. Lyra checks the price, shows a ticket, and you hold to confirm. Right after, it explains in plain language what you got. Payments are capped by the spending limit you set in Settings."
-     },
-     {
-      "q": "How does Lyra find services to pay for?",
-      "a": "Say what you need, for example \"find me a service for crypto prices\". Lyra searches Circle's public directory of paid x402 services, keeps the simple ones it can pay straight from a chat (no login, no extra input needed), and lists a few cheap options with their price and link. Then \"use number 1\" prepares the payment. That directory comes from third parties, so you always see the price and confirm first."
-     },
-     {
-      "q": "What are Nanopayments?",
-      "a": "Circle Gateway lets you deposit USDC once and then pay with free signatures: no gas per payment, and prices down to a millionth of a dollar, because Circle settles thousands of payments together in batches. Lyra uses your Nanopayments balance automatically when it covers the price. Ask Lyra to deposit USDC into your nanopayments balance to fund it, and ask for your nanopayments balance to check it."
-     },
-     {
-      "q": "Do Nanopayments only work on Arc?",
-      "a": "No. Lyra supports Nanopayments on Arc, Polygon, Base, and Ethereum. The difference is speed: a deposit on Arc is credited in about a second and on Polygon in a few seconds, while Base and Ethereum take around 15 minutes. Each service also decides which networks it accepts, so your balance has to be on one of them. Plasma isn't supported by Circle Gateway."
-     },
-     {
-      "q": "Do I need gas to pay with x402?",
-      "a": "The payment itself is a signature, so no gas and no ETH. If the payment network is short of USDC, Lyra can bridge funds in automatically, but only when one other network holds enough, and that bridge needs a little of that network's own coin for its fee. A Nanopayments deposit is one normal on-chain transaction, and every payment after it is free."
-     },
-     {
-      "q": "What is A2A?",
-      "a": "A2A (Agent2Agent) is an open protocol for agents to talk to each other. Lyra can hand a task to another specialized agent: it reads that agent's public card, sends the task, and shows you the answer in the chat. No money moves."
-     },
-     {
-      "q": "What is ACP?",
-      "a": "ACP (Agentic Commerce Protocol) is checkout in the conversation. You say what you want to buy, Lyra builds a cart with line items and a total, and one hold pays it over x402, under your spending limit."
-     },
-     {
-      "q": "Are A2A and ACP real, or demos?",
-      "a": "The protocol flows are real, but the agent and the merchant Lyra ships with today are demos we built: the agent returns simulated notes and the merchant doesn't ship anything. x402 payments and Nanopayments, on the other hand, work with real third-party services."
-     },
-     {
-      "q": "What if a paid service takes my payment and gives nothing?",
-      "a": "A payment is final once it settles: Lyra can't reverse it and there is no built-in refund, you would need to ask that service. That's why Lyra shows the price first, why the spending limit exists, and why it's best to keep the limit low and pay only services you trust."
-     },
-     {
-      "q": "Can Lyra book a restaurant or buy real things for me?",
-      "a": "Not yet. Real booking and shopping services usually need an account on the platform behind them, which a chat-only flow can't create. Lyra includes a fictional demo restaurant that shows how paying for a reservation over x402 would work, with no real table and no real money movement."
-     },
-     {
-      "q": "Will I understand what I paid for, and what to do when something fails?",
-      "a": "Yes. After a paid request, Lyra explains what came back in plain language instead of showing raw data. If something fails, it tells you the likely cause and one concrete next step in the same message."
-     }
-    ]
-   },
-   {
-    "id": "predictions",
-    "label": "Predictions",
-    "items": [
-     {
-      "q": "What are \"Predictions\" in Lyra?",
-      "a": "Predictions let you bet on the outcome of a real-world event, an election, a sports match, whether a price crosses some level, through Polymarket, the largest prediction-market exchange. Ask Lyra in plain language, e.g. \"bet $20 the Fed cuts rates in December,\" and it finds the exact market, reads the live price, and prepares the order for you to confirm."
-     },
-     {
-      "q": "Which network do Predictions run on?",
-      "a": "Polygon, Polymarket's home network. If you place a bet while active on a different network, Lyra still routes the order correctly, your position lives on Polygon regardless of which chain you're viewing in the app."
-     },
-     {
-      "q": "Can I get out of a bet before the market resolves?",
-      "a": "Yes. While a market is still live, open your position from the Predictions tab and cash out, Lyra sells your shares back into Polymarket's order book at the current price as a market order, same one-hold confirmation as everything else. An unfilled limit order can be cancelled the same way."
-     },
-     {
-      "q": "Why can't I withdraw or claim my winnings after a Polymarket market resolves?",
-      "a": "Nothing is stuck, claiming a resolved market's winnings just isn't wired into Lyra yet, only cashing out a still-live position is. Once a market you bet on has resolved, go to polymarket.com, connect the same wallet, and redeem the position there, that's the same on-chain wallet Lyra uses, so your winnings land right back in your Polygon balance and Lyra picks them up from there. This only applies to positions Polymarket has actually settled; if a market is still open, use Cash Out inside Lyra instead."
-     },
-     {
-      "q": "Are the odds Lyra shows me the real, live ones?",
-      "a": "Yes, fetched from Polymarket's live order book right when you ask, not cached. Every bet executes as a market order against that same book, so the price you confirm can move slightly between the quote and the fill, exactly like it would placing the order directly on polymarket.com."
-     }
-    ]
-   },
-   {
     "id": "practical",
     "label": "Access & practical",
     "items": [
@@ -381,7 +312,7 @@ window.SITE = {
      },
      {
       "q": "Does Lyra cost anything to use?",
-      "a": "Downloading and using Lyra is free. The only cost on any transaction is the underlying network fee the chain itself charges. Lyra shows that fee plainly on the ticket and doesn't add a markup on top."
+      "a": "Downloading and using Lyra is free. Lyra charges a 0.25% fee on swaps, bridges, staking deposits, and sends. It is shown on the ticket before you confirm: it is taken out of the amount for swaps, bridges, and staking, and added on top for sends. The chain's own network fee is separate, and Lyra shows that plainly too."
      },
      {
       "q": "Do I need to create an account to use Lyra?",
