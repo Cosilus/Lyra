@@ -40,7 +40,7 @@ export const TERMS = {
     title: "Intelligent Conversational Wallet",
     lead: "A non-custodial wallet you talk to, not click through.",
     points: [
-      "Say it in plain words: send, swap, bridge, stake, bet, pay.",
+      "Say it in plain words: send, swap, bridge, stake, ask.",
       "Lyra checks the live rate, route and risk first.",
       "You read a ticket, then hold one button to confirm.",
       "Your key stays encrypted on your device.",
@@ -69,27 +69,45 @@ export const TERMS = {
       "Multi-step (\"swap then stake\"): one ticket per step, you review each one.",
     ],
   },
-  predict: {
-    title: "Bets on prediction markets",
-    lead: "Bet on real-world outcomes through Polymarket.",
+  stake: {
+    title: "Stake",
+    lead: "Deposit a token to earn a yield, withdraw when you want.",
     points: [
-      "Finds the real, open market, or says there is none.",
-      "Live price from the order book, with the payout.",
-      "One ticket on Polygon, funds brought in if needed.",
-      "Cash out early or cancel an open order.",
+      "Aave V3 on Plasma, Ethereum and Base (V4 on Arc).",
+      "Lyra reads the live supply rate and the risk first.",
+      "Withdraw anytime, same one-hold confirmation.",
     ],
-    note: "You can lose your whole stake.",
+    note: "Not available on Polygon or Hyperliquid yet.",
   },
-  x402: {
-    title: "Payments over x402",
-    lead: "Pay for web services: no card, no account.",
+  bridge: {
+    title: "Bridge",
+    lead: "Move a token from one network to another.",
     points: [
-      "A service answers \"402\" with a price; you see a ticket.",
-      "Hold to confirm: Lyra signs a USDC payment.",
-      "Finds paid services in Circle's directory.",
-      "Nanopayments: gas-free after one deposit.",
-      "Your spending limit blocks anything above it.",
+      "Route requested live from LI.FI, the engine behind Jumper.",
+      "On Arc: Circle's Bridge Kit (USDC and EURC).",
+      "You see what you'll receive before you hold.",
     ],
+    note: "Final once broadcast: check the amount and the network.",
+  },
+  web3: {
+    title: "Questions about Web3",
+    lead: "Ask first, act after. No ticket unless you want one.",
+    points: [
+      "Is this contract risky? What does this rate mean?",
+      "Lyra checks the explorer and public scam lists.",
+      "It answers about your wallet, Web3, crypto and blockchains.",
+    ],
+    note: "If it can't find a reliable answer, it says so.",
+  },
+  control: {
+    title: "Control the wallet by chat",
+    lead: "Anything you would click, you can ask for.",
+    points: [
+      "Switch network, open your history, change 2D / 3D.",
+      "Send to a saved contact by name.",
+      "Prepare swaps, bridges and staking as tickets.",
+    ],
+    note: "Anything that moves funds still needs your hold.",
   },
   a2a: {
     title: "Hire an agent (A2A)",
@@ -99,16 +117,6 @@ export const TERMS = {
       "The answer comes back into the chat. No money moves.",
     ],
     note: "Alpha: the built-in agent is a demo.",
-  },
-  book: {
-    title: "Book and pay in the chat",
-    lead: "Checkout inside the conversation, paid over x402 (ACP).",
-    points: [
-      "Lyra builds a checkout with items and a total.",
-      "One hold pays it, under your spending limit.",
-      "Payments are final: the price is shown first.",
-    ],
-    note: "Alpha: the restaurant is a demo, nothing is booked.",
   },
 };
 
