@@ -10875,7 +10875,7 @@ function AnimatedBalance({ value, decimals = 2 }) {
 const ONBOARDING_EXAMPLES = [
   { label: "Send", example: "Send 10 XPL to 0x..." },
   { label: "Bridge", example: "Bridge 5 XPL to Base" },
-  { label: "Bet", example: "Bet $10 on Lakers to win" },
+  { label: "Ask", example: "What is a bridge, and is it safe?" },
   { label: "Transactions", example: "Show my transaction history" }
 ];
 

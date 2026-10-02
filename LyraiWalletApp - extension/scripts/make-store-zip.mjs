@@ -3,7 +3,7 @@
 //   2. refuses to continue if it still points at localhost
 //   3. rebuilds dist/ with that URL baked in
 //   4. narrows manifest.json host_permissions to the hosts the extension really calls
-//   5. runs the static checks and writes lyra-extension-testnet-<version>.zip next to this folder's package.json
+//   5. runs the static checks and writes lyra-extension-testnet-<version>.zip next to package.json (needs Python on the PATH)
 //
 //   npm run store
 import fs from "node:fs";
@@ -47,5 +47,7 @@ run("npm run check");
 
 const zip = path.join(root, `lyra-extension-testnet-${manifest.version}.zip`);
 if (fs.existsSync(zip)) fs.rmSync(zip);
-run(`powershell -NoProfile -Command "Compress-Archive -Path '${path.join(root, "dist")}\\*' -DestinationPath '${zip}'"`);
+// Python's zipfile, not PowerShell's Compress-Archive: that one writes backslashes in the entry names
+// ("assets\x.js"), which the Chrome Web Store can reject. Needs Python on the PATH.
+run(`python scripts/zip-dir.py "${path.join(root, "dist")}" "${zip}"`);
 console.log("\nReady to upload: " + zip);
