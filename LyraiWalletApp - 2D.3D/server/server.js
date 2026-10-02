@@ -3648,6 +3648,41 @@ async function lookupSecurityBadges(network, address) {
   return out;
 }
 
+// Etherscan's red banner "this address has received funds from an address
+// reported to be involved in suspicious activity" comes from looking one hop
+// around the address. Same idea here, with free data: the counterparties of its
+// recent transactions are checked against the public security databases.
+async function checkCounterpartyExposure(network, address, txs) {
+  const me = address.toLowerCase();
+  const stats = new Map(); // counterparty -> { dir, value }
+  for (const t of txs || []) {
+    const from = String(t.from || "").toLowerCase();
+    const to = String(t.to || "").toLowerCase();
+    const other = from === me ? to : from;
+    if (!/^0x[0-9a-f]{40}$/.test(other) || other === me) continue;
+    const prev = stats.get(other) || { in: 0, out: 0, value: 0 };
+    if (from === me) prev.out += 1; else prev.in += 1;
+    prev.value += Number(t.value || 0);
+    stats.set(other, prev);
+  }
+  const counterparties = [...stats.entries()].sort((a, b) => b[1].value - a[1].value).slice(0, 12);
+  const flagged = [];
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < counterparties.length) {
+      const [addr, st] = counterparties[cursor++];
+      try {
+        const r = await fetch(`https://api.gopluslabs.io/api/v1/address_security/${addr}?chain_id=${network.chainId}`, { signal: AbortSignal.timeout(5000) });
+        const f = (await r.json())?.result || {};
+        const hits = Object.entries(SECURITY_FLAG_LABELS).filter(([k]) => f[k] === "1").map(([, label]) => label);
+        if (hits.length) flagged.push({ address: addr, labels: hits, in: st.in, out: st.out });
+      } catch (_) { /* a missed lookup only means one less signal */ }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return { checked: counterparties.length, flagged };
+}
+
 async function explorerLookup(network, address) {
   if (!/^0x[a-fA-F0-9]{40}$/.test(address || "")) {
     return { error: "Invalid address." };
@@ -4237,6 +4272,23 @@ app.get("/api/address-check/:address", async (req, res) => {
       if (outgoing.length === 0 && incoming.length >= 3 && distinctSenders.size >= 3) {
         reasons.push(
           "This address has received transfers from several different wallets but has never sent anything out itself, a pattern sometimes seen with address-poisoning or drainer scams."
+        );
+      }
+
+      // One hop around the address: has it received funds from, or sent funds
+      // to, addresses that security databases flag? A single link on a busy
+      // wallet means little, so it needs two, or one on a small history.
+      const exposure = await checkCounterpartyExposure(network, address, txs);
+      const worrying = exposure.flagged.length >= 2 || (exposure.flagged.length >= 1 && exposure.checked <= 10);
+      if (worrying) {
+        const fromBad = exposure.flagged.filter(f => f.in > 0).length;
+        const toBad = exposure.flagged.filter(f => f.out > 0).length;
+        const kinds = [...new Set(exposure.flagged.flatMap(f => f.labels))].join(", ");
+        const parts = [];
+        if (fromBad) parts.push(`received funds from ${fromBad} flagged address${fromBad > 1 ? "es" : ""}`);
+        if (toBad) parts.push(`sent funds to ${toBad} flagged address${toBad > 1 ? "es" : ""}`);
+        reasons.push(
+          `This address has ${parts.join(" and ")} (flagged for: ${kinds}). Explorers warn about exactly this link to suspicious activity, and it is a common sign of a scam or drainer wallet. Treat it as high risk.`
         );
       }
     }
@@ -6242,6 +6294,14 @@ you must use the GET_BALANCE intent.
     // stop, so a single flaky response doesn't fail the request when
     // another configured provider (or even the same one) would've
     // answered fine.
+    // A provider hiccup (rate limit, 5xx, a half-written JSON) is usually gone a
+    // second later: if every provider failed, go through the list once more
+    // before telling the user anything went wrong.
+    for (let round = 0; round < 2 && !action && !proseFallback; round++) {
+    if (round > 0) {
+      console.warn("All AI providers failed, retrying the whole list once.");
+      await new Promise(resolve => setTimeout(resolve, 700));
+    }
     for (const provider of aiProviders) {
       const attemptStarted = Date.now();
       try {
@@ -6275,6 +6335,7 @@ you must use the GET_BALANCE intent.
         lastProviderError = e;
         // Try the next configured provider instead of failing immediately.
       }
+    }
     }
 
     if (!action && proseFallback) {
