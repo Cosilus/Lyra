@@ -4,11 +4,29 @@
  * belongs to that virtual time (see chapters.js). Scrolling back simply un-shows things.
  * Talks to the active device only through keyPress() / setTyping().
  */
-import { $, el } from "./util.js";
+import { $, el, ease } from "./util.js";
 import { CH, N, NET, TOTAL } from "./story.js";
 import { stateAt } from "./chapters.js";
 import { plans } from "./timeline.js";
 import { richHtml } from "./terms.js";
+
+const I = (paths, rot = 0) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"${rot ? ` style="transform:rotate(${rot}deg)"` : ""}>${paths}</svg>`;
+/* A small sketch of the real 3D wallet: the tilted box, and the right-hand menu pill opening with its glow. */
+const MOCK_3D = `<div class="m3d-stage">
+  <div class="m3d-box">
+    <img class="m3d-star" src="logo.svg" alt="">
+    <div class="m3d-card"><small>AVAILABLE BALANCE</small><b>0.4 <i>XPL</i></b><span>≈ $0.04 · 0x40b1…5c27</span></div>
+    <div class="m3d-ask"><b>What should we do?</b><span>Send, receive, swap, bridge or stake tokens.</span></div>
+    <div class="m3d-input"><span>Message Lyra…</span><i></i></div>
+  </div>
+  <div class="m3d-menu">
+    <span>${I('<path d="m5 9 7-7 7 7"/><path d="M12 16V2"/><circle cx="12" cy="21" r="1"/>', 45)}</span>
+    <span>${I('<path d="M12 2v14"/><path d="m19 9-7 7-7-7"/><circle cx="12" cy="21" r="1"/>', 45)}</span>
+    <span>${I('<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>')}</span>
+    <span>${I('<path d="m18 8 4 4-4 4"/><path d="M2 12h20"/><path d="m6 8-4 4 4 4"/>')}</span>
+    <span>${I('<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/><path d="m7.9 7.9 2.7 2.7"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/><path d="m13.4 10.6 2.7-2.7"/><circle cx="7.5" cy="16.5" r=".5" fill="currentColor"/><path d="m7.9 16.1 2.7-2.7"/><circle cx="16.5" cy="16.5" r=".5" fill="currentColor"/><path d="m13.4 13.4 2.7 2.7"/><circle cx="12" cy="12" r="2"/>')}</span>
+  </div>
+</div>`;
 
 const AVATAR = '<div class="avatar"><img src="logo.svg" alt=""></div>';
 
@@ -50,6 +68,8 @@ function createView(index, chat) {
   if (c.chips) for (const t of c.chips) chipEls.push(el("span", "chip", t));
   chipEls.forEach((n) => chipBox.appendChild(n));
   body.append(dots, stepBox, answer, chipBox);
+  const mock = c.visual === "3d" ? el("div", "m3d", MOCK_3D) : null;
+  if (mock) body.append(mock);
 
   let wrap = null, ticketEls = [], hold = null, note = null, holdCanvas = null, holdLabel = null;
   if (c.tickets) {
@@ -104,6 +124,7 @@ function createView(index, chat) {
         hold.classList.toggle("done", s.hold >= 1);
         holdLabel.textContent = s.hold >= 1 ? "Confirmed ✓" : "Hold to Confirm";
       }
+      if (mock) { show(mock, s.visualShown); mock.style.setProperty("--p", ease(s.visual).toFixed(3)); }
       if (agent) { show(agent, s.afterShown); agentLine.innerHTML = richHtml(c.after, c.afterSpans, s.after); }
       return s;
     },
