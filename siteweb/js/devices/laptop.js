@@ -61,8 +61,18 @@ export function createLaptop() {
          hit-testing entirely for the whole time the screen is actually
          interactive; the tilt still plays during the open/close animation
          itself, where nothing is clickable yet anyway. */
-      const atRest = tl.open >= 0.999 && tl.closeT <= 0.001;
-      const angle = atRest ? 0 : -90 + 100 * tl.open * (1 - tl.closeT);
+      /* Flat at rest, but never by SNAPPING: the old switch (10deg while moving, 0deg the
+         instant the lid is open and still) made the whole laptop jump 10deg when the lid
+         finished opening and again the moment it started closing -- a visible pop at the end
+         of the menu step, with the hands and the sides of the laptop flashing as it
+         happened. Now a "flatten" term takes the 10deg off smoothly while the lid is
+         opening (open 0.8 -> 1) and puts it back only after the closing has reached 10deg
+         of travel (closeT 0 -> 0.1), so the angle is continuous and is exactly 0 for the
+         whole resting/interactive time (same hit-testing guarantee as before). */
+      const rampTo = (v, a, b) => clamp((v - a) / (b - a));
+      const flatten = 10 * rampTo(tl.open, 0.8, 1) * (1 - rampTo(tl.closeT, 0, 0.1));
+      const atRest = tl.open >= 1 && tl.closeT <= 0;
+      const angle = atRest ? 0 : -90 + 100 * tl.open * (1 - tl.closeT) - flatten;
       lid.style.transform = `rotateX(${angle}deg)`;
 
       /* the hand that opens the lid follows the lid's free edge */
