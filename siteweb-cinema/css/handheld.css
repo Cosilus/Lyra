@@ -1,0 +1,70 @@
+/* Handheld devices (phone, tablet): a 3D body that lies on the desk, then rises to face the viewer.
+   Built by js/devices/handheld.js. Natural size = screen + bezel, the rig scales it to the viewport. */
+
+.rig-handheld { position: absolute; left: 0; top: 0; width: var(--pw, 418px); height: var(--ph, 872px); transform-origin: 0 0; }
+.hh3d { position: absolute; inset: 0; perspective: 2600px; perspective-origin: 50% -70%; }
+.hh-body { position: absolute; inset: 0; transform-origin: 50% 50%; transform-style: preserve-3d; transform: rotateX(-88deg); will-change: transform; }
+.hh-face { position: absolute; inset: 0; border-radius: var(--r-body, 56px); backface-visibility: hidden; -webkit-backface-visibility: hidden; outline: 1px solid transparent; }
+.hh-front { transform: translateZ(var(--d, 0px)); }
+.hh-back { transform: rotateY(180deg) translateZ(var(--d, 0px)); }
+
+/* extruded side walls + hardware buttons (real thickness) */
+.hh-slice { position: absolute; inset: 0; border-radius: var(--r-body, 56px); }
+.hh-btn { position: absolute; border-radius: 3px; background: hsl(232 38% 34%); }
+.hh-power { right: -5px; top: 30%; width: 6px; height: 12%; }
+.hh-vol { left: -5px; top: 20%; width: 6px; height: 16%; }
+.rig-handheld[data-orient="landscape"] .hh-power { right: auto; left: 30%; top: -5px; width: 12%; height: 6px; }
+.rig-handheld[data-orient="landscape"] .hh-vol { left: 20%; top: auto; bottom: -5px; width: 16%; height: 6px; }
+
+/* glass sheen that slides with the yaw */
+.hh-sheen { position: absolute; inset: 0; z-index: 6; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, .075) 50%, transparent 62%); background-size: 260% 100%; background-position: var(--sheen, 50%) 0; }
+
+.hh-front { background: #06060d; box-shadow: inset 0 0 0 3px #2a2f66, inset 0 0 0 var(--bz, 10px) #0a0a14; }
+.hh-front .screen { inset: var(--inset, 14px); border-radius: var(--r-screen, 44px); }
+.hh-back { background: linear-gradient(160deg, #3a4390, #2b3373 55%, #242b64); box-shadow: inset 0 0 0 3px #7480d6, inset 0 -30px 50px #1e2565aa; }
+
+/* camera block on the back: a raised plate (real relief) with lenses standing out of it */
+.hh-back { transform-style: preserve-3d; }
+.hh-cam { position: absolute; top: 34px; left: 34px; width: 120px; height: 120px; transform-style: preserve-3d; transform: translateZ(7px); border-radius: 34px;
+  background: linear-gradient(145deg, #262d80, #1a2060); box-shadow: inset 0 0 0 3px #4a58b8, 0 0 0 1px #0b0f38; }
+.hh-cam b { position: absolute; inset: 0; border-radius: inherit; background: #141a55; box-shadow: 0 0 0 1px #0b0f38; }
+.hh-cam b:nth-child(1) { transform: translateZ(-1.8px); background: #1d2470; }
+.hh-cam b:nth-child(2) { transform: translateZ(-3.6px); }
+.hh-cam b:nth-child(3) { transform: translateZ(-5.4px); }
+.hh-cam b:nth-child(4) { transform: translateZ(-7px); }
+.hh-cam i { position: absolute; width: 44px; height: 44px; border-radius: 50%; transform: translateZ(3px);
+  background: radial-gradient(circle at 35% 32%, #5666dc, #0a0d33 62%); box-shadow: 0 0 0 5px #10164d, 0 0 0 7px #3a4696, inset 0 0 0 2px #0a0d33; }
+.hh-cam i:nth-of-type(1) { top: 13px; left: 13px; }
+.hh-cam i:nth-of-type(2) { top: 62px; left: 43px; }
+.hh-cam-single { width: 64px; height: 64px; border-radius: 50%; top: 26px; left: 26px; }
+.hh-cam-single i { top: 10px; left: 10px; width: 44px; height: 44px; }
+
+/* hands live in the device's own (unscaled) coordinates */
+.rig-handheld .hand-open { transform-origin: 125px 30px; }
+.hh-hands { width: 100%; }
+.hh-hands .hand { top: var(--tip-y, 740px); }
+.hh-hands .hand-l, .hh-hands .hand-r { left: 0; }
+.send.tap { transform: scale(.9); }
+
+/* ---- phone: dynamic island, rounded glass */
+.rig-handheld[data-kind="phone"] { --r-body: 56px; --r-screen: 44px; --inset: 14px; --bz: 10px; }
+.hh-island { position: absolute; z-index: 5; top: 24px; left: 50%; width: 118px; height: 32px; transform: translateX(-50%); border-radius: 20px; background: #000; }
+.rig-handheld[data-kind="phone"][data-orient="landscape"] .hh-island { top: 50%; left: 24px; width: 32px; height: 118px; transform: translateY(-50%); }
+.stage[data-device="phone-portrait"] .app-top { padding-top: 2.4em; }
+.stage[data-device="phone-landscape"] .app { padding-left: 2.8em; }
+.stage[data-device="phone-landscape"] .pages { left: 2.8em; }
+/* The Lyra star in each chat-bubble avatar (see .avatar in screen.css) is
+   sized in em, so it shrinks with the phone's own smaller base font-size
+   (fs.portrait/landscape in phone.js) -- on that small a screen the star's
+   thin points blur into an unrecognisable dot. Bumped up here, phone only. */
+.stage[data-device^="phone"] .avatar { width: 2.35em; height: 2.35em; }
+.stage[data-device^="phone"] .avatar img { width: 1.55em; height: 1.55em; }
+
+/* ---- tablet: thin bezel, small front lens, tighter corners */
+.rig-handheld[data-kind="tablet"] { --r-body: 38px; --r-screen: 22px; --inset: 18px; --bz: 14px; }
+.hh-lens { position: absolute; z-index: 5; top: 7px; left: 50%; width: 9px; height: 9px; transform: translateX(-50%); border-radius: 50%; background: #10143a; box-shadow: 0 0 0 2px #050510; }
+.rig-handheld[data-kind="tablet"][data-orient="landscape"] .hh-lens { top: 50%; left: 7px; transform: translateY(-50%); }
+
+.hh-name { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font-family: var(--display); font-weight: 700; font-size: 74px; letter-spacing: .01em; color: #f4f5ff; text-rendering: geometricPrecision; }
+.rig-handheld[data-kind="tablet"] .hh-name { font-size: 90px; }

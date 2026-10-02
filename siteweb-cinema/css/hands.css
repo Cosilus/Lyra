@@ -1,0 +1,24 @@
+/* Hands: opening hand and typing hands (shared by every device). Drawn as SVG (symbol #handShape). */
+
+.hand-open, .hands { position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0; }
+.hand-open { width: 250px; height: 1750px; transform-origin: 125px 30px; }
+.hands { width: 1000px; height: 0; }
+.hand { position: absolute; top: 0; width: 250px; height: 1500px; }
+.hand-l { left: 215px; transform: scaleX(-1); }
+.hand-r { left: 535px; }
+
+/* Fingers live inside a <symbol> used through <use>: outside selectors cannot reach them, but custom
+   properties inherit into the use-tree, so the play state and per-hand delay are passed as variables. */
+.fg { transform-box: fill-box; transform-origin: 50% 100%; animation: tap .32s ease-in-out infinite; animation-play-state: var(--tap-play, paused); animation-delay: calc(var(--d, 0s) + var(--tap-shift, 0s)); }
+.f1 { --d: -.05s; animation-duration: .29s; }
+.f2 { --d: -.2s; animation-duration: .41s; }
+.f3 { --d: -.11s; animation-duration: .35s; }
+.f4 { --d: -.3s; animation-duration: .47s; }
+.typing .hand { --tap-play: running; }
+.typing .hand-l { --tap-shift: -.17s; }
+@keyframes tap { 0%, 100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(14px) scaleY(.92); } }
+
+.typing .hand-r { animation: nudgeR .6s ease-in-out infinite; }
+.typing .hand-l { animation: nudgeL .7s ease-in-out infinite; }
+@keyframes nudgeR { 50% { translate: 0 6px; } }
+@keyframes nudgeL { 50% { translate: 0 4px; } }
