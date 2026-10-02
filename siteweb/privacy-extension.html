@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyra Wallet extension · Privacy Policy</title>
+<meta name="description" content="What the Lyra Wallet browser extension (testnet) stores on your device, what it sends to Lyra's backend, and to whom.">
+<link rel="icon" href="favicon.ico">
+<style>
+  :root { color-scheme: dark; --void:#0D0916; --panel:#150E20; --line:#2a1d4a; --text:#F3EBFF; --muted:#b4a7cc; --accent:#C4B0FF; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--void); color:var(--text); font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 20px 80px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 19px; margin: 34px 0 8px; color: var(--accent); }
+  p, li { color: #e4daf5; }
+  ul { padding-left: 1.2em; }
+  li { margin: 4px 0; }
+  .meta { color: var(--muted); font-size: 14px; margin-bottom: 26px; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin: 18px 0; }
+  a { color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 10px 0; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  code { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: .92em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lyra Wallet extension — Privacy Policy</h1>
+  <div class="meta">Browser extension, testnet build · Last updated: October 2026</div>
+
+  <div class="box"><b>In short.</b> Your private key never leaves your device. What you type to Lyra and your public wallet address are sent to Lyra's backend and to an AI provider so Lyra can answer. We have no accounts, no analytics, no ads, and we do not sell data. This build runs on <b>test networks only</b>: its coins have no value.</div>
+
+  <h2>1. What stays on your device</h2>
+  <ul>
+    <li>Your wallet's private key, <b>encrypted with your password</b>, and your recovery phrase if you created or imported one. They are never sent anywhere.</li>
+    <li>Your contacts, settings, the 2D/3D choice, and a local log of what the wallet did (the audit trail).</li>
+    <li>All of this lives in the extension's own browser storage. It is erased when you uninstall the extension or clear its site data. The wallet locks when you close the side panel.</li>
+  </ul>
+
+  <h2>2. What is sent to Lyra's backend</h2>
+  <p>The extension talks to one backend we operate, <code>lyra-backend-testnet.onrender.com</code>, to understand your requests and check things for you. It receives:</p>
+  <ul>
+    <li>the text you type to Lyra and the recent conversation, so it can answer in context;</li>
+    <li>your <b>public</b> wallet address, the balance shown, and the network you are on;</li>
+    <li>the names and addresses of the contacts you saved, so "send to Alice" can be understood;</li>
+    <li>addresses or contracts you ask Lyra to check, and the amounts of a transfer you ask it to prepare.</li>
+  </ul>
+  <p>It never receives your private key, your recovery phrase or your password. The backend has no database of your requests: each one is processed to produce an answer and is not kept afterwards, apart from short-lived server logs used for debugging. Your IP address is used in memory for a few minutes to apply a rate limit that protects the service from abuse, and our hosting provider (Render) may keep standard connection logs.</p>
+
+  <h2>3. AI providers</h2>
+  <p>To understand a request, the backend forwards the text you typed and the minimal context above to one AI provider, chosen automatically among OpenRouter (Qwen models), Mistral AI, Google (Gemini) and Anthropic (Claude). Only one provider handles a given request. Each provider processes it under its own privacy policy and may briefly retain it; Lyra does not control this.</p>
+
+  <h2>4. Other services involved</h2>
+  <table>
+    <tr><th>Service</th><th>Why</th><th>What it can see</th></tr>
+    <tr><td>Blockchain RPC nodes (Plasma testnet, publicnode for Sepolia and Amoy, Base Sepolia, Arc testnet, Hyperliquid testnet)</td><td>Read balances, send transactions</td><td>Your IP address, your public address, the transactions you send</td></tr>
+    <tr><td>Circle (Bridge Kit, Swap Kit)</td><td>Bridge and swap USDC / EURC on testnet</td><td>Your public address and the transfer you confirm</td></tr>
+    <tr><td>Safe</td><td>Optional shared wallets</td><td>Your public address</td></tr>
+    <tr><td>Block explorers (Etherscan family), GoPlus, ScamSniffer, CoinGecko — reached through our backend</td><td>History, scam and contract checks, prices</td><td>Public addresses and contract addresses you ask about</td></tr>
+  </table>
+  <p>These services apply their own privacy practices to what they receive.</p>
+
+  <h2>5. Testnet only</h2>
+  <p>This extension is a test build. Its coins have no monetary value. <b>Do not import a recovery phrase or a private key that holds real funds.</b> Faucet coins and on-chain transactions are public by nature: anyone can see the public address you use on a test network.</p>
+
+  <h2>6. Permissions the extension asks for</h2>
+  <ul>
+    <li><b>Side panel</b>: to open the wallet in the browser's side panel.</li>
+    <li><b>Access to a short list of sites</b>: our backend, the blockchain RPC nodes listed above, Circle and Safe. It does not read or change the pages you browse.</li>
+  </ul>
+
+  <h2>7. What we do not do</h2>
+  <ul>
+    <li>We do not sell or rent your data, show ads, or build a profile of you.</li>
+    <li>We do not use your data for anything unrelated to running the wallet.</li>
+    <li>We do not use analytics or tracking in the extension.</li>
+  </ul>
+
+  <h2>8. Your choices and rights</h2>
+  <p>You can delete everything stored on your device by removing the extension. Depending on where you live, you may ask what personal data we hold about you (for example, a message sent through our contact form), ask us to correct or delete it, by writing to <a href="mailto:contact@lyrapp.to">contact@lyrapp.to</a>.</p>
+
+  <h2>9. Children</h2>
+  <p>Lyra is not directed to children under 16 and we do not knowingly collect their data.</p>
+
+  <h2>10. Changes</h2>
+  <p>We may update this policy; the date at the top shows the latest version. The general policy for the Lyra website and app is at <a href="https://lyrapp.to/#privacy">lyrapp.to</a>.</p>
+
+  <p class="meta" style="margin-top:34px">Lyra is non-custodial software. Nothing here is financial advice.</p>
+</main>
+</body>
+</html>

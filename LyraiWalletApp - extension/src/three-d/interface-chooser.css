@@ -1,0 +1,297 @@
+/* Post-setup "choose your interface" screen (2D vs 3D). Classes prefixed
+   ic- so they can't collide with the wallet's own styles. */
+
+.ic-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 20% -10%, #3A2A5E 0%, transparent 45%),
+    radial-gradient(circle at 85% 0%, #4A2F5C 0%, transparent 40%),
+    var(--void);
+  animation: ic-fade-in 0.3s ease-out;
+}
+@keyframes ic-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.ic-panel {
+  width: min(760px, 100%);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.ic-head { text-align: center; }
+.ic-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--beige); }
+.ic-subtitle { margin-top: 8px; font-size: 13.5px; color: var(--muted); }
+
+.ic-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.ic-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 14px 16px;
+  text-align: left;
+  color: var(--beige);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 25px 70px -30px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.ic-card:hover,
+.ic-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  background: var(--panel2);
+  box-shadow: 0 30px 80px -28px rgba(var(--accent-rgb), 0.55);
+  outline: none;
+}
+
+.ic-card-title { font-size: 17px; font-weight: 700; color: var(--beige); }
+.ic-card-body p { margin: 8px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+.ic-card-body strong { color: var(--beige); font-weight: 600; }
+.ic-card-body .ic-card-note { font-size: 11.5px; color: var(--muted-dim); font-style: italic; }
+
+.ic-card-cta {
+  margin-top: auto;
+  align-self: stretch;
+  text-align: center;
+  padding: 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--void);
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent-deep));
+  box-shadow: 0 8px 22px -8px rgba(var(--accent-rgb), 0.55);
+}
+
+.ic-footer { text-align: center; font-size: 12.5px; color: var(--muted); }
+.ic-footer strong { color: var(--accent-strong); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .ic-columns { grid-template-columns: 1fr; }
+}
+
+/* ------------------------------------------------------------------
+   Looping previews
+------------------------------------------------------------------- */
+
+.ic-scene {
+  position: relative;
+  height: 230px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 30%, #2a1d44 0%, #0d0916 70%);
+  border: 1px solid var(--line-soft);
+  perspective: 520px;
+}
+
+.ic-phone {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 98px;
+  height: 188px;
+  margin: -94px 0 0 -49px;
+  padding: 8px 8px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 16px;
+  background: var(--void);
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.7), 0 0 20px -8px rgba(var(--accent-rgb), 0.35);
+  overflow: hidden;
+}
+.ic-phone-glow {
+  position: absolute;
+  top: -30%;
+  right: -30%;
+  width: 70%;
+  height: 50%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  opacity: 0.5;
+}
+.ic-phone-top { position: relative; display: flex; align-items: center; justify-content: space-between; }
+.ic-phone-logo { width: 16px; height: 16px; object-fit: contain; display: block; }
+.ic-phone-menu-btn {
+  font-size: 6.5px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--beige);
+  background: var(--panel3);
+  border: 1px solid var(--line);
+}
+.ic-phone-balance {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.ic-line { display: block; height: 4px; border-radius: 3px; background: rgba(243, 235, 255, 0.28); }
+.ic-line--s { width: 36%; }
+.ic-line--m { width: 62%; }
+.ic-line--l { width: 70%; height: 7px; background: rgba(243, 235, 255, 0.55); }
+.ic-phone-chart { position: relative; height: 30px; padding: 3px 4px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); color: var(--accent); }
+.ic-phone-chart svg { width: 100%; height: 100%; display: block; }
+.ic-phone-chat { flex: 1; display: flex; align-items: center; justify-content: center; }
+.ic-phone-input { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 4px 7px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); }
+.ic-phone-send { width: 11px; height: 11px; border-radius: 50%; background: linear-gradient(135deg, #fbf8ff, #d6cee6); }
+
+.ic-cursor {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+
+/* ---------------- 2D: menu opens on click, card never moves ---------------- */
+
+.ic-scene--2d .ic-cursor { animation: ic2d-cursor 9s ease-in-out infinite; }
+.ic-scene--2d .ic-phone-menu-btn { animation: ic2d-btn 9s ease-in-out infinite; }
+
+.ic-circle-menu {
+  position: absolute;
+  /* inside the phone's header row, just left of its "Menu" button */
+  top: 30px;
+  right: calc(50% - 1px);
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  align-items: center;
+  height: 14px;
+  transform-origin: right center;
+  opacity: 0;
+  animation: ic2d-menu 9s ease-in-out infinite;
+}
+.ic-circle-menu span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--panel3);
+  border: 1px solid var(--accent);
+  box-shadow: 0 3px 8px -3px rgba(var(--accent-rgb), 0.6);
+}
+
+@keyframes ic2d-cursor {
+  0%   { left: calc(50% - 90px); top: 192px; transform: scale(1); }
+  14%  { left: calc(50% - 20px); top: 130px; }
+  26%  { left: calc(50% + 27px); top: 40px; transform: scale(1); }
+  30%  { left: calc(50% + 27px); top: 40px; transform: scale(0.8); }
+  34%  { left: calc(50% + 27px); top: 40px; transform: scale(1); }
+  56%  { left: calc(50% + 27px); top: 40px; }
+  64%  { left: calc(50% - 10px); top: 40px; transform: scale(1); }
+  67%  { left: calc(50% - 10px); top: 40px; transform: scale(0.8); }
+  70%  { left: calc(50% - 10px); top: 40px; transform: scale(1); }
+  86%  { left: calc(50% - 40px); top: 160px; }
+  100% { left: calc(50% - 90px); top: 192px; }
+}
+@keyframes ic2d-btn {
+  0%, 29%   { background: var(--panel3); color: var(--beige); }
+  31%, 72%  { background: var(--accent-strong); color: var(--void); }
+  76%, 100% { background: var(--panel3); color: var(--beige); }
+}
+@keyframes ic2d-menu {
+  0%, 31%   { opacity: 0; transform: scaleX(0.2); }
+  37%, 70%  { opacity: 1; transform: scaleX(1); }
+  76%, 100% { opacity: 0; transform: scaleX(0.2); }
+}
+
+/* ---------------- 3D: tilts with the mouse, menus on the edges ---------------- */
+
+.ic-scene--3d .ic-cursor { animation: ic3d-cursor 12s ease-in-out infinite; }
+.ic-tilt {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: ic3d-tilt 12s ease-in-out infinite;
+}
+
+.ic-side {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 5px;
+  border-radius: 999px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  opacity: 0;
+  z-index: 3;
+}
+.ic-side span { width: 14px; height: 14px; border-radius: 50%; background: var(--accent-soft); border: 1px solid var(--accent); }
+/* Hug the phone's own edges (phone is 98px wide, centered) with a small gap. */
+.ic-side--left { right: calc(50% + 49px + 8px); animation: ic3d-left 12s ease-in-out infinite; }
+.ic-side--right { left: calc(50% + 49px + 8px); animation: ic3d-right 12s ease-in-out infinite; }
+
+.ic-top-menu {
+  position: absolute;
+  top: 1px;
+  left: 50%;
+  display: flex;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 12px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  opacity: 0;
+  z-index: 3;
+  animation: ic3d-top 12s ease-in-out infinite;
+}
+.ic-top-menu span { width: 26px; height: 9px; border-radius: 5px; background: rgba(var(--accent-rgb), 0.45); }
+
+@keyframes ic3d-cursor {
+  0%, 8%   { left: 50%; top: 62%; }
+  18%      { left: 7%;  top: 50%; }
+  34%      { left: 7%;  top: 50%; }
+  44%, 50% { left: 50%; top: 62%; }
+  60%      { left: 90%; top: 50%; }
+  74%      { left: 90%; top: 50%; }
+  80%      { left: 50%; top: 62%; }
+  86%      { left: 50%; top: 8%; }
+  96%      { left: 50%; top: 8%; }
+  100%     { left: 50%; top: 62%; }
+}
+@keyframes ic3d-tilt {
+  0%, 8%   { transform: rotateY(0) rotateX(0) scale(1); }
+  18%, 34% { transform: rotateY(16deg) rotateX(0) scale(1); }
+  44%, 50% { transform: rotateY(0) rotateX(0) scale(1); }
+  60%, 74% { transform: rotateY(-16deg) rotateX(0) scale(1); }
+  80%      { transform: rotateY(0) rotateX(0) scale(1); }
+  86%, 96% { transform: rotateY(0) rotateX(16deg) scale(0.88) translateY(14px); }
+  100%     { transform: rotateY(0) rotateX(0) scale(1); }
+}
+@keyframes ic3d-left {
+  0%, 17%  { opacity: 0; transform: translateY(-50%) translateX(-14px); }
+  22%, 34% { opacity: 1; transform: translateY(-50%) translateX(0); }
+  40%, 100% { opacity: 0; transform: translateY(-50%) translateX(-14px); }
+}
+@keyframes ic3d-right {
+  0%, 59%  { opacity: 0; transform: translateY(-50%) translateX(14px); }
+  64%, 74% { opacity: 1; transform: translateY(-50%) translateX(0); }
+  80%, 100% { opacity: 0; transform: translateY(-50%) translateX(14px); }
+}
+@keyframes ic3d-top {
+  0%, 85%  { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  89%, 96% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  99%, 100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+}
