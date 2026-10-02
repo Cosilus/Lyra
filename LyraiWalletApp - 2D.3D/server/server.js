@@ -443,6 +443,29 @@ real wallet or crypto request plus something off-topic: handle only the
 wallet or crypto part.
 `;
 
+// A ticket is only prepared once everything it needs is known.
+const MISSING_INFO_RULES = `
+REQUIRED INFORMATION BEFORE ANY TICKET, THIS OVERRIDES EVERYTHING ELSE BELOW:
+Never route a request to a ticket with a guessed, defaulted or invented value.
+What each action needs, taken from the message OR from earlier in this
+conversation:
+- SWAP_XPL: the amount, the token to sell AND the token to receive.
+- BRIDGE_XPL: the amount, the asset AND the destination network.
+- STAKE_XPL / UNSTAKE_XPL: the token (and the amount, except for "all").
+- PREDICT_MARKET: the exact event and the side/outcome, plus the amount.
+- PAY_X402 / ACP_CHECKOUT / DELEGATE_A2A: the link, item or task.
+- RECEIVE_FIAT / OFFRAMP_FUNDS: the amount.
+If anything is missing for these, do NOT use the action intent. Use intent
+"CHAT" and ask for ALL the missing items in ONE short question, then say you
+will prepare it right away. Examples: "swap 10 USDT" -> ask which token to
+receive; "bridge 5 XPL" -> ask which network; "stake" -> ask which token and how much.
+No default token to receive, no default network, no default amount, ever.
+Once the user answers, use the action intent with the complete details.
+For SEND_XPL keep the existing behavior: send the intent with the missing
+field set to null and a short message asking for it (no ticket opens until
+the amount and the recipient are both known).
+`;
+
 const SYSTEM_PROMPT = `
 You are Lyra, the intelligent assistant built into a non-custodial wallet that supports Plasma, Ethereum, Base, Polygon, Arc, and Hyperliquid. The "ACTIVE NETWORK" line in the wallet context below tells you which one the user is currently on.
 
@@ -456,7 +479,7 @@ were written in. Regardless of what language the user writes in,
 always reply yourself in English. Every "message" you write, always
 in English, every time, with no exceptions. Do not switch your own
 reply language to match the user's.
-${SCOPE_RULES}
+${SCOPE_RULES}${MISSING_INFO_RULES}
 GENERAL RULE, READ THIS BEFORE ANYTHING ELSE BELOW:
 Every example in this entire prompt is written using "XPL" as a
 placeholder for "the active network's native coin", because Plasma
@@ -654,6 +677,12 @@ shares, the research runs specifically when a crypto question needs it.
 If the question is too vague to answer usefully ("help", "je sais pas
 quoi faire"), give the short capability summary above rather than
 asking them to clarify first, that IS the answer they're looking for.
+
+Lyra can also read what block explorers and public security databases show on
+an address or contract: whether the source code is verified, trusted-token
+listings, name tags, and scam, phishing or honeypot flags. It does this by
+itself before a transfer to a new address, and whenever the user asks "is this
+address / contract safe or legit?" (that question is ASK_CRYPTO, never a refusal).
 
 The capability summary above is a starting point, not the full list:
 for anything about how a screen or feature works (history, settings,
@@ -3550,6 +3579,110 @@ app.get("/api/onramper/sell-url", (req, res) => {
   }
 });
 
+// What block explorers and public security databases show as badges next to an
+// address: a verified-source badge, a "trusted token" listing, and scam /
+// phishing flags. Etherscan's own public name tags are a paid (Pro) endpoint, so
+// that part only runs when ETHERSCAN_NAMETAGS=1 and the key has that plan.
+const SECURITY_FLAG_LABELS = {
+  phishing_activities: "phishing",
+  stealing_attack: "fund-stealing",
+  honeypot_related_address: "honeypot",
+  fake_token: "fake token",
+  blackmail_activities: "blackmail/extortion",
+  sanctioned: "sanctioned",
+  mixer: "mixer/laundering",
+  cybercrime: "cybercrime",
+  blacklist_doubt: "flagged as suspicious",
+};
+
+async function lookupSecurityBadges(network, address) {
+  const out = { flags: [], source: null, token: null, nameTag: null };
+
+  try {
+    const r = await fetch(`https://api.gopluslabs.io/api/v1/address_security/${address}?chain_id=${network.chainId}`, { signal: AbortSignal.timeout(6000) });
+    const d = await r.json();
+    const f = d?.result || {};
+    out.flags = Object.entries(SECURITY_FLAG_LABELS).filter(([k]) => f[k] === "1").map(([, label]) => label);
+    out.source = f.data_source || null;
+  } catch (e) {
+    console.error("GoPlus address security unavailable:", e.message);
+  }
+
+  try {
+    const r = await fetch(`https://api.gopluslabs.io/api/v1/token_security/${network.chainId}?contract_addresses=${address}`, { signal: AbortSignal.timeout(6000) });
+    const d = await r.json();
+    const t = d?.result?.[address.toLowerCase()];
+    if (t && (t.token_name || t.token_symbol)) {
+      out.token = {
+        name: t.token_name || null,
+        symbol: t.token_symbol || null,
+        trusted: t.trust_list === "1",
+        honeypot: t.is_honeypot === "1",
+        openSource: t.is_open_source === "1",
+      };
+    }
+  } catch (e) {
+    console.error("GoPlus token security unavailable:", e.message);
+  }
+
+  if (process.env.ETHERSCAN_NAMETAGS === "1") {
+    try {
+      const u = new URL("https://api.etherscan.io/v2/api");
+      u.searchParams.set("chainid", String(network.chainId));
+      u.searchParams.set("module", "nametag");
+      u.searchParams.set("action", "getaddresstag");
+      u.searchParams.set("address", address);
+      u.searchParams.set("apikey", process.env.ETHERSCAN_API_KEY);
+      const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
+      const d = await r.json();
+      const row = Array.isArray(d?.result) ? d.result[0] : null;
+      if (row?.nametag) {
+        out.nameTag = { name: row.nametag, labels: Array.isArray(row.labels) ? row.labels : [] };
+        const bad = [row.nametag, ...(out.nameTag.labels || [])].join(" ");
+        if (/phish|hack|exploit|scam|drainer|fake/i.test(bad)) out.flags.push("tagged on the explorer: " + row.nametag);
+      }
+    } catch (e) {
+      console.error("Etherscan name tag unavailable:", e.message);
+    }
+  }
+  return out;
+}
+
+// Etherscan's red banner "this address has received funds from an address
+// reported to be involved in suspicious activity" comes from looking one hop
+// around the address. Same idea here, with free data: the counterparties of its
+// recent transactions are checked against the public security databases.
+async function checkCounterpartyExposure(network, address, txs) {
+  const me = address.toLowerCase();
+  const stats = new Map(); // counterparty -> { dir, value }
+  for (const t of txs || []) {
+    const from = String(t.from || "").toLowerCase();
+    const to = String(t.to || "").toLowerCase();
+    const other = from === me ? to : from;
+    if (!/^0x[0-9a-f]{40}$/.test(other) || other === me) continue;
+    const prev = stats.get(other) || { in: 0, out: 0, value: 0 };
+    if (from === me) prev.out += 1; else prev.in += 1;
+    prev.value += Number(t.value || 0);
+    stats.set(other, prev);
+  }
+  const counterparties = [...stats.entries()].sort((a, b) => b[1].value - a[1].value).slice(0, 12);
+  const flagged = [];
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < counterparties.length) {
+      const [addr, st] = counterparties[cursor++];
+      try {
+        const r = await fetch(`https://api.gopluslabs.io/api/v1/address_security/${addr}?chain_id=${network.chainId}`, { signal: AbortSignal.timeout(5000) });
+        const f = (await r.json())?.result || {};
+        const hits = Object.entries(SECURITY_FLAG_LABELS).filter(([k]) => f[k] === "1").map(([, label]) => label);
+        if (hits.length) flagged.push({ address: addr, labels: hits, in: st.in, out: st.out });
+      } catch (_) { /* a missed lookup only means one less signal */ }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return { checked: counterparties.length, flagged };
+}
+
 async function explorerLookup(network, address) {
   if (!/^0x[a-fA-F0-9]{40}$/.test(address || "")) {
     return { error: "Invalid address." };
@@ -3572,12 +3705,28 @@ async function explorerLookup(network, address) {
       return { verified: false, note: "No data found for this address on the explorer." };
     }
 
+    const [badges, rawCode] = await Promise.all([
+      lookupSecurityBadges(network, address),
+      getAddressCode(network, address).catch(() => null)
+    ]);
+    // A regular wallet (or an EIP-7702 delegated one) has no source code to
+    // verify: say so, so nobody calls it an "unverified contract".
+    const looksLikeCode = /^0x[0-9a-f]+$/i.test(rawCode || "");
+    const isDelegatedWallet = /^0xef0100[0-9a-f]{40}$/i.test(rawCode || "");
+    const isContract = looksLikeCode && rawCode !== "0x" && rawCode !== "0x0" && !isDelegatedWallet;
     return {
       address,
+      isContract: looksLikeCode ? isContract : null,
       contractName: result.ContractName || null,
       verified: !!result.SourceCode,
       compilerVersion: result.CompilerVersion || null,
-      isProxy: result.Proxy === "1"
+      isProxy: result.Proxy === "1",
+      // what the explorer and public security databases flag or vouch for
+      securityFlags: badges.flags,
+      flagSource: badges.source,
+      trustedToken: badges.token?.trusted || false,
+      tokenName: badges.token?.name || null,
+      explorerNameTag: badges.nameTag?.name || null
     };
   } catch (error) {
     console.error("Explorer lookup error:", error);
@@ -4075,12 +4224,19 @@ app.get("/api/address-check/:address", async (req, res) => {
     const reasons = [];
 
     const code = await getAddressCode(network, address);
-    const isContract = !!code && code !== "0x" && code !== "0x0";
+    // EIP-7702: a normal wallet that delegated to a smart-account implementation
+    // carries code "0xef0100" + 20 bytes. It is still a wallet, not a contract.
+    // A non-hex answer (rate-limit text, API error) is "unknown", not "contract".
+    const isDelegatedWallet = /^0xef0100[0-9a-f]{40}$/i.test(code || "");
+    const looksLikeCode = /^0x[0-9a-f]+$/i.test(code || "");
+    const isContract = looksLikeCode && code !== "0x" && code !== "0x0" && !isDelegatedWallet;
     let verified = null;
+    let contractName = null;
 
     if (isContract) {
       const info = await explorerLookup(network, address);
       verified = !!info.verified;
+      contractName = info.contractName || null;
       if (!verified) {
         reasons.push(
           "This is an unverified smart contract, not a regular wallet address. Funds sent directly here could behave unexpectedly or be unrecoverable."
@@ -4118,52 +4274,58 @@ app.get("/api/address-check/:address", async (req, res) => {
           "This address has received transfers from several different wallets but has never sent anything out itself, a pattern sometimes seen with address-poisoning or drainer scams."
         );
       }
-    }
 
-    // Cross-references GoPlus Security's public malicious-address
-    // database (SlowMist/ScamSniffer/BlockSec-sourced, confirmed live
-    // against a real Etherscan-tagged "Fake_Phishing184810" address,
-    // which it correctly flagged). The same kind of known-scam tag
-    // block explorers show on their own site, but Etherscan's own
-    // equivalent (their Address Nametags API) is Pro-Plus-tier only,
-    // not available on the free key already configured here. Runs
-    // regardless of isContract, a phishing/drainer recipient is just
-    // as often a plain EOA as a contract. No API key needed, and
-    // failing here never blocks the checks already done above.
-    try {
-      const goPlusUrl = `https://api.gopluslabs.io/api/v1/address_security/${address}?chain_id=${network.chainId}`;
-      const goPlusResponse = await fetch(goPlusUrl, { signal: AbortSignal.timeout(6000) });
-      const goPlusData = await goPlusResponse.json();
-      const flags = goPlusData?.result || {};
-      const FLAG_LABELS = {
-        phishing_activities: "phishing",
-        stealing_attack: "fund-stealing",
-        honeypot_related_address: "honeypot",
-        fake_token: "fake token",
-        blackmail_activities: "blackmail/extortion",
-        sanctioned: "sanctioned",
-        mixer: "mixer/laundering",
-        cybercrime: "cybercrime",
-        blacklist_doubt: "flagged as suspicious",
-      };
-      const hits = Object.entries(FLAG_LABELS)
-        .filter(([key]) => flags[key] === "1")
-        .map(([, label]) => label);
-
-      if (hits.length > 0) {
-        const source = flags.data_source ? ` (source: ${flags.data_source})` : "";
+      // One hop around the address: has it received funds from, or sent funds
+      // to, addresses that security databases flag? A single link on a busy
+      // wallet means little, so it needs two, or one on a small history.
+      const exposure = await checkCounterpartyExposure(network, address, txs);
+      const worrying = exposure.flagged.length >= 2 || (exposure.flagged.length >= 1 && exposure.checked <= 10);
+      if (worrying) {
+        const fromBad = exposure.flagged.filter(f => f.in > 0).length;
+        const toBad = exposure.flagged.filter(f => f.out > 0).length;
+        const kinds = [...new Set(exposure.flagged.flatMap(f => f.labels))].join(", ");
+        const parts = [];
+        if (fromBad) parts.push(`received funds from ${fromBad} flagged address${fromBad > 1 ? "es" : ""}`);
+        if (toBad) parts.push(`sent funds to ${toBad} flagged address${toBad > 1 ? "es" : ""}`);
         reasons.push(
-          `This address is flagged on public blockchain security databases for: ${hits.join(", ")}${source}. This is a strong signal it's a known scam address, not just a heuristic guess.`
+          `This address has ${parts.join(" and ")} (flagged for: ${kinds}). Explorers warn about exactly this link to suspicious activity, and it is a common sign of a scam or drainer wallet. Treat it as high risk.`
         );
       }
-    } catch (e) {
-      console.error("GoPlus address security check unavailable:", e.message);
+    }
+
+    // Cross-references public security databases (GoPlus, SlowMist/ScamSniffer/
+    // BlockSec-sourced) and, when the key allows it, the explorer's own name
+    // tag: the same kind of badges Etherscan shows on an address page. They
+    // also give POSITIVE badges (verified source, trusted token). A failure
+    // here never blocks the checks already done above.
+    const sec = await lookupSecurityBadges(network, address);
+    if (sec.flags.length > 0) {
+      const source = sec.source ? ` (source: ${sec.source})` : "";
+      reasons.push(
+        `This address is flagged on public blockchain security databases for: ${sec.flags.join(", ")}${source}. This is a strong signal it's a known scam address, not just a heuristic guess.`
+      );
+    }
+    if (sec.token?.honeypot) {
+      reasons.push("This token is flagged as a honeypot: it can be bought but not sold.");
+    }
+
+    const badges = [];
+    if (isContract && verified) {
+      badges.push({ kind: "verified", label: contractName ? `verified contract · ${contractName}` : "verified contract" });
+    }
+    if (sec.token?.trusted) {
+      badges.push({ kind: "trusted", label: `trusted token${sec.token.symbol ? " · " + sec.token.symbol : ""}` });
+    }
+    if (sec.nameTag?.name) {
+      badges.push({ kind: "tag", label: sec.nameTag.name });
     }
 
     res.json({
       address,
       isContract,
       verified,
+      contractName,
+      badges,
       suspicious: reasons.length > 0,
       reasons
     });
@@ -5160,7 +5322,20 @@ Rules:
 - Use web search for anything you're not sure about or that may have
   changed recently.
 - Use the explorer_lookup tool to check a contract address on
-  ${network.name} before making any claim about it.
+  ${network.name} before making any claim about it. It reports the same
+  badges an explorer shows: verified source code, a trusted-token listing,
+  and scam / phishing / honeypot flags from public security databases (and the
+  explorer's own name tag when available). Quote them when judging whether an
+  address or contract is a scam or is verified and authentic.
+- Read isContract in that result. isContract false = a regular wallet: it has
+  no source code, so NEVER call it an "unverified contract" or treat that as a
+  risk. Judge a wallet by its flags, tags and activity instead.
+- When the user asks if an address is safe or legit, ALSO web-search the
+  address together with "etherscan" (and "phishing" or "scam"): explorers show
+  public name tags and warnings (for example "Phishing... fund 1" or "this
+  address received funds from an address reported for suspicious activity")
+  that no free API exposes. Report what you find, and say plainly when nothing
+  was found, since absence of a badge is not proof of safety.
 - If asked to assess a risk, always structure your answer: risk level
   (low / moderate / high), then the concrete reasons behind that
   assessment.
@@ -6119,6 +6294,14 @@ you must use the GET_BALANCE intent.
     // stop, so a single flaky response doesn't fail the request when
     // another configured provider (or even the same one) would've
     // answered fine.
+    // A provider hiccup (rate limit, 5xx, a half-written JSON) is usually gone a
+    // second later: if every provider failed, go through the list once more
+    // before telling the user anything went wrong.
+    for (let round = 0; round < 2 && !action && !proseFallback; round++) {
+    if (round > 0) {
+      console.warn("All AI providers failed, retrying the whole list once.");
+      await new Promise(resolve => setTimeout(resolve, 700));
+    }
     for (const provider of aiProviders) {
       const attemptStarted = Date.now();
       try {
@@ -6152,6 +6335,7 @@ you must use the GET_BALANCE intent.
         lastProviderError = e;
         // Try the next configured provider instead of failing immediately.
       }
+    }
     }
 
     if (!action && proseFallback) {
@@ -6444,6 +6628,38 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
       // reply asks "how much?". Ask for it instead, and say Lyra will
       // prepare it right after. A digit in the user's message means an
       // amount was given (including USD amounts like "$8").
+      // A swap needs the token to RECEIVE and a bridge the destination network:
+      // never assume either. Looked for in the structured fields first, then in
+      // the user's own words (this message and the last few of this chat).
+      const userWords = [...(Array.isArray(history) ? history : []).filter(m => m?.role === "user").slice(-3).map(m => String(m.text || "")), String(message || "")].join(" ").toLowerCase();
+      const knownSymbols = new Set([
+        ...Object.keys(TOKENS_BY_NETWORK[network.key] || {}).map(x => x.toLowerCase()),
+        String(network.nativeSymbol || "").toLowerCase(),
+        "usdt", "usdc", "eurc", "eth", "weth", "xpl", "wxpl", "pol", "matic", "dai", "hype"
+      ]);
+      const normalize = (x) => (x === "usdt" ? "usdt0" : x);
+      const mentionedSymbols = new Set([...knownSymbols].filter(x => x && new RegExp("(^|[^a-z0-9])" + x.replace(/[^a-z0-9]/g, "") + "([^a-z0-9]|$)").test(userWords)).map(normalize));
+      const chainWords = /\b(ethereum|eth mainnet|mainnet|base|polygon|matic|plasma|arc|hyperliquid|hyperevm|hyp|arbitrum|arb|optimism|bsc|bnb|avalanche|avax|linea|zksync|scroll|mantle|blast|gnosis|celo|sonic|unichain)\b/i;
+      const swapTargetMissing = action.intent === "SWAP_XPL" && !action.tokenOutSymbol && mentionedSymbols.size < 2;
+      const bridgeTargetMissing = action.intent === "BRIDGE_XPL" && !action.destinationChainKey && !chainWords.test(userWords);
+      if ((swapTargetMissing || bridgeTargetMissing) && !(Number(action.amount) > 0) && !/\d/.test(String(message))) {
+        // amount AND the target are missing: ask for everything at once
+        return res.json({
+          intent: "CHAT", amount: null, amountUSD: null, recipient: null, asset: assetSymbol, requires_confirmation: false,
+          message: swapTargetMissing
+            ? `Sure! How much ${assetSymbol} do you want to swap, and which token do you want to receive? Tell me both and I'll prepare the transaction right away.`
+            : `Sure! How much ${assetSymbol} do you want to bridge, and to which network? Tell me both and I'll prepare the transaction right away.`
+        });
+      }
+      if (swapTargetMissing || bridgeTargetMissing) {
+        return res.json({
+          intent: "CHAT", amount: null, amountUSD: null, recipient: null, asset: assetSymbol, requires_confirmation: false,
+          message: swapTargetMissing
+            ? `Which token do you want to receive for your ${action.amount || ""} ${assetSymbol}? Tell me and I'll prepare the swap right away.`.replace(/\s+/g, " ")
+            : `Which network do you want to bridge your ${action.amount || ""} ${assetSymbol} to? Tell me and I'll prepare the bridge right away.`.replace(/\s+/g, " ")
+        });
+      }
+
       const replyAsksForAmount = typeof action.message === "string"
         && /\?\s*$/.test(action.message.trim())
         && /(how much|what amount|which amount|combien|amount)/i.test(action.message);

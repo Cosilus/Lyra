@@ -56,6 +56,9 @@ export function createOverlay({ onDotClick } = {}) {
       if (idx > 0) { num.textContent = String(idx).padStart(2, "0"); title.textContent = idx <= N ? CH[idx - 1].title : "Explore"; }
       [...dots.children].forEach((d, n) => d.classList.toggle("on", n === idx - 1));
       dots.style.opacity = showUi ? 1 : 0;
+      /* Invisible is not enough: the dots are clickable buttons sitting on the right edge,
+         and on a narrow screen they would sit on top of the X balloon and eat its clicks. */
+      dots.style.pointerEvents = showUi ? "" : "none";
     },
   };
 }

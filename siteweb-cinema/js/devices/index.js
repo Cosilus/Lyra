@@ -64,7 +64,14 @@ export function createDevices() {
       if (next !== mode) select(next);
       return active.layout(view);
     },
-    pose: (tl) => active.pose(tl),
+    /* Once the device has started closing nothing on it is clickable any
+       more, but its rig is a big box that still sits on top of the window
+       (the Discord/X balloons rise there), so it would swallow every
+       click meant for them. Let clicks fall through from that point on. */
+    pose(tl) {
+      active.rig.style.pointerEvents = tl.uiOpen ? "" : "none";
+      return active.pose(tl);
+    },
     keyPress: () => active.keyPress(),
     setTyping(on) { for (const d of Object.values(devices)) d.setTyping(on); },
   };
