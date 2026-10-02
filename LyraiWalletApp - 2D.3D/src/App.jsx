@@ -5541,14 +5541,100 @@ const signer = new ethers.Wallet(
       steps: r.steps.map((st, i) => (i === r.steps.length - 1 ? { ...st, state: "done", detail: detail ?? st.detail } : st))
     }));
   }
+  // Sets the result shown next to one phase in the recap.
+  function activitySetDetail(index, detail) {
+    const id = activityRef.current.id;
+    if (!id || !detail) return;
+    patchRun(id, r => ({ ...r, steps: r.steps.map((st, i) => (i === index ? { ...st, detail } : st)) }));
+  }
+  // A plain conversational answer has nothing worth a work log.
+  function activityMarkPlain() {
+    const id = activityRef.current.id;
+    if (id) patchRun(id, r => ({ ...r, plain: true }));
+  }
   function activityEnd(id) {
     if (!id) return;
     setActivityRuns(rs => rs
-      // A plain chat reply has nothing worth a work log.
-      .filter(r => r.id !== id || r.steps.length >= 2)
+      .filter(r => r.id !== id || (!r.plain && r.steps.length >= 2))
       .map(r => (r.id === id ? { ...r, t1: Date.now(), steps: r.steps.map(st => ({ ...st, state: "done" })) } : r)));
   }
   const activitySleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Real address check (look-alike of a contact + on-chain), remembered for
+  // a couple of minutes so the work done while Lyra reads the request is not
+  // repeated when the ticket opens.
+  const addressCheckCache = useRef({});
+  function runAddressCheck(address) {
+    const key = address.toLowerCase();
+    const hit = addressCheckCache.current[key];
+    if (hit && Date.now() - hit.at < 120000) return hit.promise;
+    const promise = (async () => {
+      const reasons = [];
+      let unavailable = false;
+      let badge = null; // what the explorer vouches for ("verified contract · USDT0")
+      const lookalike = findLookalikeMatch(address, loadContacts(), wallet?.address);
+      if (lookalike) {
+        reasons.push(`This address is nearly identical to ${lookalike}, but is not the same address, a common address-poisoning scam.`);
+      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/address-check/${address}?network=${activeNetworkKey}`);
+        const data = await response.json();
+        if (data.suspicious && Array.isArray(data.reasons)) reasons.push(...data.reasons);
+        badge = Array.isArray(data.badges) && data.badges.length ? data.badges.map(b => b.label).join(", ") : null;
+      } catch (e) {
+        console.error("On-chain address check unavailable, proceeding without it:", e);
+        unavailable = true;
+      }
+      return { reasons, unavailable, badge };
+    })();
+    addressCheckCache.current[key] = { at: Date.now(), promise };
+    return promise;
+  }
+
+  // While the AI reads the request, the wallet does its own real checks, one
+  // phase at a time on the single activity line: balance, then the recipient.
+  // Each phase stays on screen long enough to be read.
+  async function activityPreflight(text, readingStarted, isAiDone) {
+    const MIN_PHASE_MS = 700;
+    const hold = async (since) => {
+      const left = MIN_PHASE_MS - (Date.now() - since);
+      if (left > 0) await activitySleep(left);
+    };
+    await hold(readingStarted);
+
+    const address = text.match(/0x[a-fA-F0-9]{40}/)?.[0] || null;
+    const moneyLike = !!address ||
+      /\b(send|swap|bridge|stake|unstake|withdraw|deposit|pay|transfer|cash ?out|top ?up|bet|envoie\w*|echange\w*)\b/i.test(text);
+
+    if (moneyLike && wallet?.address && !isAiDone()) {
+      const since = Date.now();
+      activityStep("Checking your balance");
+      let detail = "";
+      try {
+        const live = await RPC.getBalance(wallet.address);
+        detail = `${fmtXpl(live)} ${activeNetwork.nativeSymbol} available`;
+      } catch (_) { /* the detail is optional */ }
+      await hold(since);
+      activityDone(detail);
+    }
+
+    if (address && !isAiDone()) {
+      const since = Date.now();
+      activityRef.current.preflightAddress = address.toLowerCase();
+      const known = loadContacts().find(c => c.address.toLowerCase() === address.toLowerCase());
+      if (known) {
+        activityStep("Recognizing the recipient", known.name);
+        await hold(since);
+      } else {
+        activityStep("Checking the address is safe");
+        const r = await runAddressCheck(address);
+        activityDone(r.reasons.length > 0 ? "needs your attention" : r.badge ? r.badge : r.unavailable ? "check unavailable" : "no warnings");
+        await hold(since);
+      }
+    }
+
+    if (!isAiDone()) activityStep("Thinking it through");
+  }
 
   async function askAI(text) {
   const uiModeCmd = parseUiModeCommand(text);
@@ -5568,13 +5654,17 @@ const signer = new ethers.Wallet(
 
     activityStart(messages.length);
     activityStep("Reading your request");
+    const readingStarted = Date.now();
 
     setMessages(m => [
       ...m,
       { role: "user", text }
     ]);
 
-    const response = await fetch(`${API_BASE_URL}/api/ai`, {
+    // The AI call starts at once; the wallet's own checks play out on the
+    // activity line while it works.
+    let aiDone = false;
+    const aiRequest = fetch(`${API_BASE_URL}/api/ai`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -5588,38 +5678,32 @@ const signer = new ethers.Wallet(
       contacts: loadContacts(),
       network: activeNetworkKey
     })
-    });
+    })
+      .then(async (r) => ({ ok: r.ok, data: await r.json() }))
+      .finally(() => { aiDone = true; });
+    aiRequest.catch(() => { /* handled where it is awaited below */ });
 
-    const data = await response.json();
+    await activityPreflight(text, readingStarted, () => aiDone);
 
-    if (!response.ok) {
+    const { ok: aiOk, data } = await aiRequest;
+
+    if (!aiOk) {
       throw new Error(data.error || "AI error.");
     }
 
     {
-      // Real facts only: what was understood, and what the wallet can
-      // see right now (balance, recipient).
+      // What was understood goes next to the first phase in the recap.
       const intentName = String(data.intent || "").replace(/_/g, " ").toLowerCase();
       const verb = intentName.split(" ")[0];
       const amountText = data.amount === "MAX" ? " max" : data.amount ? ` ${data.amount}` : "";
       const assetText = data.asset ? ` ${data.asset}` : (data.amount && /send/.test(verb) ? ` ${activeNetwork.nativeSymbol}` : "");
-      activityDone(
+      activitySetDetail(
+        0,
         /^(chat|ask crypto)$/.test(intentName) ? ""
           : data.amount ? `${verb}${amountText}${assetText}`
           : intentName
       );
-      if (data.amount && /SEND|SWAP|BRIDGE|STAKE|DEPOSIT|PAY/.test(String(data.intent || ""))) {
-        await activitySleep(260);
-        let availableText = "";
-        try {
-          const tok = data.asset && tokens[data.asset];
-          availableText = tok
-            ? `${Number(ethers.formatUnits(tokenBalances[data.asset] || 0n, tok.decimals)).toLocaleString("en-US", { maximumFractionDigits: 4 })} ${data.asset} available`
-            : `${fmtXpl(balance)} ${activeNetwork.nativeSymbol} available`;
-        } catch (_) { /* detail is optional */ }
-        activityStep("Checking your balance", availableText, "done");
-        await activitySleep(260);
-      }
+      if (String(data.intent || "") === "CHAT") activityMarkPlain();
     }
 
     if (data.suggestedContact) {
@@ -5703,38 +5787,22 @@ async function checkAddressAndProceed(address, proceed) {
   const act = activityRef.current;
   act.pending += 1;
   try {
+  const key = address.toLowerCase();
+  // True when Lyra already showed this check as its own phase while reading the request.
+  const shown = act.preflightAddress === key;
   const currentContacts = loadContacts();
 
-  const knownContact = currentContacts.find(
-    c => c.address.toLowerCase() === address.toLowerCase()
-  );
-  const alreadyKnown = !!knownContact;
-  if (alreadyKnown) {
-    activityStep("Found the recipient in your contacts", knownContact.name, "done");
+  const knownContact = currentContacts.find(c => c.address.toLowerCase() === key);
+  if (knownContact) {
+    if (!shown) activityStep("Recognizing the recipient", knownContact.name, "done");
     activityStep("Preparing the transaction");
     proceed();
     return;
   }
 
-  activityStep("Checking the address is safe");
-  const reasons = [];
-
-  const lookalike = findLookalikeMatch(address, currentContacts, wallet?.address);
-  if (lookalike) {
-    reasons.push(`This address is nearly identical to ${lookalike}, but is not the same address, a common address-poisoning scam.`);
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/address-check/${address}?network=${activeNetworkKey}`);
-    const data = await response.json();
-    if (data.suspicious && Array.isArray(data.reasons)) {
-      reasons.push(...data.reasons);
-    }
-    activityDone(reasons.length > 0 ? "needs your attention" : "no warnings");
-  } catch (e) {
-    console.error("On-chain address check unavailable, proceeding without it:", e);
-    activityDone("check unavailable");
-  }
+  if (!shown) activityStep("Checking the address is safe");
+  const { reasons, unavailable, badge } = await runAddressCheck(address);
+  if (!shown) activityDone(reasons.length > 0 ? "needs your attention" : badge ? badge : unavailable ? "check unavailable" : "no warnings");
 
   if (reasons.length > 0) {
     setAddressCheck({ address, reasons, proceed });
@@ -6743,6 +6811,14 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
     case "UNSTAKE_XPL":
     case "PREDICT_MARKET":
     case "SAFE_RECOVERY":
+
+      // A ticket that says it is missing something (e.g. "Destination chain not
+      // specified") is not a ticket: ask for the missing part instead, and
+      // prepare it once the answer arrives.
+      if (action.defiTicket && /(not specified|is required|required to complete|missing|unknown (token|network|chain))/i.test(`${action.defiTicket.riskReason || ""} ${action.defiTicket.summary || ""}`)) {
+        setMessages(m => [...m, { role: "ai", text: action.message || "I need a bit more information before I can prepare this. What is missing?" }]);
+        break;
+      }
 
       if (action.defiTicket) {
         pushActiveToCollapsedIfAny();

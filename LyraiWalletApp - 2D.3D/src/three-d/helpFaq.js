@@ -40,7 +40,7 @@ export const HELP_FAQ = [
       },
       {
         q: "Several things at once, or Lyra does not understand",
-        a: "Chain steps in one sentence and Lyra prepares each as its own ticket. If it does not understand it asks for what is missing: rephrase briefly, or write \"what can you do\" to see everything.",
+        a: "Chain steps in one sentence and Lyra prepares each as its own ticket. If something is missing (an amount, an address, the token to receive, a network), Lyra asks for it first and prepares the ticket only once it has everything. If it does not understand, rephrase briefly, or write \"what can you do\" to see everything.",
         chips: ["Swap 1,200 XPL to USDT0 and stake it", "What can you do?"],
       },
     ],
@@ -142,6 +142,10 @@ export const HELP_FAQ = [
       {
         q: "How do I lock the wallet?",
         a: "It locks itself after a period of inactivity: set how long in Settings, General, Auto-lock. You can also tell Lyra \"lock my wallet\". If your device supports it, turn on Biometric unlock in Settings.",
+      },
+      {
+        q: "Can Lyra tell me if an address or a contract is safe?",
+        a: "Yes. Lyra reads the same badges an explorer shows: whether a contract's source is verified, trusted-token listings, and scam, phishing or honeypot flags from public security databases. It checks a new recipient by itself before a transfer, and you can ask \"is this address safe?\" or \"is this contract legit?\" at any time. It is a strong signal, not a guarantee: always read the ticket.",
       },
       {
         q: "Can I limit what gets spent?",
