@@ -64,6 +64,18 @@ const BALLOONS = [
 ];
 const BALLOON_START_Y = 700; // below the sill (glass clip ends at y=578), hidden until it rises
 
+/* The drawing is fitted "slice" (cover), so on a narrow screen only the middle of it is on
+   screen and a balloon resting over its pane's centre can land half off-screen. visHalf is how
+   far from the drawing's centre (x:800) the screen still reaches, set by layout() below; each
+   balloon is pulled in towards the centre until it fits whole, with a margin for its sway. */
+const BALLOON_HALF_W = 46, BALLOON_MARGIN = 14;
+let visHalf = Infinity;
+function restX(b) {
+  const reach = visHalf - BALLOON_HALF_W - BALLOON_MARGIN - 5;
+  const off = b.x - 800;
+  return 800 + Math.sign(off) * Math.min(Math.abs(off), Math.max(reach, 0));
+}
+
 function setupBalloons() {
   const popped = new Set();
   const els = BALLOONS.map((b) => {
@@ -88,7 +100,7 @@ function setupBalloons() {
         if (popped.has(b.id)) continue; // stays exactly as the pop animation left it
         const y = BALLOON_START_Y - (BALLOON_START_Y - b.restY) * rise;
         const sway = Math.sin(p * 50 + b.swayPhase) * 5;
-        b.el.setAttribute("transform", `translate(${(b.x + sway).toFixed(1)} ${y.toFixed(1)})`);
+        b.el.setAttribute("transform", `translate(${(restX(b) + sway).toFixed(1)} ${y.toFixed(1)})`);
         b.el.style.opacity = op.toFixed(3);
         b.el.style.pointerEvents = op > 0.05 ? "auto" : "none";
       }
@@ -123,6 +135,7 @@ export function createScene() {
     layout(W, H) {
       const sc = Math.max(W / 1600, H / 900);
       const oy = (H - 900 * sc) / 2;
+      visHalf = W / sc / 2;
       return { W, H, sc, oy, deskY: oy + 772 * sc, desk: oy + 826 * sc };
     },
     update(tl) {
