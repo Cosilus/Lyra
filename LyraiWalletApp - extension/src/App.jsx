@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallba
 import { AnimatePresence, motion } from "framer-motion";
 import { ethers } from "ethers";
 import { gsap } from "gsap";
-import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUpFromDot, ArrowDownToDot, ArrowLeftRight, MoveHorizontal, Vault, ChevronDown, QrCode, Sparkles, HelpCircle } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUpFromDot, ArrowDownToDot, ArrowLeftRight, MoveHorizontal, Vault, ChevronDown, QrCode, Sparkles, HelpCircle, Gift } from "lucide-react";
 import { IS_TESTNET, API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx, KYBERSWAP_API_BASE, NATIVE_PSEUDO_ADDRESS, KYBERSWAP_CLIENT_ID, POLYMARKET_ORDER_DOMAIN_NAME, POLYMARKET_ORDER_DOMAIN_VERSION, POLYMARKET_ORDER_TYPES, POLYMARKET_ORDER_SIDE_BUY, POLYMARKET_ORDER_SIDE_SELL, POLYMARKET_BYTES32_ZERO, POLYMARKET_SIGNATURE_TYPE_EOA, POLYMARKET_SIGNATURE_TYPE_GNOSIS_SAFE, POLYMARKET_SIGNATURE_TYPE_POLY_1271, POLYMARKET_DEPOSIT_WALLET_DOMAIN_NAME, POLYMARKET_DEPOSIT_WALLET_DOMAIN_VERSION, POLYMARKET_PUSD_COLLATERAL, AAVE_V4_SPOKE_ABI } from "./config";
 import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
@@ -56,6 +56,7 @@ async function fetchBroadcastTx(provider, hash) {
 }
 
 import { CircleMenu } from "./CircleMenu";
+import { RewardsPanel } from "./Rewards.jsx";
 import { createPortal } from "react-dom";
 import { Box3D } from "./three-d/Box3D.jsx";
 import { loadUiMode, saveUiMode, hasSeenTour, markTourSeen } from "./three-d/uiMode.js";
@@ -1126,6 +1127,7 @@ export default function App() {
   const [uiMode, setUiModeState] = useState(loadUiMode);
   const [showChart3d, setShowChart3d] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showRewards, setShowRewards] = useState(false);
   // Shown once, right after a wallet is created/imported and secured:
   // pick the 2D or 3D interface (changeable later in Settings).
   const [showInterfaceChoice, setShowInterfaceChoice] = useState(false);
@@ -7076,6 +7078,7 @@ function handleHoldEnd() {
     { label: "Chart", icon: <LineChart size={17} strokeWidth={1.8} />, onClick: () => setShowChart3d(true) },
     { label: "Help", icon: <HelpCircle size={17} strokeWidth={1.8} />, onClick: () => setShowHelp(true) },
     { label: "Settings", icon: <Settings size={17} strokeWidth={1.8} />, onClick: () => setShowSettings(true) },
+    { label: "Rewards", icon: <Gift size={17} strokeWidth={1.8} />, onClick: () => setShowRewards(true) },
   ];
 
   const rightMenu3d = [
@@ -7108,7 +7111,7 @@ function handleHoldEnd() {
   ];
 
   const anyOverlayOpen =
-    showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showReceiveQr || showTxHistory || showUnlock || showWallet ||
+    showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showRewards || showReceiveQr || showTxHistory || showUnlock || showWallet ||
     showPasswordSetup || showSend || !!defiTicket || !!multiTicket;
 
   const frame = (
@@ -7125,6 +7128,16 @@ function handleHoldEnd() {
   <div className="header-actions">
     {wallet && uiMode !== "3d" && (
       <div className="header-menu" ref={headerMenuRef}>
+        <button
+          type="button"
+          className={`header-rewards${menuOpen ? " is-hidden" : ""}`}
+          onClick={() => setShowRewards(true)}
+          aria-label="Rewards"
+          title="Rewards"
+          tabIndex={menuOpen ? -1 : 0}
+        >
+          <Gift size={17} strokeWidth={1.8} />
+        </button>
         <CircleMenu
           open={menuOpen}
           setOpen={setMenuOpen}
@@ -7538,6 +7551,22 @@ function handleHoldEnd() {
         onReplayTour={() => { setShowHelp(false); setTourOpen(true); }}
         onSwitchMode={(m) => { setShowHelp(false); setMenuOpen(false); changeUiMode(m); }}
       />
+    </div>
+  </div>
+)}
+{showRewards && (
+  <div
+    className="contacts-overlay"
+    onMouseDown={(e) => { if (e.target === e.currentTarget) setShowRewards(false); }}
+  >
+    <div className="contacts-panel help-panel">
+      <div className="contacts-header help-header">
+        <div className="contacts-title">Rewards</div>
+        <button type="button" className="contacts-close" onClick={() => setShowRewards(false)} aria-label="Close">
+          <X size={18} />
+        </button>
+      </div>
+      <RewardsPanel />
     </div>
   </div>
 )}

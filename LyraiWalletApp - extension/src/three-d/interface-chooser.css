@@ -19,22 +19,72 @@
 @keyframes ic-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 .ic-panel {
-  width: min(760px, 100%);
+  width: min(440px, 100%);
   margin: auto;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  align-items: stretch;
+  gap: 20px;
 }
 
 .ic-head { text-align: center; }
 .ic-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: var(--beige); }
 .ic-subtitle { margin-top: 8px; font-size: 13.5px; color: var(--muted); }
 
-.ic-columns {
+/* 2D | 3D pill: same look as the one in Settings (.d3-pill-switch). */
+.ic-pill {
+  position: relative;
+  align-self: center;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  width: 172px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
 }
+.ic-pill-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent-deep));
+  box-shadow: 0 4px 12px -4px rgba(var(--accent-rgb), 0.6);
+  transition: transform 0.28s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.ic-pill.is-3d .ic-pill-thumb { transform: translateX(100%); }
+.ic-pill button {
+  position: relative;
+  z-index: 1;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.ic-pill button.active { color: var(--void); }
+.ic-pill button:not(.active):hover { color: var(--beige); }
+.ic-pill button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Both cards sit in the same spot: the one that is selected is shown, the other is faded out
+   (and cannot be clicked). Switching cross-fades them. */
+.ic-deck {
+  position: relative;
+  height: 466px;
+}
+.ic-card--deck {
+  position: absolute;
+  inset: 0;
+}
+.ic-card--deck .ic-scene { height: 190px; }
+.ic-card--deck:not(.is-selected) { pointer-events: none; }
 
 .ic-card {
   display: flex;
@@ -50,8 +100,8 @@
   cursor: pointer;
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
-.ic-card:hover,
-.ic-card:focus-visible {
+.ic-card:not(.ic-card--deck):hover,
+.ic-card:not(.ic-card--deck):focus-visible {
   transform: translateY(-3px);
   border-color: var(--accent);
   background: var(--panel2);
@@ -65,6 +115,9 @@
 .ic-card-body .ic-card-note { font-size: 11.5px; color: var(--muted-dim); font-style: italic; }
 
 .ic-card-cta {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
   margin-top: auto;
   align-self: stretch;
   text-align: center;
@@ -80,9 +133,7 @@
 .ic-footer { text-align: center; font-size: 12.5px; color: var(--muted); }
 .ic-footer strong { color: var(--accent-strong); font-weight: 600; }
 
-@media (max-width: 640px) {
-  .ic-columns { grid-template-columns: 1fr; }
-}
+
 
 /* ------------------------------------------------------------------
    Looping previews
