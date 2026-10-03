@@ -11,6 +11,7 @@ import { searchPolymarketMarkets, getClobPrice, getPolymarketMarketByConditionId
 import { registerMpcRoutes } from "./routes/mpc.js";
 import crypto from "node:crypto";
 
+import { registerSafeRoutes } from "./routes/safe.js";
 dotenv.config();
 
 // Local dev only: some ISPs (observed with a Swiss provider) hijack DNS
@@ -91,7 +92,7 @@ const serverProvidersByNetwork = new Map();
 // network.rpcUrl reads import.meta.env.VITE_ETH_RPC_URL / VITE_BASE_RPC_URL,
 // which is Vite-only. import.meta.env is always undefined in this plain
 // Node process, so the server always fell through to the hardcoded public
-// fallback RPCs (eth.llamarpc.com, mainnet.base.org) instead of the paid
+// fallback RPCs (ethereum-rpc.publicnode.com, mainnet.base.org) instead of the paid
 // Alchemy endpoints already sitting in .env. dotenv doesn't care about the
 // VITE_ prefix, so those same values are readable here as process.env,
 // use them when present instead of quietly depending on a public RPC's
@@ -169,6 +170,7 @@ app.get("/", (req, res) => {
 registerMpcRoutes(app);
 
 // ========================================
+registerSafeRoutes(app);
 // APP GUIDE + TROUBLESHOOTING (single source of truth for Lyra's own help)
 // ========================================
 // The UI is deliberately minimal and chat-first, so the chat is the
@@ -2017,7 +2019,7 @@ set, or reset the RPC endpoint/node/provider for a network:
 
 "change the RPC to https://my-node.example.com"
 "use this endpoint for Plasma: https://rpc.example.com"
-"set ethereum's RPC to https://eth.llamarpc.com"
+"set ethereum's RPC to https://ethereum-rpc.publicnode.com"
 "reset the RPC" / "go back to the default RPC"
 
 use:

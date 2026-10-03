@@ -1,6 +1,6 @@
 import Safe from "@safe-global/protocol-kit";
 import { ethers } from "ethers";
-import { getNetworkByKey } from "./config.js";
+import { getNetworkByKey, NETWORKS, API_BASE_URL } from "./config.js";
 
 // Safe's official infra (the same deterministic contract addresses,
 // plus a hosted Transaction Service that lets a Safe's other owners
@@ -8,49 +8,41 @@ import { getNetworkByKey } from "./config.js";
 // of Lyra's networks, Plasma included, contrary to what an earlier,
 // non-exhaustive check assumed: live-confirmed real bytecode at
 // Plasma's canonical proxy factory address, and a working Transaction
-// Service under the short name "plasma" (see TX_SERVICE_SHORT_NAME).
+// Service under the short name "plasma" (see server/routes/safe.js).
 // The one real caveat, worth knowing rather than a reason to exclude
 // it: Plasma's zero-fee paymaster only covers a plain stablecoin
 // transfer, not a Safe's contract-call execution, so a multisig
 // transaction there pays real XPL gas like on any other chain.
-export const SAFE_SUPPORTED_NETWORK_KEYS = ["ethereum", "base", "polygon", "plasma"];
+//
+// Decided by chain id, not by network key: the testnet build reuses the
+// same keys ("ethereum" is Sepolia there), and Safe's Transaction
+// Service only covers Sepolia and Base Sepolia among Lyra's testnets
+// (checked against safe-config.safe.global on 03.10.2026: no Polygon
+// Amoy, no Plasma testnet). Must match the map in server/routes/safe.js.
+const SAFE_CHAIN_IDS = [1, 8453, 137, 9745, 11155111, 84532];
+export const SAFE_SUPPORTED_NETWORK_KEYS = NETWORKS
+  .filter(n => SAFE_CHAIN_IDS.includes(n.chainId))
+  .map(n => n.key);
 
 export function isSafeSupportedNetwork(networkKey) {
   return SAFE_SUPPORTED_NETWORK_KEYS.includes(networkKey);
 }
 
-// Talks to Safe's Transaction Service directly over REST instead of
-// through @safe-global/api-kit: live-confirmed (real proposal,
-// confirmation, and execution on Sepolia) that the service itself
-// accepts these calls with no Authorization header at all, but
-// api-kit's own client-side constructor now hard-refuses to even try
-// unauthenticated against api.safe.global, throwing before a single
-// request goes out. A real key (https://developer.safe.global) still
-// raises the rate limit for production use, same override pattern as
-// the RPC URLs in config.js, it's just no longer required to work at
-// all the way api-kit's own error message claims.
-const SAFE_API_KEY = (typeof import.meta !== "undefined" && import.meta.env?.VITE_SAFE_API_KEY) || undefined;
-
-// Confirmed live per network (GET .../v1/about/ returns the exact
-// underlying chain id each short name points at): eth=1, base=8453,
-// pol=137, plasma=9745. Not the same short names Safe uses in its own
-// web app URLs for every chain, verified individually rather than
-// assumed.
-const TX_SERVICE_SHORT_NAME = {
-  ethereum: "eth",
-  base: "base",
-  polygon: "pol",
-  plasma: "plasma",
-};
-
+// Talks to Safe's Transaction Service over REST instead of through
+// @safe-global/api-kit (whose constructor refuses to run without an
+// API key in the browser). Every call goes through Lyra's own backend
+// (server/routes/safe.js), never straight to api.safe.global: the Safe
+// API key has to stay server-side, since a VITE_ variable would ship
+// inside this public bundle and anyone could burn the shared monthly
+// quota with it. The backend maps the network key to Safe's short name
+// (eth, base, pol, plasma) and only forwards the exact endpoints used
+// below, with a per-client rate limit.
 function txServiceBaseUrl(networkKey) {
-  const shortName = TX_SERVICE_SHORT_NAME[networkKey];
-  return `https://api.safe.global/tx-service/${shortName}/api`;
+  return `${API_BASE_URL}/api/safe/${networkKey}`;
 }
 
 async function txServiceRequest(networkKey, path, { method = "GET", body } = {}) {
   const headers = { "Content-Type": "application/json" };
-  if (SAFE_API_KEY) headers.Authorization = `Bearer ${SAFE_API_KEY}`;
 
   const res = await fetch(`${txServiceBaseUrl(networkKey)}${path}`, {
     method,

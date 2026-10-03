@@ -11,6 +11,7 @@ import { isDefiFeatureEnabled, getDefiFeatureInfo } from "./tools/defiProtocols.
 import { isOnramperConfigured, buildOnramperBuyUrl, buildOnramperSellUrl } from "./tools/onramper.js";
 import { searchPolymarketMarkets, getClobPrice, getPolymarketMarketByConditionId, getPolymarketPositions, getPolymarketActivity } from "./tools/polymarketTools.js";
 import crypto from "node:crypto";
+import { registerSafeRoutes } from "./routes/safe.js";
 
 dotenv.config();
 
@@ -207,6 +208,7 @@ if (!IS_TESTNET) {
   const { registerMpcRoutes } = await import("./routes/mpc.js");
   registerMpcRoutes(app);
 }
+registerSafeRoutes(app);
 
 // ========================================
 // APP GUIDE + TROUBLESHOOTING (single source of truth for Lyra's own help)
