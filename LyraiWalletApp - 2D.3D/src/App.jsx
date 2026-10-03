@@ -160,6 +160,15 @@ function shortAddress(a) {
   return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "";
 }
 
+// Display only (the ticket still sends the exact amount): at most 3
+// decimals, and never a misleading "0" for a tiny non-zero amount.
+function formatTicketAmount(amount) {
+  const n = Number(amount);
+  if (!amount || !Number.isFinite(n) || n === 0) return "0";
+  if (n > 0 && n < 0.001) return "<0.001";
+  return n.toLocaleString("en-US", { maximumFractionDigits: 3 });
+}
+
 const AUTO_LOCK_OPTIONS = [
   { value: 1, label: "1 minute" },
   { value: 5, label: "5 minutes" },
@@ -564,7 +573,7 @@ function recordPortfolioSnapshot(xplBalanceWei, defiValueXpl = 0, networkKey) {
 
     const next = [
       ...history,
-      { t: now, balance: balanceStr, defi: defiValueXpl, network: networkKey }
+      { t: now, balance: balanceStr, defi: defiValueXpl, network: networkKey, priced: true }
     ].slice(-MAX_HISTORY_POINTS);
 
     localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(next));
@@ -611,7 +620,14 @@ function filterHistoryByRange(history, rangeKey) {
 // a "network" field. We attach them to DEFAULT_NETWORK so they don't
 // silently disappear from the Plasma history.
 function filterHistoryByNetwork(history, networkKey) {
-  return history.filter(p => (p.network || DEFAULT_NETWORK.key) === networkKey);
+  const onNetwork = history.filter(p => (p.network || DEFAULT_NETWORK.key) === networkKey);
+  // Older snapshots were recorded before the XPL price had loaded, so
+  // their stablecoins counted as 0 (defi: 0). The first priced point
+  // after them then looked like a huge gain (+1236% on 8 USDT0, seen
+  // live). New snapshots carry `priced`; an unpriced 0 that a later
+  // point contradicts is that artifact, not real history.
+  const lastNonZeroDefi = onNetwork.reduce((at, p, i) => (p.defi > 0 ? i : at), -1);
+  return onNetwork.filter((p, i) => p.priced || p.defi > 0 || i > lastNonZeroDefi);
 }
 
 async function deriveKey(password, salt) {
@@ -2631,9 +2647,12 @@ async function unlockWithBiometric() {
       const stakedAmt = Number(ethers.formatUnits(staked[symbol] || 0n, token.decimals));
       stableUsdValue += walletAmt + stakedAmt;
     });
-    const defiValueXpl = xplPriceUSD ? stableUsdValue / xplPriceUSD : 0;
-
-        setPortfolioHistory(recordPortfolioSnapshot(b, defiValueXpl, activeNetworkKey));
+    // Without the XPL price the stablecoins can't be counted, and a
+    // snapshot missing them would show up later as a fake jump.
+    if (stableUsdValue === 0 || xplPriceUSD) {
+      const defiValueXpl = xplPriceUSD ? stableUsdValue / xplPriceUSD : 0;
+      setPortfolioHistory(recordPortfolioSnapshot(b, defiValueXpl, activeNetworkKey));
+    }
   } catch (e) {
     console.error(e);
     setStatus("RPC unavailable");
@@ -2948,7 +2967,6 @@ async function unlockWithBiometric() {
  }
  function reportLyraFee(result) {
   if (result.collected) {
-    setMessages(m => [...m, { role: "ai", text: `Lyra fee (${LYRA_FEE_PERCENT_LABEL}): ${result.amount} ${result.asset} sent to the Lyra treasury.` }]);
     logAuditEvent({ category: "fee", action: "lyra-fee", networkKey: activeNetworkKey, asset: result.asset, amount: result.amount, counterparty: LYRA_TREASURY, txHash: result.hash });
   } else {
     console.warn("Lyra fee not collected:", result.reason);
@@ -6124,12 +6142,28 @@ async function executeAIIntent(action) {
       setStatus("Scanning other networks for balances…");
       const stray = await scanForStrayBalances();
 
-      const requestedNetworkKey = action.network ? String(action.network).toLowerCase() : null;
+      // The model doesn't always use our exact keys for the extra
+      // chains ("bnb", "binance", "BNB Chain" for bsc...), and an
+      // unknown key used to filter out a balance that was really there.
+      const CONSOLIDATE_NETWORK_ALIASES = {
+        bnb: "bsc", binance: "bsc", "bnb chain": "bsc", "bnb smart chain": "bsc", "binance smart chain": "bsc",
+        arb: "arbitrum", "arbitrum one": "arbitrum",
+        op: "optimism",
+        avax: "avalanche", "avalanche c-chain": "avalanche",
+        eth: "ethereum", matic: "polygon", xpl: "plasma",
+      };
+      const rawNetwork = action.network ? String(action.network).toLowerCase().trim() : null;
+      const requestedNetworkKey = rawNetwork ? (CONSOLIDATE_NETWORK_ALIASES[rawNetwork] || rawNetwork) : null;
       const requestedAsset = action.asset ? String(action.asset).toUpperCase() : null;
 
       let candidates = stray;
-      if (requestedNetworkKey) candidates = candidates.filter(c => c.networkKey === requestedNetworkKey);
       if (requestedAsset) candidates = candidates.filter(c => c.symbol.toUpperCase() === requestedAsset);
+      // A network name we still can't match shouldn't hide the balance:
+      // only narrow by network when that leaves something to show.
+      if (requestedNetworkKey) {
+        const onNetwork = candidates.filter(c => c.networkKey === requestedNetworkKey);
+        if (onNetwork.length > 0 || !requestedAsset) candidates = onNetwork;
+      }
 
       presentConsolidationCandidates(candidates, stray);
       break;
@@ -7559,22 +7593,26 @@ function handleHoldEnd() {
     <div className="transaction-summary tx-confirm">
 
       <div className="tx-confirm-k">You send</div>
-      <div className="tx-confirm-amount">
-        {sendAmount || "0"} {sendAssetSymbol}
+      <div className="tx-confirm-amount" title={`${sendAmount || "0"} ${sendAssetSymbol}`}>
+        {formatTicketAmount(sendAmount)} {sendAssetSymbol}
       </div>
       {sendAmountUSD && sendPriceUSD && (
         <div className="tx-confirm-sub">≈ {Number(sendAmountUSD).toFixed(2)} $</div>
       )}
 
-      <div className="transaction-row recipient-row">
-        <span>To</span>
-        <strong title={sendTo}>
-          {contacts.find(c => c.address?.toLowerCase() === String(sendTo).toLowerCase())?.name || shortAddress(sendTo)}
-        </strong>
-      </div>
-      {/* Always the full address: a shortened one can't tell two
-          look-alike addresses apart. */}
-      <div className="tx-confirm-addr">{sendTo}</div>
+      {(() => {
+        // Contact name first when there is one, then the short address
+        // (full one on hover).
+        const contactName = contacts.find(c => c.address?.toLowerCase() === String(sendTo).toLowerCase())?.name;
+        return (
+          <div className="transaction-row recipient-row">
+            <span>To</span>
+            <strong title={sendTo}>
+              {contactName ? `${contactName} · ${shortAddress(sendTo)}` : shortAddress(sendTo)}
+            </strong>
+          </div>
+        );
+      })()}
 
       <div className="transaction-row">
         <span>Network</span>
@@ -7733,7 +7771,7 @@ function handleHoldEnd() {
           <div className="detail-row">
             <span>Conversion rate</span>
             <span>
-              1 {activeNetwork.nativeSymbol} = {Number(sendPriceUSD).toFixed(6)} $
+              1 {sendAssetSymbol} = {Number(sendPriceUSD).toFixed(6)} $
             </span>
           </div>
         )}
