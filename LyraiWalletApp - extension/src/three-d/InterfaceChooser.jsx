@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import "./interface-chooser.css";
 
 // Rough, looping animated previews (not real videos): a mini phone with
@@ -73,9 +75,47 @@ function Preview3D() {
   );
 }
 
+const CARDS = {
+  "2d": {
+    title: "Classic 2D",
+    body: (
+      <>
+        <p>
+          The familiar flat wallet. Everything sits on one calm screen: open the <strong>Menu</strong> at the top right
+          for contacts, transactions, network and settings, and follow your portfolio on the chart.
+        </p>
+        <p className="ic-card-note">Doesn't react to the mouse.</p>
+      </>
+    ),
+    cta: "Choose 2D",
+    Preview: Preview2D,
+  },
+  "3d": {
+    title: "Immersive 3D",
+    body: (
+      <>
+        <p>
+          The same wallet floating in depth. It <strong>tilts as your mouse moves</strong>. Push to the left or right edge of the
+          screen for contacts, settings and history, or to the top for your assets.
+        </p>
+        <p className="ic-card-note">Built for a mouse. Great on desktop.</p>
+      </>
+    ),
+    cta: "Choose 3D",
+    Preview: Preview3D,
+  },
+};
+
 // Shown once, right after a wallet is created/imported and secured.
-// Picking a card applies the interface immediately.
+// A 2D | 3D pill on top (same look as the one in Settings) picks which card is shown: the current
+// card fades out while the other fades in. The button on the card applies that interface.
 export function InterfaceChooser({ onChoose }) {
+  const [mode, setMode] = useState("3d");
+
+  function select(next) {
+    if (next !== mode) setMode(next);
+  }
+
   return createPortal(
     <div className="ic-overlay" role="dialog" aria-modal="true" aria-label="Choose your interface">
       <div className="ic-panel">
@@ -84,32 +124,41 @@ export function InterfaceChooser({ onChoose }) {
           <div className="ic-subtitle">Same wallet, same Lyra. Only the way you move around it changes.</div>
         </div>
 
-        <div className="ic-columns">
-          <button type="button" className="ic-card" onClick={() => onChoose("2d")}>
-            <Preview2D />
-            <div className="ic-card-body">
-              <div className="ic-card-title">Classic 2D</div>
-              <p>
-                The familiar flat wallet. Everything sits on one calm screen: open the <strong>Menu</strong> at the top right
-                for contacts, transactions, network and settings, and follow your portfolio on the chart.
-              </p>
-              <p className="ic-card-note">Doesn't react to the mouse.</p>
-            </div>
-            <span className="ic-card-cta">Choose 2D</span>
-          </button>
+        <div className={`ic-pill${mode === "3d" ? " is-3d" : ""}`} role="tablist" aria-label="Interface">
+          <span className="ic-pill-thumb" />
+          <button type="button" role="tab" aria-selected={mode === "2d"} className={mode === "2d" ? "active" : ""} onClick={() => select("2d")}>2D</button>
+          <button type="button" role="tab" aria-selected={mode === "3d"} className={mode === "3d" ? "active" : ""} onClick={() => select("3d")}>3D</button>
+        </div>
 
-          <button type="button" className="ic-card" onClick={() => onChoose("3d")}>
-            <Preview3D />
-            <div className="ic-card-body">
-              <div className="ic-card-title">Immersive 3D</div>
-              <p>
-                The same wallet floating in depth. It <strong>tilts as your mouse moves</strong>. Push to the left or right edge of the
-                screen for contacts, settings and history, or to the top for your assets.
-              </p>
-              <p className="ic-card-note">Built for a mouse. Great on desktop.</p>
-            </div>
-            <span className="ic-card-cta">Choose 3D</span>
-          </button>
+        <div className="ic-deck">
+          {["2d", "3d"].map((id) => {
+            const c = CARDS[id];
+            const selected = mode === id;
+            return (
+              <motion.div
+                key={id}
+                className={`ic-card ic-card--deck${selected ? " is-selected" : ""}`}
+                aria-hidden={!selected}
+                initial={false}
+                animate={{ opacity: selected ? 1 : 0 }}
+                transition={{ duration: 0.35, ease: "easeInOut" }}
+              >
+                <c.Preview />
+                <div className="ic-card-body">
+                  <div className="ic-card-title">{c.title}</div>
+                  {c.body}
+                </div>
+                <button
+                  type="button"
+                  className="ic-card-cta"
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => { if (selected) onChoose(id); }}
+                >
+                  {c.cta}
+                </button>
+              </motion.div>
+            );
+          })}
         </div>
 
         <div className="ic-footer">You can switch at any time in <strong>Settings → Interface</strong>.</div>
