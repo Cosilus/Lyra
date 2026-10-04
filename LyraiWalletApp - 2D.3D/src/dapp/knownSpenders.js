@@ -71,3 +71,7 @@ export function lookupSpender(address, origin) {
     official,
   };
 }
+
+// Every known contract, for the "what can spend my tokens?" scan (approvals.js).
+export const KNOWN_SPENDER_ADDRESSES = [...REGISTRY.keys()];
+export const spenderName = (address) => REGISTRY.get(String(address).toLowerCase())?.protocol || null;

@@ -200,5 +200,6 @@ export function readTypedData(params, ctx) {
       ],
     };
   }
-  return { ...reading, text };
+  // The contract that will use the signature: the backend checks its reputation.
+  return { ...reading, text, verifyingContract: data.domain?.verifyingContract || null };
 }

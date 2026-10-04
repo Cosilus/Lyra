@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
-import { ShieldAlert, ShieldCheck, TriangleAlert, Globe, BadgeCheck } from "lucide-react";
+import { ShieldAlert, ShieldCheck, TriangleAlert, Globe, BadgeCheck, Ban, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { API_BASE_URL } from "../config.js";
 import { logAuditEvent } from "../auditLog.js";
 import { fetchPendingRequests, isApprovalWindow, resolveRequest } from "./dappBridge.js";
 import { lookupSpender } from "./knownSpenders.js";
@@ -12,10 +13,12 @@ import "./dapp.css";
 // a message, switch network. Shown one at a time in Lyra's approval window,
 // with a plain-language reading of what the site asks for and a risk level.
 //
-// Requests are read locally: known function selectors, sign-in messages,
-// typed-data signatures (typedData.js) and known app contracts
-// (knownSpenders.js). Simulation and contract reputation come in phase 2;
-// until then anything Lyra can't read is shown as "can't verify", never as safe.
+// Requests are read locally first: known function selectors, sign-in
+// messages, typed-data signatures (typedData.js) and known app contracts
+// (knownSpenders.js). Then the backend (server/routes/dapp.js) adds what it
+// can check: the site against phishing lists, the transaction simulated
+// (real balance changes, hidden approvals) and the contract's reputation.
+// Anything Lyra can't read is shown as "can't verify", never as safe.
 
 const MAX_UINT = ethers.MaxUint256;
 const ERC20 = new ethers.Interface([
@@ -26,6 +29,10 @@ const ERC20 = new ethers.Interface([
   "function setApprovalForAll(address operator, bool approved)",
 ]);
 // What a transaction does, as far as Lyra can tell without simulating it.
+// The permission a transaction gives, remembered in the audit trail once
+// sent, so the chat can list and revoke it later (approvals.js).
+const withApproval = (approval, args) => ({ ...readPermission(args), approval });
+
 function readTransaction(tx, network, origin) {
   const data = tx.data && tx.data !== "0x" ? tx.data : null;
   const value = tx.value ? BigInt(tx.value) : 0n;
@@ -53,7 +60,7 @@ function readTransaction(tx, network, origin) {
       const [spender, amount] = call.args;
       const unlimited = BigInt(amount) >= MAX_UINT / 2n;
       const known = lookupSpender(spender, origin);
-      return readPermission({
+      return withApproval({ token: tx.to, spender, all: false }, {
         spender,
         origin,
         title: `Allow ${known?.protocol || short(spender)} to use your ${tokenName}`,
@@ -71,7 +78,7 @@ function readTransaction(tx, network, origin) {
       const [operator, approved] = call.args;
       if (!approved) return { risk: "ok", title: `Remove ${short(operator)}'s access to this collection`, lines: [] };
       const known = lookupSpender(operator, origin);
-      return readPermission({
+      return withApproval({ token: tx.to, spender: operator, all: true }, {
         spender: operator,
         origin,
         title: `Allow ${known?.protocol || short(operator)} to transfer your items in this collection`,
@@ -126,8 +133,61 @@ function messageParam(params = []) {
   return ethers.isAddress(params[0]) && !ethers.isAddress(params[1]) ? params[1] : params[0];
 }
 
-const RISK_LABEL = { expected: "Normal step", ok: "Looks fine", warn: "Check carefully", unknown: "Can't verify", danger: "Dangerous" };
-const RISK_ICON = { expected: BadgeCheck, ok: ShieldCheck, warn: TriangleAlert, unknown: TriangleAlert, danger: ShieldAlert };
+const RISK_ORDER = ["ok", "expected", "unknown", "warn", "danger", "blocked"];
+const raise = (reading, risk, line) => ({
+  ...reading,
+  risk: RISK_ORDER.indexOf(risk) > RISK_ORDER.indexOf(reading.risk) ? risk : reading.risk,
+  lines: line ? [...reading.lines, line] : reading.lines,
+  // once something is wrong, the reassuring "normal step" box no longer applies
+  why: RISK_ORDER.indexOf(risk) >= RISK_ORDER.indexOf("warn") ? null : reading.why,
+});
+
+// What the backend found, folded into the local reading.
+function applyAnalysis(reading, analysis, { origin, method, txTo }) {
+  if (!analysis) return reading;
+  let r = reading;
+  const { site, simulation, contract } = analysis;
+
+  if (site?.phishing) {
+    return {
+      risk: "blocked",
+      title: `${site.host} is a known phishing site`,
+      lines: [`It's listed by ${site.sources.join(" and ")} as a site that steals crypto. Lyra won't let you sign anything here. Close the tab.`],
+    };
+  }
+
+  if (simulation?.available && simulation.reverted) {
+    r = raise(r, "warn", `Simulation: this transaction would fail (${simulation.error}). You'd pay the network fee for nothing.`);
+  }
+  if (simulation?.available && !simulation.reverted) {
+    const out = simulation.changes.filter(c => c.direction === "out");
+    const inn = simulation.changes.filter(c => c.direction === "in");
+    const hasData = method === "eth_sendTransaction" && txTo && reading.title && !/^Send /.test(reading.title);
+    if (hasData && out.length && !inn.length && !lookupSpender(txTo, origin)) {
+      r = raise(r, "warn", "Simulation: you'd send assets and get nothing back in this transaction. Make sure that's what you expect (a payment, a deposit).");
+    }
+    // A permission hidden inside a call Lyra couldn't read (multicall...).
+    if (!reading.spender) {
+      for (const a of simulation.approvals) {
+        const known = lookupSpender(a.spender, origin);
+        const what = a.all ? `all your ${a.symbol || "items"} in this collection` : `${a.unlimited ? "an UNLIMITED amount of" : a.amountText || "some of"} your ${a.symbol || "tokens"}`;
+        r = known
+          ? raise(r, "unknown", `It also gives ${known.protocol} permission to use ${what}.`)
+          : raise(r, a.all || a.unlimited ? "danger" : "warn", `Hidden in this call: it gives ${short(a.spender)} (unknown to Lyra) permission to use ${what}.`);
+      }
+    }
+  }
+
+  if (contract?.flags?.length) {
+    r = raise(r, "danger", `Security databases flag this contract: ${[...new Set(contract.flags)].join(", ")}.`);
+  } else if (contract?.isContract && contract.verified === false && contract.ageDays !== null && contract.ageDays < 30) {
+    r = raise(r, "warn", `This contract was created ${contract.ageDays === 0 ? "today" : `${contract.ageDays} day${contract.ageDays > 1 ? "s" : ""} ago`} and its code isn't published. Scams often use fresh, hidden contracts.`);
+  }
+  return r;
+}
+
+const RISK_LABEL = { blocked: "Blocked", expected: "Normal step", ok: "Looks fine", warn: "Check carefully", unknown: "Can't verify", danger: "Dangerous" };
+const RISK_ICON = { blocked: Ban, expected: BadgeCheck, ok: ShieldCheck, warn: TriangleAlert, unknown: TriangleAlert, danger: ShieldAlert };
 
 export default function DappRequests({ wallet, privateKey, locked, network, rpcUrl, networks, onSwitchNetwork }) {
   const [queue, setQueue] = useState([]);
@@ -136,6 +196,8 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
   const [feeText, setFeeText] = useState("");
   const [riskAccepted, setRiskAccepted] = useState(false);
   const [spenderIsWallet, setSpenderIsWallet] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
+  const [analysing, setAnalysing] = useState(false);
   const [holding, setHolding] = useState(false);
   const holdTimer = useRef(null);
   const emptyPolls = useRef(0);
@@ -181,6 +243,29 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
         return { risk: "unknown", title: request.method, lines: [] };
     }
   }, [request?.id, network, networks]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Backend checks: site reputation, simulation, contract facts. Hold stays
+  // disabled while they run (8s at most), they never block on their own.
+  useEffect(() => {
+    setAnalysis(null);
+    if (!request || !ready || !reading) return;
+    const tx = request.method === "eth_sendTransaction" ? request.params?.[0] : null;
+    const address = reading.spender || tx?.to || (reading.verifyingContract ?? null);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    setAnalysing(true);
+    fetch(`${API_BASE_URL}/api/dapp/analyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({ network: network.key, origin: request.origin, from: wallet.address, tx, address }),
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then(a => setAnalysis(a))
+      .catch(() => {})
+      .finally(() => { clearTimeout(timer); setAnalysing(false); });
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [request?.id, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Network fee, and an early warning when the transaction would fail.
   useEffect(() => {
@@ -257,7 +342,7 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
           gasLimit: tx.gas ? BigInt(tx.gas) : undefined,
         });
         result = sent.hash;
-        audit("sent", { txHash: sent.hash });
+        audit("sent", { txHash: sent.hash, meta: reading.approval ? { approval: reading.approval } : undefined });
       } else if (request.method === "personal_sign") {
         const raw = messageParam(request.params);
         result = await signer.signMessage(ethers.isHexString(raw) ? ethers.getBytes(raw) : raw);
@@ -278,11 +363,13 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
     }
   }
 
+  reading = applyAnalysis(reading, analysis, { origin: request.origin, method: request.method, txTo: request.params?.[0]?.to });
   if (spenderIsWallet) {
     reading = { ...reading, risk: "danger", lines: [...reading.lines, "The receiver is a personal wallet, not an app contract. No real app asks for this: it's a scam pattern."] };
   }
   const needsRiskAck = reading.risk === "danger";
-  const canHold = !busy && (!needsRiskAck || riskAccepted);
+  const blocked = reading.risk === "blocked";
+  const canHold = !busy && !analysing && !blocked && (!needsRiskAck || riskAccepted);
   const RiskIcon = RISK_ICON[reading.risk];
 
   function startHold() {
@@ -335,6 +422,19 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
               </details>
             </div>
           ))}
+
+        {analysis?.simulation?.available && !analysis.simulation.reverted && analysis.simulation.changes.length > 0 && (
+          <div className="dapp-changes">
+            <div className="dapp-changes-title">Balance changes (simulated)</div>
+            {analysis.simulation.changes.map((c, i) => (
+              <div key={i} className={`dapp-change dapp-change-${c.direction}`}>
+                {c.direction === "in" ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
+                <span>{c.direction === "in" ? "+" : "−"} {c.kind === "nft" ? `${c.symbol || short(c.token)} #${c.ids.join(", #")}` : `${Number(c.amount).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${c.symbol || short(c.token)}`}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {analysing && <p className="dapp-checking">Lyra is checking this request…</p>}
 
         {request.method === "eth_sendTransaction" && (
           <div className="dapp-rows">
