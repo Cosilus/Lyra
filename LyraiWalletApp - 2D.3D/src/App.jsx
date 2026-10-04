@@ -4,6 +4,8 @@ import { ethers } from "ethers";
 import { gsap } from "gsap";
 import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUp, ArrowDown, ArrowLeftRight, Landmark, Layers, ChevronDown, QrCode, Sparkles, HelpCircle } from "lucide-react";
 import { API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx, KYBERSWAP_API_BASE, NATIVE_PSEUDO_ADDRESS, KYBERSWAP_CLIENT_ID, POLYMARKET_ORDER_DOMAIN_NAME, POLYMARKET_ORDER_DOMAIN_VERSION, POLYMARKET_ORDER_TYPES, POLYMARKET_ORDER_SIDE_BUY, POLYMARKET_ORDER_SIDE_SELL, POLYMARKET_BYTES32_ZERO, POLYMARKET_SIGNATURE_TYPE_EOA, POLYMARKET_SIGNATURE_TYPE_GNOSIS_SAFE, POLYMARKET_SIGNATURE_TYPE_POLY_1271, POLYMARKET_DEPOSIT_WALLET_DOMAIN_NAME, POLYMARKET_DEPOSIT_WALLET_DOMAIN_VERSION, POLYMARKET_PUSD_COLLATERAL, AAVE_V4_SPOKE_ABI } from "./config";
+import DappRequests from "./dapp/DappRequests.jsx";
+import { syncWalletState, saveUnlockedSession, clearUnlockedSession, loadUnlockedSession, touchUnlockedSession, watchUnlockedSession } from "./dapp/dappBridge.js";
 import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
 import { LYRA_TREASURY, LYRA_FEE_PERCENT_LABEL, feeOf, splitOnTop, toRaw, isFeeExempt, assetInfo, usdPerUnit, feeIsWorthCharging, includedFeePreview, collectLyraFee, runWithLyraFee, estimateAfterFee } from "./fees.js";
@@ -2058,11 +2060,16 @@ useEffect(() => {
   }
 
   const events = ["mousedown", "keydown", "touchstart", "scroll"];
-  events.forEach(evt => window.addEventListener(evt, resetTimer));
+  const onActivity = () => { resetTimer(); touchUnlockedSession(); };
+  events.forEach(evt => window.addEventListener(evt, onActivity));
   resetTimer();
+  // Extension: activity in another Lyra page (side panel, approval window)
+  // counts too, so one idle page doesn't lock the user out of the others.
+  const stopWatching = watchUnlockedSession({ onActivity: resetTimer });
 
   return () => {
-    events.forEach(evt => window.removeEventListener(evt, resetTimer));
+    stopWatching();
+    events.forEach(evt => window.removeEventListener(evt, onActivity));
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
     }
@@ -2173,6 +2180,7 @@ useEffect(() => {
 
 
 function lockWallet() {
+  clearUnlockedSession();
   setUnlockedPrivateKey(null);
   setLocked(true);
   setShowUnlock(true);
@@ -2329,6 +2337,7 @@ function closeExportKey() {
 }
 
 function resetWallet() {
+  clearUnlockedSession();
   localStorage.removeItem("plasma_wallet_v2");
   setWallet(null);
   setUnlockedPrivateKey(null);
@@ -7125,6 +7134,54 @@ function handleHoldEnd() {
       .filter(a => a.balance > 0),
   ];
 
+  // Extension build: tell the background (which answers websites) the
+  // public address and the active network. No-op in the web app.
+  useEffect(() => {
+    // The saved address while locked too: it's public, and clearing it would
+    // look to every connected site like a disconnect.
+    syncWalletState({ address: wallet?.address || loadSavedWallet()?.address, network: activeNetwork, rpcUrl: effectiveRpcUrl, networks: NETWORKS });
+  }, [wallet?.address, activeNetwork, effectiveRpcUrl]);
+
+  // Extension: stay unlocked across Lyra's pages for the browser session,
+  // like MetaMask (see dappBridge.js). No-op in the web app.
+  useEffect(() => {
+    if (unlockedPrivateKey && !locked && wallet?.address) {
+      saveUnlockedSession({ address: wallet.address, privateKey: unlockedPrivateKey, localSecret: localSecretRef.current, autoLockMinutes });
+    }
+  }, [unlockedPrivateKey, locked, wallet?.address, autoLockMinutes]);
+
+  useEffect(() => {
+    const saved = loadSavedWallet();
+    loadUnlockedSession(saved?.address).then(session => {
+      if (!session) return;
+      localSecretRef.current = session.localSecret;
+      sessionKeyCacheRef.current = session.privateKey;
+      setUnlockedPrivateKey(session.privateKey);
+      setMpcEnabled(!!saved.mpcEnabled);
+      setWallet({ address: saved.address });
+      setLocked(false);
+      setShowUnlock(false);
+      refreshBalance(saved.address);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => watchUnlockedSession({
+    onLocked: () => { if (!locked) lockWallet(); },
+  }), [locked]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dappEl = (
+    <DappRequests
+      wallet={wallet}
+      privateKey={unlockedPrivateKey}
+      locked={locked}
+      network={activeNetwork}
+      rpcUrl={effectiveRpcUrl}
+      networks={NETWORKS}
+      onSwitchNetwork={switchNetwork}
+    />
+  );
+
   const anyOverlayOpen =
     showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showReceiveQr || showTxHistory || showUnlock || showWallet ||
     showPasswordSetup || showSend || !!defiTicket || !!multiTicket;
@@ -10671,6 +10728,7 @@ function handleHoldEnd() {
     return (
       <div className="page page--3d">
         {toastEl}
+        {dappEl}
         <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} paused={anyOverlayOpen} tourActive={tourOpen} onTourDone={finishTour} tiltEnabled={tiltEnabled}>
           {frame}
         </Box3D>
@@ -10681,6 +10739,7 @@ function handleHoldEnd() {
   return (
     <div className="page">
       {toastEl}
+      {dappEl}
       {frame}
     </div>
   );
