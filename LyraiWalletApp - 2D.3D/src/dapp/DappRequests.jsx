@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { ShieldAlert, ShieldCheck, TriangleAlert, Globe, BadgeCheck } from "lucide-react";
-import { TOKENS_BY_NETWORK } from "../config.js";
 import { logAuditEvent } from "../auditLog.js";
 import { fetchPendingRequests, isApprovalWindow, resolveRequest } from "./dappBridge.js";
 import { lookupSpender } from "./knownSpenders.js";
+import { readPermission, short, tokenAt } from "./readings.js";
+import { parseTypedDataParams, readTypedData, signableTypes } from "./typedData.js";
 import "./dapp.css";
 
 // Requests from websites (extension build): connect, send a transaction, sign
 // a message, switch network. Shown one at a time in Lyra's approval window,
 // with a plain-language reading of what the site asks for and a risk level.
 //
-// Phase 1 reads the request locally (known function selectors, sign-in
-// messages). Simulation and contract reputation come in phase 2; until then
-// anything Lyra can't read is shown as "can't verify", never as safe.
+// Requests are read locally: known function selectors, sign-in messages,
+// typed-data signatures (typedData.js) and known app contracts
+// (knownSpenders.js). Simulation and contract reputation come in phase 2;
+// until then anything Lyra can't read is shown as "can't verify", never as safe.
 
 const MAX_UINT = ethers.MaxUint256;
 const ERC20 = new ethers.Interface([
@@ -23,45 +25,7 @@ const ERC20 = new ethers.Interface([
   "function transferFrom(address from, address to, uint256 amount)",
   "function setApprovalForAll(address operator, bool approved)",
 ]);
-const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "");
-
-function tokenAt(networkKey, address) {
-  const list = TOKENS_BY_NETWORK[networkKey] || {};
-  const hit = Object.entries(list).find(([, t]) => t.address?.toLowerCase() === String(address).toLowerCase());
-  return hit ? { symbol: hit[0], decimals: hit[1].decimals } : null;
-}
-
 // What a transaction does, as far as Lyra can tell without simulating it.
-// A permission (approve / setApprovalForAll) for a known app contract is a
-// normal step of using that app: say so, and say why. For an unknown one the
-// full warning stays.
-function readPermission({ spender, origin, title, unknownRisk, unknownLines, knownLine }) {
-  const known = lookupSpender(spender, origin);
-  const host = new URL(origin).host;
-  if (known?.expected) {
-    return {
-      risk: "expected",
-      title,
-      lines: [knownLine],
-      why: {
-        heading: known.official ? `Normal step for ${known.protocol}` : `Normal step: ${host} uses ${known.protocol}`,
-        text: known.why,
-        footer: "You can remove this permission at any time later (for example on revoke.cash).",
-      },
-      spender,
-    };
-  }
-  if (known) {
-    return {
-      risk: "warn",
-      title,
-      lines: [knownLine, `This is ${known.protocol}'s official contract, but you're on ${host}, not ${known.protocol}'s website. Fine if this site is built on ${known.protocol}, otherwise stop here.`],
-      spender,
-    };
-  }
-  return { risk: unknownRisk, title, lines: unknownLines, spender, unknownSpender: true };
-}
-
 function readTransaction(tx, network, origin) {
   const data = tx.data && tx.data !== "0x" ? tx.data : null;
   const value = tx.value ? BigInt(tx.value) : 0n;
@@ -206,6 +170,9 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
         return readTransaction(request.params?.[0] || {}, network, request.origin);
       case "personal_sign":
         return readMessage(messageParam(request.params), request.origin);
+      case "eth_signTypedData_v4":
+      case "eth_signTypedData_v3":
+        return readTypedData(request.params, { network, origin: request.origin, account: wallet?.address || "" });
       case "wallet_switchEthereumChain": {
         const wanted = networks.find(n => "0x" + n.chainId.toString(16) === String(request.params?.[0]?.chainId).toLowerCase());
         return { risk: "ok", title: `Switch to ${wanted?.name || "another network"}`, lines: [`Lyra will use ${wanted?.name || "this network"} from now on, here and on this site.`] };
@@ -221,8 +188,7 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
     setError("");
     setRiskAccepted(false);
     setSpenderIsWallet(false);
-    if (!request || request.method !== "eth_sendTransaction" || !ready) return;
-    const tx = request.params?.[0] || {};
+    if (!request || !ready) return;
     const provider = new ethers.JsonRpcProvider(rpcUrl, network.chainId);
     let cancelled = false;
     // A permission given to a personal wallet (no contract code) has no
@@ -230,6 +196,8 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
     if (reading?.unknownSpender) {
       provider.getCode(reading.spender).then(code => { if (!cancelled && code === "0x") setSpenderIsWallet(true); }).catch(() => {});
     }
+    if (request.method !== "eth_sendTransaction") return () => { cancelled = true; };
+    const tx = request.params?.[0] || {};
     (async () => {
       try {
         const [gas, fees] = await Promise.all([
@@ -293,6 +261,10 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
       } else if (request.method === "personal_sign") {
         const raw = messageParam(request.params);
         result = await signer.signMessage(ethers.isHexString(raw) ? ethers.getBytes(raw) : raw);
+      } else if (request.method === "eth_signTypedData_v4" || request.method === "eth_signTypedData_v3") {
+        const data = parseTypedDataParams(request.params);
+        const { EIP712Domain, ...rest } = data.types; // eslint-disable-line no-unused-vars
+        result = await signer.signTypedData(data.domain, signableTypes({ ...data, types: rest }), data.message);
       } else if (request.method === "wallet_switchEthereumChain") {
         const wanted = networks.find(n => "0x" + n.chainId.toString(16) === String(request.params[0].chainId).toLowerCase());
         onSwitchNetwork(wanted.key);
@@ -351,7 +323,18 @@ export default function DappRequests({ wallet, privateKey, locked, network, rpcU
           </div>
         )}
 
-        {reading.text && <pre className="dapp-message">{reading.text}</pre>}
+        {/* A message is what the user agrees to: shown in full. Typed data is
+            already summarised above, its raw fields stay one click away. */}
+        {reading.text && (request.method === "personal_sign"
+          ? <pre className="dapp-message">{reading.text}</pre>
+          : (
+            <div className="dapp-rows">
+              <details>
+                <summary>Technical details</summary>
+                <pre className="dapp-message">{reading.text}</pre>
+              </details>
+            </div>
+          ))}
 
         {request.method === "eth_sendTransaction" && (
           <div className="dapp-rows">

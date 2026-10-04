@@ -28,7 +28,7 @@ const READ_ONLY_METHODS = new Set([
   "eth_getTransactionByHash", "eth_getTransactionReceipt", "eth_getBlockByNumber", "eth_getBlockByHash",
   "eth_getLogs", "eth_syncing", "net_listening",
 ]);
-const NEEDS_CONNECTION = new Set(["eth_sendTransaction", "personal_sign", "wallet_switchEthereumChain"]);
+const NEEDS_CONNECTION = new Set(["eth_sendTransaction", "personal_sign", "eth_signTypedData_v4", "eth_signTypedData_v3", "wallet_switchEthereumChain"]);
 
 const ports = new Set();            // open pages: { port, origin }
 const pending = new Map();          // approval id -> { origin, method, params, port, pageId, title, icon }
@@ -165,10 +165,10 @@ async function handle(method, params, ctx) {
     // and no legitimate site needs it any more.
     case "eth_sign":
       throw err(4200, "Lyra never signs raw hashes (eth_sign): it's a common way to steal funds.");
+    // The original v1 format (an array of fields, no domain) can't be tied to
+    // a site, a network or a contract; every current app uses v3/v4.
     case "eth_signTypedData":
-    case "eth_signTypedData_v3":
-    case "eth_signTypedData_v4":
-      throw err(4200, "Lyra doesn't sign typed data from websites yet.");
+      throw err(4200, "Lyra only signs typed data in the v4 format (eth_signTypedData_v4).");
     case "wallet_addEthereumChain": {
       const wanted = String(params?.[0]?.chainId || "").toLowerCase();
       if (state?.networks?.some((n) => n.chainId === wanted)) return handle("wallet_switchEthereumChain", [{ chainId: wanted }], ctx);
@@ -186,6 +186,10 @@ async function handle(method, params, ctx) {
         throw err(4902, "Lyra doesn't support this network.");
       }
       if (wanted === state.chainId) return null;
+    }
+    if (method === "eth_signTypedData_v4" || method === "eth_signTypedData_v3") {
+      const who = (params || []).find((p) => typeof p === "string" && /^0x[0-9a-fA-F]{40}$/.test(p));
+      if (who && who.toLowerCase() !== state.address.toLowerCase()) throw err(4100, "This account isn't the one connected to this site.");
     }
     if (method === "eth_sendTransaction") {
       const from = String(params?.[0]?.from || "").toLowerCase();
