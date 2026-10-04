@@ -3774,7 +3774,11 @@ body {
    ACTIVITY: Lyra's work log under the user's message
 ================================ */
 .activity {
-  align-self: stretch;
+  /* as wide as its line, so the chevron sits right after the text; the
+     open recap takes the full width */
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
   margin: 2px 0 6px;
   border-radius: 14px;
   background: var(--panel);
@@ -3796,7 +3800,8 @@ body {
   font-weight: 600;
   color: var(--beige);
 }
-.act-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity.open { align-self: stretch; width: auto; }
+.act-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* a new phase fades in over the same line */
 .act-phase { animation: act-phase-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
 @keyframes act-phase-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
