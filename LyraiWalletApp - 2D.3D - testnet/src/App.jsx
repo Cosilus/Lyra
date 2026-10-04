@@ -4,6 +4,9 @@ import { ethers } from "ethers";
 import { gsap } from "gsap";
 import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUp, ArrowDown, ArrowLeftRight, Landmark, Layers, ChevronDown, QrCode, Sparkles, HelpCircle } from "lucide-react";
 import { IS_TESTNET, API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx, KYBERSWAP_API_BASE, NATIVE_PSEUDO_ADDRESS, KYBERSWAP_CLIENT_ID, POLYMARKET_ORDER_DOMAIN_NAME, POLYMARKET_ORDER_DOMAIN_VERSION, POLYMARKET_ORDER_TYPES, POLYMARKET_ORDER_SIDE_BUY, POLYMARKET_ORDER_SIDE_SELL, POLYMARKET_BYTES32_ZERO, POLYMARKET_SIGNATURE_TYPE_EOA, POLYMARKET_SIGNATURE_TYPE_GNOSIS_SAFE, POLYMARKET_SIGNATURE_TYPE_POLY_1271, POLYMARKET_DEPOSIT_WALLET_DOMAIN_NAME, POLYMARKET_DEPOSIT_WALLET_DOMAIN_VERSION, POLYMARKET_PUSD_COLLATERAL, AAVE_V4_SPOKE_ABI } from "./config";
+import DappRequests from "./dapp/DappRequests.jsx";
+import { syncWalletState, saveUnlockedSession, clearUnlockedSession, loadUnlockedSession, touchUnlockedSession, watchUnlockedSession, isExtension, listConnectedSites, disconnectSite } from "./dapp/dappBridge.js";
+import { scanApprovals, describeApproval, revokeTx } from "./dapp/approvals.js";
 import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
 import { LYRA_TREASURY, LYRA_FEE_PERCENT_LABEL, feeOf, splitOnTop, toRaw, isFeeExempt, assetInfo, usdPerUnit, feeIsWorthCharging, includedFeePreview, collectLyraFee, runWithLyraFee, estimateAfterFee } from "./fees.js";
@@ -437,6 +440,8 @@ function completedSummaryLine(step) {
       return `Order cancelled${step.marketQuestion ? `. ${step.marketQuestion}` : ""}`;
     case "receive-fiat":
       return `$${step.amountUSD ?? "?"} received → ${step.amountUSD ?? "?"} USDC.e`;
+    case "revoke-approval":
+      return `Permission revoked${step.approvals ? `: ${step.approvals.map(a => `${a.spenderName} on ${a.symbol}`).join(", ")}` : ""}`;
     case "consolidate":
       return `${step.amountDisplay ?? "?"} ${step.symbol ?? "?"} consolidated from ${step.networkName ?? "?"} into ${step.toSymbol ?? "your active network"}`;
     case "gateway-deposit":
@@ -2069,11 +2074,16 @@ useEffect(() => {
   }
 
   const events = ["mousedown", "keydown", "touchstart", "scroll"];
-  events.forEach(evt => window.addEventListener(evt, resetTimer));
+  const onActivity = () => { resetTimer(); touchUnlockedSession(); };
+  events.forEach(evt => window.addEventListener(evt, onActivity));
   resetTimer();
+  // Extension: activity in another Lyra page (side panel, approval window)
+  // counts too, so one idle page doesn't lock the user out of the others.
+  const stopWatching = watchUnlockedSession({ onActivity: resetTimer });
 
   return () => {
-    events.forEach(evt => window.removeEventListener(evt, resetTimer));
+    stopWatching();
+    events.forEach(evt => window.removeEventListener(evt, onActivity));
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
     }
@@ -2184,6 +2194,7 @@ useEffect(() => {
 
 
 function lockWallet() {
+  clearUnlockedSession();
   setUnlockedPrivateKey(null);
   setLocked(true);
   setShowUnlock(true);
@@ -2340,6 +2351,7 @@ function closeExportKey() {
 }
 
 function resetWallet() {
+  clearUnlockedSession();
   localStorage.removeItem("plasma_wallet_v2");
   setWallet(null);
   setUnlockedPrivateKey(null);
@@ -2893,6 +2905,7 @@ async function unlockWithBiometric() {
     if (ticket.feature === "cashout-prediction") return ["Approve position for trading", "Sign and place sell order on Polymarket"];
     if (ticket.feature === "safe-recovery") return ["Transfer USDC.e out of the old Safe"];
     if (ticket.feature === "receive-fiat") return ["Confirming payment", "Converting USD to USDC.e", "Delivering to your wallet"];
+    if (ticket.feature === "revoke-approval") return ticket.approvals.map(a => `Revoke ${a.spenderName}'s access to ${a.symbol}`);
     if (ticket.feature === "consolidate") {
       const steps = [];
       if (ticket.tokenAddress !== NATIVE_PSEUDO_ADDRESS) steps.push(`Approve ${ticket.symbol}`);
@@ -4859,7 +4872,7 @@ async function executeUnstakeTicket(signer, ticket) {
     setBusy(true);
     setStatus("Preparing the transaction…");
 
-    const featureLabel = { swap: "Swap", bridge: "Bridge", staking: "Stake", prediction: "Bet", "cancel-prediction": "Cancel bet", "cashout-prediction": "Cash out", "safe-recovery": "Recovery", "receive-fiat": "Receive", consolidate: "Consolidate", x402: "x402 Payment", acp: "ACP Checkout", "gateway-deposit": "Nanopayments deposit" }[defiTicket.feature] || "Transaction";
+    const featureLabel = { swap: "Swap", bridge: "Bridge", staking: "Stake", prediction: "Bet", "cancel-prediction": "Cancel bet", "cashout-prediction": "Cash out", "safe-recovery": "Recovery", "receive-fiat": "Receive", consolidate: "Consolidate", "revoke-approval": "Revoke", x402: "x402 Payment", acp: "ACP Checkout", "gateway-deposit": "Nanopayments deposit" }[defiTicket.feature] || "Transaction";
     setExecutionLabel(featureLabel);
     setExecutionSteps(stepsForDefiTicket(defiTicket));
     setExecutionStepIndex(-1);
@@ -4999,6 +5012,22 @@ async function executeUnstakeTicket(signer, ticket) {
         setTxHash(consolidateTx.hash);
         setStatus("Consolidated");
         setMessages(m => [...m, { role: "ai", text: `✅ ${defiTicket.amountDisplay} ${defiTicket.symbol} from ${defiTicket.networkName} bridged into ${estimatedToAmount ?? "~"} USDT0 on Plasma.\n\n[View on Explorer Here](${explorerTx(consolidateTx.hash, consolidateSourceNetwork)})` }]);
+        return;
+      } else if (defiTicket.feature === "revoke-approval") {
+        const signer = new ethers.Wallet(unlockedPrivateKey, RPC);
+        let lastTx = null;
+        for (let i = 0; i < defiTicket.approvals.length; i++) {
+          const a = defiTicket.approvals[i];
+          advanceExecutionTo(i);
+          setStatus(`Revoking ${a.spenderName}'s access to ${a.symbol}…`);
+          lastTx = await signer.sendTransaction(revokeTx(a));
+          await lastTx.wait();
+          logAuditEvent({ category: "dapp", action: "revoke", networkKey: activeNetworkKey, asset: a.symbol, counterparty: a.spender, txHash: lastTx.hash });
+        }
+        await advanceToDoneWithBeat(defiTicket.approvals.length);
+        setTxHash(lastTx.hash);
+        setStatus("Revoked");
+        setMessages(m => [...m, { role: "ai", text: `✅ Revoked: ${defiTicket.approvals.map(a => `${a.spenderName} on ${a.symbol}`).join(", ")}. ${defiTicket.approvals.length > 1 ? "These apps" : "This app"} can no longer move those tokens.\n\n[View on Explorer Here](${explorerTx(lastTx.hash, activeNetwork)})` }]);
         return;
       } else if (defiTicket.feature === "gateway-deposit") {
         setTxHash("");
@@ -6184,6 +6213,76 @@ async function executeAIIntent(action) {
       break;
     }
 
+    // Websites connected through the browser extension (see src/dapp/).
+    case "MANAGE_CONNECTED_SITES": {
+      const say = (text) => setMessages(m => [...m, { role: "ai", text }]);
+      if (!isExtension()) {
+        say("Connected sites only exist in Lyra's browser extension: this web version never connects to other websites.");
+        break;
+      }
+      const sites = await listConnectedSites();
+      const origins = Object.keys(sites);
+      const wanted = String(action.site || "").toLowerCase().trim().replace(/^https?:\/\//, "");
+      if (action.siteAction === "disconnect") {
+        const targets = wanted === "all" || wanted === "" ? origins : origins.filter(o => new URL(o).host.includes(wanted));
+        if (!targets.length) {
+          say(origins.length ? `No connected site matches "${action.site}". Connected: ${origins.map(o => new URL(o).host).join(", ")}.` : "No site is connected to Lyra.");
+          break;
+        }
+        for (const o of targets) await disconnectSite(o);
+        logAuditEvent({ category: "dapp", action: "disconnect", networkKey: activeNetworkKey, counterparty: targets.join(", ") });
+        say(`✅ Disconnected: ${targets.map(o => new URL(o).host).join(", ")}. ${targets.length > 1 ? "They" : "It"} can't see your wallet or ask for anything until you connect again.`);
+        break;
+      }
+      say(origins.length
+        ? `Sites connected to Lyra:\n${origins.map(o => `• ${new URL(o).host} (since ${new Date(sites[o].connectedAt).toLocaleDateString("en-US", { dateStyle: "medium" })})`).join("\n")}\n\nSay "disconnect" followed by the site to cut one off. Token permissions are separate: ask "show my approvals".`
+        : "No site is connected to Lyra.");
+      break;
+    }
+
+    // Token permissions (approve / setApprovalForAll) on the active network.
+    case "MANAGE_APPROVALS": {
+      const say = (text) => setMessages(m => [...m, { role: "ai", text }]);
+      if (!wallet?.address) { say("You need to create or import a wallet first."); break; }
+      setStatus(`Checking token permissions on ${activeNetwork.name}…`);
+      let approvals;
+      try {
+        approvals = await scanApprovals({ rpcUrl: effectiveRpcUrl, chainId: activeNetwork.chainId, owner: wallet.address, networkKey: activeNetworkKey });
+      } catch (e) {
+        say(`Couldn't read your permissions on ${activeNetwork.name} right now (${e.shortMessage || e.message}).`);
+        break;
+      }
+      const asset = String(action.asset || "").toUpperCase();
+      const spender = String(action.spender || "").toLowerCase().trim();
+      const matching = approvals.filter(a =>
+        (!asset || a.symbol.toUpperCase() === asset) &&
+        (!spender || spender === "all" || a.spenderName.toLowerCase().includes(spender) || a.spender === spender));
+
+      if (action.approvalAction !== "revoke") {
+        say(approvals.length
+          ? `Apps that can spend your tokens on ${activeNetwork.name}:\n${approvals.map(a => `• ${describeApproval(a)}`).join("\n")}\n\nSay "revoke Uniswap's access to my USDC" (for example) to take one back.`
+          : `No active token permission found on ${activeNetwork.name}, for the apps Lyra knows and the ones you approved through Lyra.`);
+        break;
+      }
+      if (!matching.length) {
+        say(approvals.length ? `None of your permissions matches that. Active ones: ${approvals.map(describeApproval).join("; ")}.` : `No active token permission found on ${activeNetwork.name}.`);
+        break;
+      }
+      pushActiveToCollapsedIfAny();
+      setDefiTicket({
+        feature: "revoke-approval",
+        intent: "MANAGE_APPROVALS",
+        executable: true,
+        approvals: matching,
+        amount: matching.length > 1 ? `${matching.length} permissions` : "access to",
+        asset: matching.length > 1 ? "" : matching[0].symbol,
+        platform: "Lyra",
+        fees: "Network fee only",
+        riskLevel: "low",
+      });
+      break;
+    }
+
         case "OPEN_WALLET":
       setShowWallet(true);
       break;
@@ -7140,6 +7239,54 @@ function handleHoldEnd() {
       .filter(a => a.balance > 0),
   ];
 
+  // Extension build: tell the background (which answers websites) the
+  // public address and the active network. No-op in the web app.
+  useEffect(() => {
+    // The saved address while locked too: it's public, and clearing it would
+    // look to every connected site like a disconnect.
+    syncWalletState({ address: wallet?.address || loadSavedWallet()?.address, network: activeNetwork, rpcUrl: effectiveRpcUrl, networks: NETWORKS });
+  }, [wallet?.address, activeNetwork, effectiveRpcUrl]);
+
+  // Extension: stay unlocked across Lyra's pages for the browser session,
+  // like MetaMask (see dappBridge.js). No-op in the web app.
+  useEffect(() => {
+    if (unlockedPrivateKey && !locked && wallet?.address) {
+      saveUnlockedSession({ address: wallet.address, privateKey: unlockedPrivateKey, localSecret: localSecretRef.current, autoLockMinutes });
+    }
+  }, [unlockedPrivateKey, locked, wallet?.address, autoLockMinutes]);
+
+  useEffect(() => {
+    const saved = loadSavedWallet();
+    loadUnlockedSession(saved?.address).then(session => {
+      if (!session) return;
+      localSecretRef.current = session.localSecret;
+      sessionKeyCacheRef.current = session.privateKey;
+      setUnlockedPrivateKey(session.privateKey);
+      setMpcEnabled(!!saved.mpcEnabled);
+      setWallet({ address: saved.address });
+      setLocked(false);
+      setShowUnlock(false);
+      refreshBalance(saved.address);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => watchUnlockedSession({
+    onLocked: () => { if (!locked) lockWallet(); },
+  }), [locked]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dappEl = (
+    <DappRequests
+      wallet={wallet}
+      privateKey={unlockedPrivateKey}
+      locked={locked}
+      network={activeNetwork}
+      rpcUrl={effectiveRpcUrl}
+      networks={NETWORKS}
+      onSwitchNetwork={switchNetwork}
+    />
+  );
+
   const anyOverlayOpen =
     showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showReceiveQr || showTxHistory || showUnlock || showWallet ||
     showPasswordSetup || showSend || !!defiTicket || !!multiTicket;
@@ -7911,7 +8058,7 @@ function handleHoldEnd() {
         ? "Opened"
         : defiTicket.feature === "cashout-prediction"
         ? "Live"
-        : { swap: "Swap", bridge: "Bridge", staking: "Staking", prediction: "Bet", "safe-recovery": "Recovery", "receive-fiat": "Receive", "receive-any-chain": "Receive", consolidate: "Consolidate", x402: "x402 Payment", acp: "ACP Checkout", "gateway-deposit": "Nanopayments Deposit" }[defiTicket.feature] || "DeFi"}
+        : { swap: "Swap", bridge: "Bridge", staking: "Staking", prediction: "Bet", "safe-recovery": "Recovery", "receive-fiat": "Receive", "receive-any-chain": "Receive", consolidate: "Consolidate", "revoke-approval": "Revoke permission", x402: "x402 Payment", acp: "ACP Checkout", "gateway-deposit": "Nanopayments Deposit" }[defiTicket.feature] || "DeFi"}
       {defiTicket.feature === "prediction"
         ? <>{" · "}${defiTicket.amountUSD || "?"} USDC.e</>
         : defiTicket.feature === "cancel-prediction" || defiTicket.feature === "cashout-prediction" || defiTicket.feature === "closed-prediction"
@@ -8155,6 +8302,13 @@ function handleHoldEnd() {
             </div>
           </>
         )}
+
+        {defiTicket.feature === "revoke-approval" && defiTicket.approvals.map((a, i) => (
+          <div className="transaction-row" key={i}>
+            <span>{a.symbol}</span>
+            <strong>{a.spenderName} · {a.amountText}</strong>
+          </div>
+        ))}
 
         {defiTicket.feature === "x402" && (
           <>
@@ -10688,6 +10842,7 @@ function handleHoldEnd() {
     return (
       <div className="page page--3d">
         {toastEl}
+        {dappEl}
         <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} paused={anyOverlayOpen} tourActive={tourOpen} onTourDone={finishTour} tiltEnabled={tiltEnabled}>
           {frame}
         </Box3D>
@@ -10698,6 +10853,7 @@ function handleHoldEnd() {
   return (
     <div className="page">
       {toastEl}
+      {dappEl}
       {frame}
     </div>
   );

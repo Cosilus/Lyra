@@ -52,7 +52,7 @@ function readTransaction(tx, network, origin) {
     if (BigInt(raw) >= MAX_UINT / 2n) return "an UNLIMITED amount";
     return token ? `${ethers.formatUnits(raw, token.decimals)} ${token.symbol}` : `${raw.toString()} units`;
   };
-  const tokenName = token ? token.symbol : `the token at ${short(tx.to)}`;
+  const tokenName = token ? token.symbol : `token ${short(tx.to)}`;
 
   switch (call?.name) {
     case "approve":

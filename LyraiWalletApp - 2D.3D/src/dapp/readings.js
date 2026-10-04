@@ -19,7 +19,7 @@ export function tokenAmount(networkKey, tokenAddress, raw) {
   return token ? `${ethers.formatUnits(raw, token.decimals)} ${token.symbol}` : `${BigInt(raw).toString()} units of ${short(tokenAddress)}`;
 }
 
-export const tokenLabel = (networkKey, tokenAddress) => tokenAt(networkKey, tokenAddress)?.symbol || `the token at ${short(tokenAddress)}`;
+export const tokenLabel = (networkKey, tokenAddress) => tokenAt(networkKey, tokenAddress)?.symbol || `token ${short(tokenAddress)}`;
 
 // A permission (approve, setApprovalForAll, Permit, Permit2) for a known app
 // contract is a normal step of using that app: say so, and say why. For an

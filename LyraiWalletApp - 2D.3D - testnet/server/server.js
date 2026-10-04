@@ -12,6 +12,7 @@ import { isOnramperConfigured, buildOnramperBuyUrl, buildOnramperSellUrl } from 
 import { searchPolymarketMarkets, getClobPrice, getPolymarketMarketByConditionId, getPolymarketPositions, getPolymarketActivity } from "./tools/polymarketTools.js";
 import crypto from "node:crypto";
 import { registerSafeRoutes } from "./routes/safe.js";
+import { registerDappRoutes } from "./routes/dapp.js";
 
 dotenv.config();
 
@@ -209,6 +210,7 @@ if (!IS_TESTNET) {
   registerMpcRoutes(app);
 }
 registerSafeRoutes(app);
+registerDappRoutes(app, { resolveNetwork, getServerRpc, lookupSecurityBadges });
 
 // ========================================
 // APP GUIDE + TROUBLESHOOTING (single source of truth for Lyra's own help)
@@ -760,6 +762,8 @@ CANCEL_PREDICTION
 RECEIVE_FIAT
 OFFRAMP_FUNDS
 CONSOLIDATE_FUNDS
+MANAGE_CONNECTED_SITES
+MANAGE_APPROVALS
 MULTI_ACTION
 ASK_CRYPTO
 CHAT
@@ -2543,6 +2547,45 @@ Response:
 
 ---
 
+## MANAGE_CONNECTED_SITES
+
+Websites (dApps) connected to Lyra through its browser extension: which
+ones can see the wallet, and cutting a site off.
+
+"which sites are connected?"
+"quels sites ont accès à mon wallet ?"
+"disconnect opensea"
+"déconnecte tous les sites"
+
+use:
+
+intent = "MANAGE_CONNECTED_SITES"
+siteAction = "list" or "disconnect"
+site = the site the user named (e.g. "opensea", "app.uniswap.org"), "all"
+       for every site, or null when listing
+
+## MANAGE_APPROVALS
+
+Token permissions ("approvals", "allowances") the wallet gave to apps:
+which apps can spend which tokens, and taking a permission back
+("revoke"). Not the same as connected sites.
+
+"show my approvals"
+"who can spend my USDC?"
+"quelles applis peuvent utiliser mes tokens ?"
+"revoke uniswap's access to my USDC"
+"révoque toutes les autorisations"
+
+use:
+
+intent = "MANAGE_APPROVALS"
+approvalAction = "list" or "revoke"
+asset = the token symbol the user named, or null
+spender = the app or address the user named (e.g. "uniswap", "opensea",
+          "0x…"), "all" for every app, or null
+
+Never invent an approval: the client reads the real ones on-chain.
+
 ## MULTI_ACTION
 
 If the user asks for MORE THAN ONE action in the same message, a
@@ -2758,7 +2801,7 @@ Never put text before or after the JSON.
 Required format:
 
 {
-  "intent": "GET_BALANCE | GET_ADDRESS | RECEIVE_XPL | SEND_XPL | REFRESH_BALANCE | OPEN_WALLET | CANCEL | GET_TRANSACTIONS | SWAP_XPL | BRIDGE_XPL | STAKE_XPL | UNSTAKE_XPL | PREDICT_MARKET | CANCEL_PREDICTION | RECEIVE_FIAT | OFFRAMP_FUNDS | CONSOLIDATE_FUNDS | MULTI_ACTION | ASK_CRYPTO | CHAT | OPEN_CONTACTS | OPEN_TRANSACTION_HISTORY | OPEN_SETTINGS | SWITCH_NETWORK | SET_RPC | SET_NEXT_NONCE | REVEAL_PRIVATE_KEY | PAY_X402 | DELEGATE_A2A | ACP_CHECKOUT | OPEN_AUDIT_TRAIL | LOCK_WALLET | OPEN_SEED_EXPORT | OPEN_MULTISIG_SETUP | FIND_X402_SERVICE | GATEWAY_DEPOSIT | GATEWAY_BALANCE | OPEN_MULTISIG | MULTISIG_ADD_OWNER",
+  "intent": "GET_BALANCE | GET_ADDRESS | RECEIVE_XPL | SEND_XPL | REFRESH_BALANCE | OPEN_WALLET | CANCEL | GET_TRANSACTIONS | SWAP_XPL | BRIDGE_XPL | STAKE_XPL | UNSTAKE_XPL | PREDICT_MARKET | CANCEL_PREDICTION | RECEIVE_FIAT | OFFRAMP_FUNDS | CONSOLIDATE_FUNDS | MANAGE_CONNECTED_SITES | MANAGE_APPROVALS | MULTI_ACTION | ASK_CRYPTO | CHAT | OPEN_CONTACTS | OPEN_TRANSACTION_HISTORY | OPEN_SETTINGS | SWITCH_NETWORK | SET_RPC | SET_NEXT_NONCE | REVEAL_PRIVATE_KEY | PAY_X402 | DELEGATE_A2A | ACP_CHECKOUT | OPEN_AUDIT_TRAIL | LOCK_WALLET | OPEN_SEED_EXPORT | OPEN_MULTISIG_SETUP | FIND_X402_SERVICE | GATEWAY_DEPOSIT | GATEWAY_BALANCE | OPEN_MULTISIG | MULTISIG_ADD_OWNER",
   "amount": null,
   "amountUSD": null,
   "recipient": null,
@@ -5863,7 +5906,7 @@ ${NEVER_STUCK_RULES}
 // /api/ai below.
 const VALID_INTENTS = new Set([
   "GET_BALANCE", "REFRESH_BALANCE", "GET_ADDRESS", "RECEIVE_XPL", "RECEIVE_FIAT", "OFFRAMP_FUNDS",
-  "CONSOLIDATE_FUNDS", "OPEN_WALLET", "OPEN_CONTACTS", "OPEN_TRANSACTION_HISTORY",
+  "CONSOLIDATE_FUNDS", "MANAGE_CONNECTED_SITES", "MANAGE_APPROVALS", "OPEN_WALLET", "OPEN_CONTACTS", "OPEN_TRANSACTION_HISTORY",
   "OPEN_SETTINGS", "OPEN_AUDIT_TRAIL", "LOCK_WALLET", "OPEN_SEED_EXPORT", "OPEN_MULTISIG_SETUP", "FIND_X402_SERVICE", "GATEWAY_DEPOSIT", "GATEWAY_BALANCE", "SWITCH_NETWORK", "OPEN_MULTISIG",
   "MULTISIG_ADD_OWNER", "PAY_X402", "DELEGATE_A2A", "ACP_CHECKOUT", "SET_RPC",
   "SET_NEXT_NONCE", "GET_TRANSACTIONS", "GET_HISTORY", "SEND_XPL", "CANCEL",
@@ -6160,6 +6203,38 @@ app.post("/api/x402/explain", async (req, res) => {
   }
 });
 
+// Connected sites and token permissions: phrases explicit enough to route
+// without the model (live-confirmed 04.10.2026 that a model answered
+// "show my approvals" / "disconnect opensea" with CHAT, and when every
+// provider is down nothing reached the client at all). Questions ABOUT
+// approvals ("what is an approval?") still go to the model.
+function walletManagementShortcut(message) {
+  const text = String(message || "");
+  const lower = text.toLowerCase();
+  if (/^\s*(what|why|how|explain|qu'est|c'est quoi|pourquoi|comment)\b/i.test(lower)) return null;
+  const all = /\b(all|every|tous|toutes|tout)\b/i.test(lower);
+  const app = lower.match(/\b(uniswap|opensea|permit2|1inch|aave|kyberswap|cow ?swap|li\.?fi|jumper|polymarket|matcha|0x)\b/);
+  const address = text.match(/0x[a-fA-F0-9]{40}/)?.[0];
+  const base = { amount: null, amountUSD: null, recipient: null, message: "", requires_confirmation: false };
+
+  if (/\b(connected sites?|disconnect|déconnecte\w*)|\bsites?\b[^.?!]{0,30}(connect|accès|acces|access)/i.test(lower)) {
+    const disconnecting = /\b(disconnect|déconnecte\w*)\b/i.test(lower);
+    const domain = text.match(/\b([a-z0-9-]+\.)+[a-z]{2,}\b/i)?.[0];
+    const named = lower.replace(/.*\b(disconnect|déconnecte\w*)\b\s*/i, "").replace(/^(from |de |le |la |du )/, "").split(/\s+/)[0] || null;
+    return { ...base, intent: "MANAGE_CONNECTED_SITES", asset: null, siteAction: disconnecting ? "disconnect" : "list", site: disconnecting ? (all ? "all" : domain || app?.[1] || named) : null };
+  }
+  if (/\b(approvals?|allowances?|autorisations?|permissions?|revoke|révoque\w*|revoque\w*|who can (spend|use)|peu(t|vent) (utiliser|dépenser))\b/i.test(lower)) {
+    return {
+      ...base,
+      intent: "MANAGE_APPROVALS",
+      approvalAction: /\b(revoke|révoque\w*|revoque\w*|retire\w*|remove|supprime\w*)\b/i.test(lower) ? "revoke" : "list",
+      asset: lower.match(/\b(usdc\.e|usdc|usdt0?|eurc|weth|dai|xpl|pol)\b/)?.[1]?.toUpperCase() || null,
+      spender: all ? "all" : address || app?.[1] || null,
+    };
+  }
+  return null;
+}
+
 app.post("/api/ai", async (req, res) => {
   try {
     const {
@@ -6179,6 +6254,9 @@ app.post("/api/ai", async (req, res) => {
     }
 
     const network = resolveNetwork(networkKey);
+
+    const shortcut = walletManagementShortcut(message);
+    if (shortcut) return res.json(shortcut);
 
     // ========================================
     // One-time recovery: USDC.e mistakenly sent to a legacy Polymarket
