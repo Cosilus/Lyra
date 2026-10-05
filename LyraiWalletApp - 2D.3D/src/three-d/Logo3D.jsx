@@ -86,8 +86,9 @@ async function startScene(mount, isDisposed) {
   const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
   camera.position.set(0, 0, 4.2);
 
-  // Violet rim light to match the app's accent (#A78BFA).
-  const rim = new THREE.DirectionalLight(0xa78bfa, 2.2);
+  // All-white lighting so the logo stays pure white from every angle.
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xffffff, 1.2));
+  const rim = new THREE.DirectionalLight(0xffffff, 1.5);
   rim.position.set(-2.5, 1.5, -2);
   scene.add(rim);
   const key = new THREE.DirectionalLight(0xffffff, 2);
@@ -167,7 +168,8 @@ async function loadFirst(loader, urls) {
 
 // "Polished, no hard edges": weld duplicated vertices and recompute
 // normals so every face blends smoothly into its neighbours, then give
-// the surface a glossy clear-coat finish that picks up the environment.
+// it a pure white, softly glossy finish. Non-metallic with a white glow,
+// so the environment never shows up as dark grey reflections.
 function polish(root, THREE, mergeVertices) {
   root.traverse(obj => {
     if (!obj.isMesh) return;
@@ -182,17 +184,16 @@ function polish(root, THREE, mergeVertices) {
 
     const toPhysical = src => {
       const m = new THREE.MeshPhysicalMaterial({
-        color: src.color ?? new THREE.Color(0xffffff),
-        map: src.map ?? null,
-        emissive: src.emissive ?? new THREE.Color(0x000000),
-        emissiveMap: src.emissiveMap ?? null,
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.35,
         transparent: !!src.transparent,
         opacity: src.opacity ?? 1,
-        metalness: Math.max(src.metalness ?? 0.2, 0.2),
-        roughness: Math.min(src.roughness ?? 0.2, 0.2),
-        clearcoat: 1,
-        clearcoatRoughness: 0.05,
-        envMapIntensity: 1.2,
+        metalness: 0,
+        roughness: 0.35,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.2,
+        envMapIntensity: 0.6,
       });
       m.flatShading = false;
       src.dispose?.();
