@@ -8,6 +8,7 @@ import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
 import { LYRA_TREASURY, LYRA_FEE_PERCENT_LABEL, feeOf, splitOnTop, toRaw, isFeeExempt, assetInfo, usdPerUnit, feeIsWorthCharging, includedFeePreview, collectLyraFee, runWithLyraFee, estimateAfterFee } from "./fees.js";
 import { parseUiModeCommand } from "./uiModeCommand.js";
+import { parseNetworkCommand } from "./networkCommand.js";
 import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiometricPresence, encryptWithKey, decryptWithKey } from "./Biometric";
 import { splitPrivateKey, combineFragments, registerMpcWallet, getMpcStatus, setMpcDailyLimit, releaseFragment2, recoverFragment2 } from "./mpc";
 import { loadSavedWallet, encryptPrivateKey, decryptPrivateKey, reconstructPrivateKey } from "./walletVault.js";
@@ -5481,6 +5482,9 @@ const signer = new ethers.Wallet(
   // common ones to plain language the user can actually act on, and
   // only fall back to the raw message for genuinely unrecognized cases.
   function friendlyErrorText(e) {
+    if (e.serverUnreachable) {
+      return `❌ Lyra's server isn't answering (${API_BASE_URL}). Check that the backend is running, then try again.`;
+    }
     if (e.message === "Failed to fetch") {
       return "❌ Lost connection before this could finish (this can happen on a slow network, some of these requests need several round trips). Please try again.";
     }
@@ -5641,6 +5645,17 @@ const signer = new ethers.Wallet(
     changeUiMode(uiModeCmd);
     return;
   }
+  const networkCmd = parseNetworkCommand(text);
+  if (networkCmd) {
+    const target = getNetworkByKey(networkCmd);
+    setMessages(m => [
+      ...m,
+      { role: "user", text },
+      { role: "ai", text: networkCmd === activeNetworkKey ? `You're already on ${target.name}.` : `Switched to ${target.name}.` }
+    ]);
+    switchNetwork(networkCmd);
+    return;
+  }
   try {
     setBusy(true);
     setStatus("Lyra redefine...");
@@ -5672,6 +5687,10 @@ const signer = new ethers.Wallet(
       network: activeNetworkKey
     })
     })
+      .catch(() => {
+        // fetch() itself failed: Lyra's server didn't answer at all.
+        throw Object.assign(new Error("Failed to fetch"), { serverUnreachable: true });
+      })
       .then(async (r) => ({ ok: r.ok, data: await r.json() }))
       .finally(() => { aiDone = true; });
     aiRequest.catch(() => { /* handled where it is awaited below */ });
