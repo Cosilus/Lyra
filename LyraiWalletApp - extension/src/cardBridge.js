@@ -1,18 +1,39 @@
-// When the wallet runs inside the floating card (public/overlay.js), the card
-// tilts with the mouse while the mouse is over the wallet. The page around it
-// gets no mouse events then (they go to this frame), so this frame reports the
-// pointer position to the overlay.
+// The wallet can run inside the floating card that public/overlay.js draws on
+// a website ("card mode"). There:
+//  - the whole card tilts with the mouse while the mouse is over the wallet.
+//    The page gets no mouse events then (they go to this frame), so this frame
+//    reports the pointer position to the overlay;
+//  - the 3D side/top menus open outside the wallet, in transparent margins of
+//    this frame. The overlay only lets those margins catch the mouse while a
+//    menu is open, so this frame tells it when a menu opens or closes.
 //
-// The report goes over a private MessageChannel, never a plain postMessage to
+// All of it goes over a private MessageChannel, never a plain postMessage to
 // the parent (the website would see every message). The overlay puts a random
 // key in this frame's URL (?card=...) and hands over the channel with that key;
 // the website can't read our URL, so it can't impersonate the overlay. The
 // overlay uses the same channel to say when the mouse has left the card.
-export function startCardBridge() {
-  const key = new URLSearchParams(window.location.search).get("card");
-  if (!key || window.parent === window) return;
+const cardKey = new URLSearchParams(window.location.search).get("card");
 
-  let port = null;
+export const IS_CARD = !!cardKey && window.parent !== window;
+
+let port = null;
+let lastDock = null;
+
+// Which menu is open ("left" | "right" | "top" | null), see Box3D.jsx.
+export function reportCardDock(side) {
+  lastDock = side || null;
+  port?.postMessage({ dock: lastDock });
+}
+
+export function startCardBridge() {
+  if (!IS_CARD) return;
+  document.documentElement.classList.add("lyra-card");
+  // Where the wallet's full-screen overlays go (App.jsx OverlayPortal): laid
+  // over the wallet area, and a containing block for position: fixed.
+  const overlays = document.createElement("div");
+  overlays.id = "card-overlays";
+  document.body.appendChild(overlays);
+
   let raf = 0;
   let pending = null;
 
@@ -39,7 +60,7 @@ export function startCardBridge() {
   }
 
   window.addEventListener("message", function onHandshake(e) {
-    if (e.source !== window.parent || e.data?.type !== "lyra-card-port" || e.data.key !== key || !e.ports?.[0]) return;
+    if (e.source !== window.parent || e.data?.type !== "lyra-card-port" || e.data.key !== cardKey || !e.ports?.[0]) return;
     window.removeEventListener("message", onHandshake);
     port = e.ports[0];
     // The overlay tells us when the mouse is back on the page (Chrome doesn't
@@ -47,6 +68,7 @@ export function startCardBridge() {
     port.onmessage = (m) => {
       if (m.data?.type === "pointer-left") window.dispatchEvent(new Event("lyra-pointer-left"));
     };
+    if (lastDock) port.postMessage({ dock: lastDock });
     window.addEventListener("pointermove", onMove, { passive: true });
     document.documentElement.addEventListener("pointerleave", onLeave);
     window.addEventListener("blur", onLeave);

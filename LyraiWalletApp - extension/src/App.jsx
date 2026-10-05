@@ -65,6 +65,7 @@ import { InterfaceChooser } from "./three-d/InterfaceChooser.jsx";
 import { ActivityBlock } from "./three-d/ActivityBlock.jsx";
 import { HelpFaq } from "./three-d/HelpFaq.jsx";
 import { TokenLogo } from "./tokenLogo.jsx";
+import { IS_CARD } from "./cardBridge.js";
 import { TiltActivation, isTouchOnly, needsMotionPermission, rememberTilt, tiltRemembered } from "./three-d/TiltActivation.jsx";
 
 // In the 3D interface the wallet frame lives inside a perspective +
@@ -106,7 +107,9 @@ function clearBackupPendingStorage() {
 }
 
 function OverlayPortal({ active, children }) {
-  return active ? createPortal(children, document.body) : <>{children}</>;
+  // In the floating card the overlays cover the wallet area only, not the
+  // whole frame with its transparent menu margins (see cardBridge.js).
+  return active ? createPortal(children, (IS_CARD && document.getElementById("card-overlays")) || document.body) : <>{children}</>;
 }
 
 // Turns the reason a seller (or Circle Gateway) gives when it refuses a

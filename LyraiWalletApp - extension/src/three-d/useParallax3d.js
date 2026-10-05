@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMotionValue, useSpring } from "framer-motion";
-import { BOX, DOCK, PARALLAX, REDUCED_MOTION_SCALE, SIDE_DOCK, TOP_DOCK } from "./config3d.js";
+import { BOX, CARD_DOCK, DOCK, PARALLAX, REDUCED_MOTION_SCALE, SIDE_DOCK, TOP_DOCK } from "./config3d.js";
+import { IS_CARD } from "../cardBridge.js";
 
 // Where the box goes when docked to a side: it moves away from the menu and shrinks a bit.
 function sidePose(side) {
@@ -47,6 +48,17 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
     }
 
     // Guided tour: pin the box in a given dock pose, ignore the mouse.
+    // In the floating card the wallet never moves: only the menu opens.
+    if (forcedDock && IS_CARD) {
+      rawRotateY.set(0);
+      rawShiftX.set(0);
+      rawRotateX.set(0);
+      rawShiftY.set(0);
+      rawScale.set(1);
+      dockedRef.current = forcedDock;
+      setDockedSide(forcedDock);
+      return;
+    }
     if (forcedDock) {
       const f = REDUCED_MOTION_SCALE && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? REDUCED_MOTION_SCALE : 1;
       rawScale.set(1);
@@ -123,11 +135,44 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
       }
     };
 
+    // Floating card (extension on a website): the wallet stays still, the menus
+    // open outside it. A menu opens when the mouse reaches that edge of the
+    // wallet and stays open while the mouse is on the menu or near that edge.
+    const handleCardPosition = (x, y) => {
+      const stage = document.querySelector(".d3-stage");
+      if (!stage) return;
+      const r = stage.getBoundingClientRect();
+      const docked = dockedRef.current;
+      if (docked === "left" && x < r.left + CARD_DOCK.holdPx) return;
+      if (docked === "right" && x > r.right - CARD_DOCK.holdPx) return;
+      if (docked === "top" && (y < r.top + CARD_DOCK.holdPx || isTopMenuHovered?.())) return;
+
+      let side = null;
+      if (x < r.left + CARD_DOCK.edgePx) side = "left";
+      else if (x > r.right - CARD_DOCK.edgePx) side = "right";
+      else if (y < r.top + CARD_DOCK.edgePx) side = "top";
+      if (side !== docked) {
+        dockedRef.current = side;
+        setDockedSide(side);
+      }
+    };
+
     const hasFinePointer = window.matchMedia("(pointer: fine)").matches;
     let cleanupPointer;
     let cleanupOrientation;
 
-    if (hasFinePointer) {
+    if (IS_CARD) {
+      const onMove = (e) => handleCardPosition(e.clientX, e.clientY);
+      const onLeave = () => releaseDock();
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("lyra-pointer-left", onLeave);
+      window.addEventListener("blur", onLeave);
+      cleanupPointer = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("lyra-pointer-left", onLeave);
+        window.removeEventListener("blur", onLeave);
+      };
+    } else if (hasFinePointer) {
       const onMove = (e) => {
         const nx = (e.clientX / window.innerWidth) * 2 - 1;
         const ny = (e.clientY / window.innerHeight) * 2 - 1;

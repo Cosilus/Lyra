@@ -22,6 +22,12 @@ export const DOCK = {
   itemStepPx: 52,
 };
 
+// Floating card on a website (extension, see cardBridge.js): the wallet never moves, the menus
+// open outside it. edgePx: how close to a wallet edge the mouse must get to open that menu;
+// holdPx: the menu stays open while the mouse is within this distance of the edge (or past it,
+// on the menu itself).
+export const CARD_DOCK = { edgePx: 18, holdPx: 70 };
+
 export const TOP_DOCK = { tiltDeg: 14, scale: 0.9, shiftYPx: 46 };
 
 // Side docking (left / right menu): like the top dock, the wallet steps aside and shrinks so it

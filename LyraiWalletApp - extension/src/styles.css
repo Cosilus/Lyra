@@ -3987,3 +3987,75 @@ body {
 .header-rewards:hover { background: var(--accent-soft); border-color: var(--accent); box-shadow: 0 0 16px -4px rgba(var(--accent-rgb), 0.6); }
 .header-rewards:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .header-rewards.is-hidden { opacity: 0; pointer-events: none; }
+
+/* ================================
+   FLOATING CARD (extension on a website, see cardBridge.js / public/overlay.js)
+   This frame is bigger than the wallet: transparent margins on the left, right
+   and top hold the 3D menus, which open outside the wallet. The wallet itself
+   (#root) sits in the middle at a fixed size and never moves.
+   Keep --card-side / --card-top in sync with SIDE_PX / TOP_PX in overlay.js.
+   ================================ */
+html.lyra-card {
+  --card-side: 96px;
+  --card-top: 110px;
+  --card-radius: 28px;
+  background: transparent;
+  color-scheme: dark;
+}
+html.lyra-card body {
+  min-height: 0;
+  background: transparent;
+  overflow: hidden;
+}
+html.lyra-card #root,
+html.lyra-card #card-overlays {
+  position: fixed;
+  top: var(--card-top);
+  left: var(--card-side);
+  right: var(--card-side);
+  bottom: 0;
+}
+/* Fixed-position overlays inside are laid over the wallet, not the whole frame. */
+html.lyra-card #root { transform: translateZ(0); }
+html.lyra-card #card-overlays {
+  transform: translateZ(0);
+  pointer-events: none;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+}
+html.lyra-card #card-overlays > * { pointer-events: auto; }
+
+html.lyra-card .page {
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  overflow: visible;
+}
+html.lyra-card .frame {
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border-radius: var(--card-radius);
+}
+html.lyra-card .d3-scene { height: 100%; }
+html.lyra-card .d3-face--front,
+html.lyra-card .d3-face--back,
+html.lyra-card .d3-face--front > .frame { border-radius: var(--card-radius); }
+/* The card's own shadow is drawn by the overlay, outside this frame. */
+html.lyra-card .d3-face--front { box-shadow: none; }
+
+/* Side menus: just outside the wallet's left/right edges. */
+html.lyra-card .d3-side-menu--left { right: calc(100% + 14px); left: auto; }
+html.lyra-card .d3-side-menu--right { left: calc(100% + 14px); right: auto; }
+
+/* Assets menu: above the wallet, in the top margin. */
+html.lyra-card .d3-assets-menu {
+  top: auto;
+  bottom: calc(100% + 12px);
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(var(--card-top) - 20px);
+  overflow-y: auto;
+  transform: translateX(-50%) translateY(14px) scale(0.94);
+}
+html.lyra-card .d3-assets-menu--show { transform: translateX(-50%) translateY(0) scale(1); }

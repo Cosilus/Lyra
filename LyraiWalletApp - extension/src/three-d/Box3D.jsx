@@ -4,6 +4,7 @@ import { BOX, DOCK } from "./config3d.js";
 import { useParallax3d } from "./useParallax3d.js";
 import { Tour3D, TOUR_STEPS } from "./Tour3D.jsx";
 import { TokenLogo } from "../tokenLogo.jsx";
+import { IS_CARD, reportCardDock } from "../cardBridge.js";
 import "./three-d.css";
 
 // The box is 420 x up to 820 on a normal window, but must also fit a narrow, tall
@@ -27,6 +28,13 @@ function viewportSize() {
 }
 
 function computeBoxSize() {
+  // Floating card: the wallet fills its area (#root, see the card rules in three-d.css);
+  // the rest of the frame is the transparent margin the menus open into.
+  if (IS_CARD) {
+    const root = document.getElementById("root");
+    const w = root?.clientWidth || 0, h = root?.clientHeight || 0;
+    return { width: w >= MIN_VIEW_W ? w : FALLBACK_VIEW_W, height: h >= MIN_VIEW_H ? h : FALLBACK_VIEW_H };
+  }
   const { vw, vh } = viewportSize();
   // Side panel / phone: the box IS the window, edge to edge (straight corners, see three-d.css).
   if (vw <= BOX.fillBelowPx) return { width: vw, height: vh };
@@ -150,6 +158,9 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
   const assetsMenuHoveredRef = useRef(false);
   const isAssetsMenuHovered = useCallback(() => assetsMenuHoveredRef.current, []);
   const { rotateX, rotateY, shiftX, shiftY, scale, dockedSide } = useParallax3d(paused, isAssetsMenuHovered, forcedDock, tiltEnabled);
+  useEffect(() => {
+    if (IS_CARD) reportCardDock(dockedSide);
+  }, [dockedSide]);
 
   return (
     <div className={`d3-scene${dockedSide ? " d3-scene--docked" : ""}`}>
@@ -185,7 +196,8 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
               // hit-testing inside a rotated preserve-3d face is
               // unreliable (clicks land on the wrong element), and the
               // user is reaching for the side menu anyway.
-              pointerEvents: dockedSide ? "none" : undefined,
+              // (The floating card never tilts the wallet, so it stays clickable there.)
+              pointerEvents: dockedSide && !IS_CARD ? "none" : undefined,
             }}
           >
             {children}

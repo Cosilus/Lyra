@@ -2,8 +2,15 @@
 // clicked (background.js). Running it again (second click) closes the card.
 //
 // The wallet itself runs in an <iframe> of the extension's own page, so the
-// website can't read or script it; this file only draws the frame around it
-// and tilts the whole card with the mouse while the mouse is over the wallet.
+// website can't read or script it. This file only draws the card's frame and
+// shadow, and tilts the whole card with the mouse while the mouse is over the
+// wallet.
+//
+// The iframe is bigger than the wallet: transparent margins on the left, right
+// and top hold the wallet's 3D menus, which open outside the wallet (see the
+// card rules at the end of src/styles.css). The margins only catch the mouse
+// while a menu is open; the rest of the time they are clipped away so the
+// website underneath stays clickable.
 (() => {
   const existing = window.__lyraCard;
   if (existing) {
@@ -13,9 +20,13 @@
 
   const MAX_TILT_DEG = 9;      // with the mouse at the card's edges
   const EASE = 0.12;           // 0..1, how quickly the card catches up with the mouse
-  const WIDTH = 400;
-  const MAX_HEIGHT = 640;
-  const MARGIN = 16;
+  const WALLET_WIDTH = 400;
+  const WALLET_MAX_HEIGHT = 640;
+  const MARGIN = 16;           // between the card and the window edges
+  const RADIUS = 28;
+  // Keep in sync with --card-side / --card-top in src/styles.css.
+  const SIDE_PX = 96;          // room for a side menu, left and right of the wallet
+  const TOP_PX = 110;          // room for the assets menu, above the wallet
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -25,15 +36,17 @@
   host.style.cssText = "all: initial; position: fixed; z-index: 2147483647; inset: 0; pointer-events: none;";
   const root = host.attachShadow({ mode: "closed" });
 
+  const walletClip = `inset(${TOP_PX}px ${SIDE_PX}px 0 ${SIDE_PX}px round ${RADIUS}px)`;
+
   const style = document.createElement("style");
   style.textContent = `
     .stage {
       position: fixed;
       top: ${MARGIN}px;
       right: ${MARGIN}px;
-      width: ${WIDTH}px;
+      width: ${WALLET_WIDTH + SIDE_PX * 2}px;
       max-width: calc(100vw - ${MARGIN * 2}px);
-      height: min(${MAX_HEIGHT}px, calc(100vh - ${MARGIN * 2}px));
+      height: min(${WALLET_MAX_HEIGHT + TOP_PX}px, calc(100vh - ${MARGIN * 2}px));
       perspective: 1100px;
       pointer-events: none;
       /* Open/close animate the stage, so they never fight the card's tilt. */
@@ -44,43 +57,36 @@
       position: relative;
       width: 100%;
       height: 100%;
-      border-radius: 28px;
       transform-style: preserve-3d;
       will-change: transform;
+    }
+    /* The wallet's shadow and glow, behind the (transparent) iframe. */
+    .shadow {
+      position: absolute;
+      top: ${TOP_PX}px;
+      left: ${SIDE_PX}px;
+      right: ${SIDE_PX}px;
+      bottom: 0;
+      border-radius: ${RADIUS}px;
+      background: #0D0916;
       box-shadow:
         0 30px 80px -20px rgba(13, 9, 22, 0.75),
         0 0 0 1px rgba(167, 139, 250, 0.22),
         0 0 48px -12px rgba(167, 139, 250, 0.45);
-      background: #0D0916;
-      pointer-events: auto;
     }
     iframe {
+      position: absolute;
+      inset: 0;
       display: block;
       width: 100%;
       height: 100%;
       border: 0;
-      border-radius: 28px;
-      background: #0D0916;
+      background: transparent;
       color-scheme: dark;
+      pointer-events: auto;
+      clip-path: ${walletClip};
     }
-    .close {
-      position: absolute;
-      top: -10px;
-      right: -10px;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      border: 1px solid rgba(167, 139, 250, 0.35);
-      background: #150E20;
-      color: #F3EBFF;
-      font: 600 16px/26px system-ui, sans-serif;
-      text-align: center;
-      cursor: pointer;
-      padding: 0;
-      transform: translateZ(20px);
-    }
-    .close:hover { background: #2a1d44; }
-    .close:focus-visible { outline: 2px solid #C4B0FF; outline-offset: 2px; }
+    .card.menu-open iframe { clip-path: none; }
     @keyframes lyra-in {
       from { opacity: 0; transform: translateY(-12px) scale(0.96); }
       to   { opacity: 1; transform: none; }
@@ -97,10 +103,12 @@
   stage.className = "stage";
   const card = document.createElement("div");
   card.className = "card";
+  const shadow = document.createElement("div");
+  shadow.className = "shadow";
 
   // Random key in the wallet's URL: only this script knows it (the page can't
   // read inside the closed shadow root), so only it can open the private
-  // channel the wallet uses to report the mouse position (src/cardBridge.js).
+  // channel the wallet uses to talk to the card (src/cardBridge.js).
   const key = crypto.randomUUID();
   const extensionOrigin = new URL(chrome.runtime.getURL("")).origin;
   const frame = document.createElement("iframe");
@@ -108,21 +116,14 @@
   frame.title = "Lyra wallet";
   frame.allow = "clipboard-write; publickey-credentials-get; publickey-credentials-create";
 
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "close";
-  closeBtn.type = "button";
-  closeBtn.setAttribute("aria-label", "Close Lyra");
-  closeBtn.textContent = "×";
-  closeBtn.addEventListener("click", () => close());
-
-  card.append(frame, closeBtn);
+  card.append(shadow, frame);
   stage.append(card);
   root.append(style, stage);
   document.documentElement.append(host);
 
-  // Tilt: only while the mouse is over the wallet. The wallet frame reports
-  // the pointer (-1..1 across the card) on a private channel; anywhere else on
-  // the page the card stays flat.
+  // Tilt: only while the mouse is over the wallet (or one of its open menus).
+  // The wallet frame reports the pointer (-1..1 across the frame) on a private
+  // channel; anywhere else on the page the card stays flat.
   let target = { x: 0, y: 0 };
   let current = { x: 0, y: 0 };
   let raf = 0;
@@ -131,6 +132,12 @@
   let pointerInWallet = false;
   channel.port1.onmessage = (e) => {
     const d = e.data || {};
+    if ("dock" in d) {
+      // A menu opened or closed: let the margins catch the mouse only while
+      // a menu is open.
+      card.classList.toggle("menu-open", !!d.dock);
+      return;
+    }
     if (d.leave) {
       pointerInWallet = false;
       return flatten();
@@ -169,15 +176,15 @@
 
   // Chrome doesn't reliably tell the wallet frame when the mouse leaves it
   // for the page, so when the page sees the mouse again we tell the wallet
-  // (it closes its edge menus) and lay the card flat.
+  // (it closes its menus) and lay the card flat.
   function pointerBackOnPage() {
     if (!pointerInWallet) return;
     pointerInWallet = false;
     channel.port1.postMessage({ type: "pointer-left" });
+    card.classList.remove("menu-open");
     flatten();
   }
   window.addEventListener("mousemove", pointerBackOnPage, { passive: true });
-  card.addEventListener("mouseleave", pointerBackOnPage);
 
   function close() {
     if (!window.__lyraCard) return;
