@@ -17,12 +17,21 @@
     existing.close();
     return;
   }
+  // A card left by an earlier copy of the extension (it was reloaded or
+  // updated while this page stayed open) isn't known to this script: the
+  // click still means "close", so remove it.
+  const stale = document.querySelectorAll("lyra-wallet-card");
+  if (stale.length) {
+    stale.forEach((el) => el.remove());
+    return;
+  }
 
   const MAX_TILT_DEG = 9;      // with the mouse at the card's edges
   // While a menu is open the wallet shrinks a little (the menus don't): its
   // shadow here shrinks with it. Keep in sync with CARD_DOCK.scale in
   // src/three-d/config3d.js.
   const MENU_SCALE = 0.94;
+  const MENU_EASE = "0.35s cubic-bezier(0.22, 1, 0.36, 1)";
   const EASE = 0.12;           // 0..1, how quickly the card catches up with the mouse
   const WALLET_WIDTH = 400;
   const WALLET_MAX_HEIGHT = 640;
@@ -91,7 +100,7 @@
       clip-path: ${walletClip};
     }
     .card.menu-open iframe { clip-path: none; }
-    .shadow { transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+    .shadow { transition: transform ${MENU_EASE}; }
     .card.menu-open .shadow { transform: scale(${MENU_SCALE}); }
     @media (prefers-reduced-motion: reduce) {
       .card.menu-open .shadow { transform: none; }

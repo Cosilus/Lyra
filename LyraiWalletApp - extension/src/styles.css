@@ -4041,8 +4041,17 @@ html.lyra-card .d3-scene { height: 100%; }
 html.lyra-card .d3-face--front,
 html.lyra-card .d3-face--back,
 html.lyra-card .d3-face--front > .frame { border-radius: var(--card-radius); }
-/* The card's own shadow is drawn by the overlay, outside this frame. */
-html.lyra-card .d3-face--front { box-shadow: none; }
+/* The card's own shadow is drawn by the overlay, outside this frame. While a
+   menu is open the wallet shrinks a little (CARD_DOCK.scale), with exactly the
+   same transition as that shadow in overlay.js so the two move as one. */
+html.lyra-card .d3-face--front {
+  box-shadow: none;
+  transition: scale 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+html.lyra-card .d3-scene--docked .d3-face--front { scale: 0.94; }
+@media (prefers-reduced-motion: reduce) {
+  html.lyra-card .d3-scene--docked .d3-face--front { scale: none; }
+}
 
 /* Side menus: just outside the wallet's left/right edges. No drop shadow or
    glow around the menus here: on a light website they read as a grey smudge. */
@@ -4051,6 +4060,12 @@ html.lyra-card .d3-side-menu--show,
 html.lyra-card .d3-assets-menu,
 html.lyra-card .d3-assets-menu--show { box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.18); }
 html.lyra-card .d3-side-menu--left { right: calc(100% + 14px - var(--card-dock-dx, 0px)); left: auto; }
+html.lyra-card .d3-side-menu,
+html.lyra-card .d3-assets-menu {
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.35s cubic-bezier(0.22, 1, 0.36, 1), right 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    bottom 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
 html.lyra-card .d3-side-menu--right { left: calc(100% + 14px - var(--card-dock-dx, 0px)); right: auto; }
 
 /* Assets menu: above the wallet, in the top margin. */

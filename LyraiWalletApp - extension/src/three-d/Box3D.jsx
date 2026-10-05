@@ -171,7 +171,7 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
           height,
           // Floating card: the wallet shrinks a little while a menu is open (the menus don't), so the
           // menus move in by as much to keep the same gap (card rules in styles.css).
-          ...(IS_CARD && dockedSide ? { "--card-dock-dx": `${(width * (1 - CARD_DOCK.scale)) / 2}px`, "--card-dock-dy": `${(height * (1 - CARD_DOCK.scale)) / 2}px` } : null),
+          ...(IS_CARD && dockedSide && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? { "--card-dock-dx": `${(width * (1 - CARD_DOCK.scale)) / 2}px`, "--card-dock-dy": `${(height * (1 - CARD_DOCK.scale)) / 2}px` } : null),
         }}
       >
       <SideMenu side={dockedSide} items={leftItems} position="left" spotIndex={step?.dock === "left" ? step.index : -1} />
