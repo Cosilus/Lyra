@@ -16,12 +16,13 @@ function canInject(url) {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  // The icon click is handled below instead of opening the side panel.
-  chrome.sidePanel
-    .setPanelBehavior({ openPanelOnActionClick: false })
-    .catch((e) => console.error("Lyra: couldn't set the side panel behavior", e));
-});
+// The icon click is handled below instead of opening the side panel. Chrome
+// stores this setting, and an earlier build of Lyra set it to true (icon opens
+// the panel), which would swallow the click: reset it every time the service
+// worker starts, not only on install.
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: false })
+  .catch((e) => console.error("Lyra: couldn't set the side panel behavior", e));
 
 chrome.action.onClicked.addListener((tab) => {
   if (tab.id == null) return;
