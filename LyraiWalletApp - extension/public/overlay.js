@@ -3,7 +3,7 @@
 //
 // The wallet itself runs in an <iframe> of the extension's own page, so the
 // website can't read or script it; this file only draws the frame around it
-// and tilts the whole card toward the mouse, like a card floating over the page.
+// and tilts the whole card with the mouse while the mouse is over the wallet.
 (() => {
   const existing = window.__lyraCard;
   if (existing) {
@@ -11,7 +11,7 @@
     return;
   }
 
-  const MAX_TILT_DEG = 9;      // at the far edges of the window
+  const MAX_TILT_DEG = 9;      // with the mouse at the card's edges
   const EASE = 0.12;           // 0..1, how quickly the card catches up with the mouse
   const WIDTH = 400;
   const MAX_HEIGHT = 640;
@@ -98,8 +98,13 @@
   const card = document.createElement("div");
   card.className = "card";
 
+  // Random key in the wallet's URL: only this script knows it (the page can't
+  // read inside the closed shadow root), so only it can open the private
+  // channel the wallet uses to report the mouse position (src/cardBridge.js).
+  const key = crypto.randomUUID();
+  const extensionOrigin = new URL(chrome.runtime.getURL("")).origin;
   const frame = document.createElement("iframe");
-  frame.src = chrome.runtime.getURL("index.html");
+  frame.src = chrome.runtime.getURL("index.html?card=" + key);
   frame.title = "Lyra wallet";
   frame.allow = "clipboard-write; publickey-credentials-get; publickey-credentials-create";
 
@@ -115,25 +120,32 @@
   root.append(style, stage);
   document.documentElement.append(host);
 
-  // Tilt: the card leans toward wherever the mouse is on the page. The page
-  // doesn't get mouse events while the pointer is over the wallet itself
-  // (they go to the iframe), so there the card eases back flat, which also
-  // keeps it steady while buttons are being clicked.
+  // Tilt: only while the mouse is over the wallet. The wallet frame reports
+  // the pointer (-1..1 across the card) on a private channel; anywhere else on
+  // the page the card stays flat.
   let target = { x: 0, y: 0 };
   let current = { x: 0, y: 0 };
   let raf = 0;
 
-  function onMove(e) {
+  const channel = new MessageChannel();
+  let pointerInWallet = false;
+  channel.port1.onmessage = (e) => {
+    const d = e.data || {};
+    if (d.leave) {
+      pointerInWallet = false;
+      return flatten();
+    }
+    if (typeof d.nx !== "number" || typeof d.ny !== "number") return;
+    pointerInWallet = true;
     if (reduceMotion) return;
-    const r = card.getBoundingClientRect();
-    const cx = r.left + r.width / 2;
-    const cy = r.top + r.height / 2;
-    // -1..1 relative to the card centre, scaled to the window size.
-    const nx = Math.max(-1, Math.min(1, (e.clientX - cx) / (window.innerWidth / 2)));
-    const ny = Math.max(-1, Math.min(1, (e.clientY - cy) / (window.innerHeight / 2)));
+    const nx = Math.max(-1, Math.min(1, d.nx));
+    const ny = Math.max(-1, Math.min(1, d.ny));
     target = { x: -ny * MAX_TILT_DEG, y: nx * MAX_TILT_DEG };
     kick();
-  }
+  };
+  frame.addEventListener("load", () => {
+    frame.contentWindow.postMessage({ type: "lyra-card-port", key }, extensionOrigin, [channel.port2]);
+  }, { once: true });
 
   function flatten() {
     target = { x: 0, y: 0 };
@@ -153,17 +165,23 @@
     raf = done ? 0 : requestAnimationFrame(step);
   }
 
-  window.addEventListener("mousemove", onMove, { passive: true });
-  card.addEventListener("mouseenter", flatten);
-  document.addEventListener("mouseleave", flatten);
-  window.addEventListener("blur", flatten);
+  // Chrome doesn't reliably tell the wallet frame when the mouse leaves it
+  // for the page, so when the page sees the mouse again we tell the wallet
+  // (it closes its edge menus) and lay the card flat.
+  function pointerBackOnPage() {
+    if (!pointerInWallet) return;
+    pointerInWallet = false;
+    channel.port1.postMessage({ type: "pointer-left" });
+    flatten();
+  }
+  window.addEventListener("mousemove", pointerBackOnPage, { passive: true });
+  card.addEventListener("mouseleave", pointerBackOnPage);
 
   function close() {
     if (!window.__lyraCard) return;
     delete window.__lyraCard;
-    window.removeEventListener("mousemove", onMove);
-    document.removeEventListener("mouseleave", flatten);
-    window.removeEventListener("blur", flatten);
+    window.removeEventListener("mousemove", pointerBackOnPage);
+    channel.port1.close();
     cancelAnimationFrame(raf);
     stage.classList.add("closing");
     const remove = () => host.remove();

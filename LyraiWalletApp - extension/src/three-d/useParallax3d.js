@@ -137,12 +137,17 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
         releaseDock();
         resetFlat();
       };
+      // In the floating card, leaving the wallet for the page is reported
+      // by cardBridge.js ("lyra-pointer-left"): the frame itself gets no
+      // reliable leave event then.
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerleave", onLeave);
+      window.addEventListener("lyra-pointer-left", onLeave);
       window.addEventListener("blur", onLeave);
       cleanupPointer = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerleave", onLeave);
+        window.removeEventListener("lyra-pointer-left", onLeave);
         window.removeEventListener("blur", onLeave);
       };
     } else {
