@@ -4044,14 +4044,19 @@ html.lyra-card .d3-face--front > .frame { border-radius: var(--card-radius); }
 /* The card's own shadow is drawn by the overlay, outside this frame. */
 html.lyra-card .d3-face--front { box-shadow: none; }
 
-/* Side menus: just outside the wallet's left/right edges. */
-html.lyra-card .d3-side-menu--left { right: calc(100% + 14px); left: auto; }
-html.lyra-card .d3-side-menu--right { left: calc(100% + 14px); right: auto; }
+/* Side menus: just outside the wallet's left/right edges. No drop shadow or
+   glow around the menus here: on a light website they read as a grey smudge. */
+html.lyra-card .d3-side-menu,
+html.lyra-card .d3-side-menu--show,
+html.lyra-card .d3-assets-menu,
+html.lyra-card .d3-assets-menu--show { box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.18); }
+html.lyra-card .d3-side-menu--left { right: calc(100% + 14px - var(--card-dock-dx, 0px)); left: auto; }
+html.lyra-card .d3-side-menu--right { left: calc(100% + 14px - var(--card-dock-dx, 0px)); right: auto; }
 
 /* Assets menu: above the wallet, in the top margin. */
 html.lyra-card .d3-assets-menu {
   top: auto;
-  bottom: calc(100% + 12px);
+  bottom: calc(100% + 12px - var(--card-dock-dy, 0px));
   width: 100%;
   max-width: 100%;
   max-height: calc(var(--card-top) - 20px);

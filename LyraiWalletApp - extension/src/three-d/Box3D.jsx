@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BOX, DOCK } from "./config3d.js";
+import { BOX, CARD_DOCK, DOCK } from "./config3d.js";
 import { useParallax3d } from "./useParallax3d.js";
 import { Tour3D, TOUR_STEPS } from "./Tour3D.jsx";
 import { TokenLogo } from "../tokenLogo.jsx";
@@ -164,7 +164,16 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
 
   return (
     <div className={`d3-scene${dockedSide ? " d3-scene--docked" : ""}`}>
-      <div className="d3-stage" style={{ width, height }}>
+      <div
+        className="d3-stage"
+        style={{
+          width,
+          height,
+          // Floating card: the wallet shrinks a little while a menu is open (the menus don't), so the
+          // menus move in by as much to keep the same gap (card rules in styles.css).
+          ...(IS_CARD && dockedSide ? { "--card-dock-dx": `${(width * (1 - CARD_DOCK.scale)) / 2}px`, "--card-dock-dy": `${(height * (1 - CARD_DOCK.scale)) / 2}px` } : null),
+        }}
+      >
       <SideMenu side={dockedSide} items={leftItems} position="left" spotIndex={step?.dock === "left" ? step.index : -1} />
       <SideMenu side={dockedSide} items={rightItems} position="right" spotIndex={step?.dock === "right" ? step.index : -1} />
       <AssetsTopMenu
@@ -196,8 +205,7 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
               // hit-testing inside a rotated preserve-3d face is
               // unreliable (clicks land on the wrong element), and the
               // user is reaching for the side menu anyway.
-              // (The floating card never tilts the wallet, so it stays clickable there.)
-              pointerEvents: dockedSide && !IS_CARD ? "none" : undefined,
+              pointerEvents: dockedSide ? "none" : undefined,
             }}
           >
             {children}

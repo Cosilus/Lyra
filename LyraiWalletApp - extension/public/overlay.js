@@ -19,6 +19,10 @@
   }
 
   const MAX_TILT_DEG = 9;      // with the mouse at the card's edges
+  // While a menu is open the wallet shrinks a little (the menus don't): its
+  // shadow here shrinks with it. Keep in sync with CARD_DOCK.scale in
+  // src/three-d/config3d.js.
+  const MENU_SCALE = 0.94;
   const EASE = 0.12;           // 0..1, how quickly the card catches up with the mouse
   const WALLET_WIDTH = 400;
   const WALLET_MAX_HEIGHT = 640;
@@ -87,6 +91,11 @@
       clip-path: ${walletClip};
     }
     .card.menu-open iframe { clip-path: none; }
+    .shadow { transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+    .card.menu-open .shadow { transform: scale(${MENU_SCALE}); }
+    @media (prefers-reduced-motion: reduce) {
+      .card.menu-open .shadow { transform: none; }
+    }
     @keyframes lyra-in {
       from { opacity: 0; transform: translateY(-12px) scale(0.96); }
       to   { opacity: 1; transform: none; }
@@ -135,7 +144,7 @@
     if ("dock" in d) {
       // A menu opened or closed: let the margins catch the mouse only while
       // a menu is open.
-      card.classList.toggle("menu-open", !!d.dock);
+      setMenuOpen(!!d.dock);
       return;
     }
     if (d.leave) {
@@ -147,17 +156,23 @@
     if (reduceMotion) return;
     const nx = Math.max(-1, Math.min(1, d.nx));
     const ny = Math.max(-1, Math.min(1, d.ny));
-    // The side the mouse is on comes up toward the viewer (mouse on the
-    // right: right edge lifts; mouse at the top: top edge lifts).
-    target = { x: ny * MAX_TILT_DEG, y: -nx * MAX_TILT_DEG };
+    // Mouse on the right: the right edge comes up toward the viewer (same on
+    // the left). Mouse at the top: the top edge goes down, away from the viewer.
+    target = { ...target, x: -ny * MAX_TILT_DEG, y: -nx * MAX_TILT_DEG };
     kick();
   };
+
+  // A menu opened or closed: the margins catch the mouse only while a menu
+  // is open, and the wallet's shadow follows the wallet as it shrinks.
+  function setMenuOpen(open) {
+    card.classList.toggle("menu-open", open);
+  }
   frame.addEventListener("load", () => {
     frame.contentWindow.postMessage({ type: "lyra-card-port", key }, extensionOrigin, [channel.port2]);
   }, { once: true });
 
   function flatten() {
-    target = { x: 0, y: 0 };
+    target = { ...target, x: 0, y: 0 };
     kick();
   }
 
@@ -174,14 +189,36 @@
     raf = done ? 0 : requestAnimationFrame(step);
   }
 
+  // Which menu margin (left, right or top of the wallet) a page point is in,
+  // or null. Used when a fast mouse jumps out of the wallet straight into a
+  // margin before the wallet had time to open that menu (the margin doesn't
+  // catch the mouse until a menu is open).
+  function marginSideAt(x, y) {
+    const r = shadow.getBoundingClientRect();
+    const s = stage.getBoundingClientRect();
+    if (y >= r.top && y <= r.bottom) {
+      if (x < r.left && x >= s.left) return "left";
+      if (x > r.right && x <= s.right) return "right";
+    }
+    if (y < r.top && y >= s.top && x >= r.left && x <= r.right) return "top";
+    return null;
+  }
+
   // Chrome doesn't reliably tell the wallet frame when the mouse leaves it
   // for the page, so when the page sees the mouse again we tell the wallet
   // (it closes its menus) and lay the card flat.
-  function pointerBackOnPage() {
+  function pointerBackOnPage(e) {
     if (!pointerInWallet) return;
+    const side = marginSideAt(e.clientX, e.clientY);
+    if (side) {
+      // Straight from the wallet into a menu margin: open that menu.
+      channel.port1.postMessage({ type: "pointer-edge", side });
+      setMenuOpen(true);
+      return;
+    }
     pointerInWallet = false;
     channel.port1.postMessage({ type: "pointer-left" });
-    card.classList.remove("menu-open");
+    setMenuOpen(false);
     flatten();
   }
   window.addEventListener("mousemove", pointerBackOnPage, { passive: true });

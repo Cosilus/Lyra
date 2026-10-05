@@ -67,6 +67,10 @@ export function startCardBridge() {
     // reliably fire a leave event in this frame): pass it on to the 3D view.
     port.onmessage = (m) => {
       if (m.data?.type === "pointer-left") window.dispatchEvent(new Event("lyra-pointer-left"));
+      // The mouse jumped from the wallet straight into a menu margin.
+      if (m.data?.type === "pointer-edge" && ["left", "right", "top"].includes(m.data.side)) {
+        window.dispatchEvent(new CustomEvent("lyra-pointer-edge", { detail: m.data.side }));
+      }
     };
     if (lastDock) port.postMessage({ dock: lastDock });
     window.addEventListener("pointermove", onMove, { passive: true });

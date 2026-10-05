@@ -154,8 +154,10 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
       if (side !== docked) {
         dockedRef.current = side;
         setDockedSide(side);
+        rawScale.set(side ? 1 - (1 - CARD_DOCK.scale) * scaleFactor() : 1);
       }
     };
+
 
     const hasFinePointer = window.matchMedia("(pointer: fine)").matches;
     let cleanupPointer;
@@ -163,13 +165,25 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
 
     if (IS_CARD) {
       const onMove = (e) => handleCardPosition(e.clientX, e.clientY);
-      const onLeave = () => releaseDock();
+      const onLeave = () => {
+        releaseDock();
+        rawScale.set(1);
+      };
+      const onEdge = (e) => {
+        const side = e.detail;
+        if (dockedRef.current === side) return;
+        dockedRef.current = side;
+        setDockedSide(side);
+        rawScale.set(1 - (1 - CARD_DOCK.scale) * scaleFactor());
+      };
       window.addEventListener("pointermove", onMove);
       window.addEventListener("lyra-pointer-left", onLeave);
+      window.addEventListener("lyra-pointer-edge", onEdge);
       window.addEventListener("blur", onLeave);
       cleanupPointer = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("lyra-pointer-left", onLeave);
+        window.removeEventListener("lyra-pointer-edge", onEdge);
         window.removeEventListener("blur", onLeave);
       };
     } else if (hasFinePointer) {

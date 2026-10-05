@@ -26,7 +26,9 @@ export const DOCK = {
 // open outside it. edgePx: how close to a wallet edge the mouse must get to open that menu;
 // holdPx: the menu stays open while the mouse is within this distance of the edge (or past it,
 // on the menu itself).
-export const CARD_DOCK = { edgePx: 18, holdPx: 70 };
+// scale: while a menu is open the wallet shrinks a little (the menus keep their size and move in
+// to keep the same gap). Keep in sync with MENU_SCALE in public/overlay.js (the card's shadow).
+export const CARD_DOCK = { edgePx: 18, holdPx: 70, scale: 0.94 };
 
 export const TOP_DOCK = { tiltDeg: 14, scale: 0.9, shiftYPx: 46 };
 
