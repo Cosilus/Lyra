@@ -53,12 +53,11 @@ function loadTemplate() {
     templatePromise = Promise.all([
       import("three"),
       import("three/examples/jsm/loaders/GLTFLoader.js"),
-      import("three/examples/jsm/environments/RoomEnvironment.js"),
       import("three/examples/jsm/utils/BufferGeometryUtils.js"),
-    ]).then(async ([THREE, { GLTFLoader }, { RoomEnvironment }, { mergeVertices }]) => {
+    ]).then(async ([THREE, { GLTFLoader }, { toCreasedNormals }]) => {
       const gltf = await loadFirst(new GLTFLoader(), MODEL_URLS);
-      polish(gltf.scene, THREE, mergeVertices);
-      return { THREE, RoomEnvironment, gltf };
+      polish(gltf.scene, THREE, toCreasedNormals);
+      return { THREE, gltf };
     });
     // A failed load (no model yet, offline) can be retried on next mount.
     templatePromise.catch(() => { templatePromise = null; });
@@ -69,29 +68,30 @@ function loadTemplate() {
 async function startScene(mount, isDisposed) {
   if (!mount) throw new Error("no mount node");
 
-  const { THREE, RoomEnvironment, gltf } = await loadTemplate();
+  const { THREE, gltf } = await loadTemplate();
   if (isDisposed()) return () => {};
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.35;
+  renderer.toneMappingExposure = 1.25;
 
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const envTexture = pearlEnvironment(THREE, pmrem);
   scene.environment = envTexture;
 
   const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
   camera.position.set(0, 0, 4.2);
 
-  // All-white lighting so the logo stays pure white from every angle.
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xffffff, 1.2));
-  const rim = new THREE.DirectionalLight(0xffffff, 1.5);
+  // Pearl-white lighting: white from above, soft lilac from below, so the
+  // shaded sides read as lilac instead of grey.
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb9a6ff, 1.1));
+  const rim = new THREE.DirectionalLight(0xd9ccff, 2.4);
   rim.position.set(-2.5, 1.5, -2);
   scene.add(rim);
-  const key = new THREE.DirectionalLight(0xffffff, 2);
+  const key = new THREE.DirectionalLight(0xffffff, 1.8);
   key.position.set(2, 2.5, 3);
   scene.add(key);
 
@@ -166,34 +166,52 @@ async function loadFirst(loader, urls) {
   throw lastErr || new Error("no model found");
 }
 
-// "Polished, no hard edges": weld duplicated vertices and recompute
-// normals so every face blends smoothly into its neighbours, then give
-// it a pure white, softly glossy finish. Non-metallic with a white glow,
-// so the environment never shows up as dark grey reflections.
-function polish(root, THREE, mergeVertices) {
+// Reflections come from a soft white-to-lilac gradient with no dark areas,
+// so the edges never pick up black or grey streaks.
+function pearlEnvironment(THREE, pmrem) {
+  const c = document.createElement("canvas");
+  c.width = 4;
+  c.height = 256;
+  const g = c.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, "#ffffff");
+  grad.addColorStop(0.5, "#f1ecff");
+  grad.addColorStop(1, "#c9b8ff");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 4, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const env = pmrem.fromEquirectangular(tex).texture;
+  tex.dispose();
+  return env;
+}
+
+// "Polished, no hard edges": smooth every edge up to ~110 degrees so faces
+// blend into each other. Sharper folds (thin tips, where front and back
+// faces would cancel out and render black) keep their own normals. Then a
+// pearl-white, softly glossy, non-metallic finish.
+function polish(root, THREE, toCreasedNormals) {
   root.traverse(obj => {
     if (!obj.isMesh) return;
 
-    let geo = obj.geometry.clone();
-    // Normals are what keep vertices apart along creases; drop them so
-    // the weld can join them (UVs are kept for textures).
-    geo.deleteAttribute("normal");
-    geo = mergeVertices(geo, 1e-4);
-    geo.computeVertexNormals();
-    obj.geometry = geo;
+    obj.geometry = toCreasedNormals(obj.geometry, Math.PI * 0.6);
 
     const toPhysical = src => {
       const m = new THREE.MeshPhysicalMaterial({
-        color: 0xffffff,
+        color: 0xf7f4ff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.35,
+        emissiveIntensity: 0.12,
         transparent: !!src.transparent,
         opacity: src.opacity ?? 1,
         metalness: 0,
-        roughness: 0.35,
-        clearcoat: 0.6,
-        clearcoatRoughness: 0.2,
-        envMapIntensity: 0.6,
+        roughness: 0.3,
+        clearcoat: 1,
+        clearcoatRoughness: 0.12,
+        sheen: 1,
+        sheenRoughness: 0.35,
+        sheenColor: 0xd6c8ff,
+        envMapIntensity: 0.8,
       });
       m.flatShading = false;
       src.dispose?.();
