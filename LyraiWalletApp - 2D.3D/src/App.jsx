@@ -2741,6 +2741,9 @@ async function unlockWithBiometric() {
 
     setForgotError("");
     setPendingPrivateKey(w.privateKey);
+    // Re-store the phrase under the new password too, otherwise "Show
+    // recovery phrase" stops working after a reset.
+    setPendingMnemonic(phrase);
     setResetMpcEnabled(!!saved.mpcEnabled);
     setPasswordSetupMode("reset");
     setShowForgotPassword(false);
