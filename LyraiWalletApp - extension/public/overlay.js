@@ -140,7 +140,9 @@
     if (reduceMotion) return;
     const nx = Math.max(-1, Math.min(1, d.nx));
     const ny = Math.max(-1, Math.min(1, d.ny));
-    target = { x: -ny * MAX_TILT_DEG, y: nx * MAX_TILT_DEG };
+    // The side the mouse is on comes up toward the viewer (mouse on the
+    // right: right edge lifts; mouse at the top: top edge lifts).
+    target = { x: ny * MAX_TILT_DEG, y: -nx * MAX_TILT_DEG };
     kick();
   };
   frame.addEventListener("load", () => {
