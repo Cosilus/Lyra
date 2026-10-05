@@ -8,7 +8,8 @@
     "build": "vite build",
     "check": "node scripts/check-extension.mjs",
     "serve:ext": "node scripts/serve-extension.mjs",
-    "store": "node scripts/make-store-zip.mjs"
+    "store": "node scripts/make-store-zip.mjs",
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@circle-fin/adapter-ethers-v6": "^1.12.0",

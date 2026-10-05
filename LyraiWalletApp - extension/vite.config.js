@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 
@@ -14,6 +15,14 @@ export default defineConfig({
   ],
   build: {
     outDir: "dist",
+    // Two pages: the wallet (side panel / floating card) and the approval
+    // window websites' requests open (see public/providerBackground.js).
+    rollupOptions: {
+      input: {
+        index: fileURLToPath(new URL("./index.html", import.meta.url)),
+        request: fileURLToPath(new URL("./request.html", import.meta.url)),
+      },
+    },
     // Extension pages can't load remote code, and the store reviewers read the bundle:
     // keep it readable enough to audit, no inline scripts are produced either way.
     chunkSizeWarningLimit: 4000,

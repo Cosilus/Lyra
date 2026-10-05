@@ -28,7 +28,8 @@
   "permissions": [
     "sidePanel",
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "host_permissions": [
     "http://localhost/*",
@@ -45,6 +46,33 @@
       "matches": [
         "<all_urls>"
       ]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "inpage.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://*/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "contentBridge.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
     }
   ]
 }

@@ -44,5 +44,10 @@ The backend is not bundled: the extension calls `VITE_API_URL` (see `.env.exampl
   (RPCs, backend, price/explorer APIs) before the store review.
 - Keys stay in the extension page's localStorage for now. Moving them to `chrome.storage.local`
   is a follow-up.
-- No `window.ethereum` for websites (step 2).
+- dApp connection: websites see Lyra (EIP-6963, and `window.ethereum` when no other wallet took
+  it) through `public/inpage.js` + `public/contentBridge.js`; `public/providerBackground.js` answers
+  them. Connecting, signing (`personal_sign`, `eth_signTypedData_v4`) and sending
+  (`eth_sendTransaction`) open the approval window (`request.html`), where the request is
+  translated into plain language with a risk level (`src/signTranslator.js`, tests: `npm test`)
+  and the password unlocks the wallet just to sign. `eth_sign` is refused. Testnet networks only.
 - Passkey / biometric unlock is tied to the page origin (`chrome-extension://<id>`): untested here.

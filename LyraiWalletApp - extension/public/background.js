@@ -4,6 +4,9 @@
 //
 // Pages Chrome never lets extensions draw on (chrome://, the Web Store, the
 // new tab page...) get the wallet in the side panel instead.
+// dApp connection (websites asking to connect, sign, send): see providerBackground.js.
+importScripts("providerBackground.js");
+
 const CAN_INJECT = /^(https?|file):/;
 const BLOCKED_HOSTS = ["chrome.google.com", "chromewebstore.google.com", "microsoftedge.microsoft.com"];
 
