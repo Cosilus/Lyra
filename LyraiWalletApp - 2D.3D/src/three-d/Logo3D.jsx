@@ -1,97 +1,82 @@
 import { useEffect, useRef, useState } from "react";
-import "./logo-splash.css";
+import "./logo-3d.css";
 
-// Startup splash: the Lyra logo as a polished 3D model, spinning slowly
-// and floating while the app boots, then fading out.
+// The Lyra logo as a polished 3D model, slowly turning and floating.
+// Used on the entry screens (welcome and unlock).
 //
 // The model lives in public/models/. Either a single .glb or a .gltf
 // (with its .bin/textures next to it) works; the first one found wins.
 // If none is there or WebGL is unavailable, the flat /logo.svg is shown
-// instead so startup never breaks.
+// instead, so the entry screens never break.
 const MODEL_URLS = ["/models/lyra-logo.glb", "/models/lyra-logo.gltf"];
 
-const MIN_VISIBLE_MS = 2200;  // splash never flashes by too quickly
-const MAX_WAIT_MS = 5000;     // never hold the app back longer than this
-const FADE_MS = 600;
+// Loaded and polished once, then cloned for every mount (the welcome and
+// unlock screens share it, and React StrictMode mounts twice in dev).
+let templatePromise = null;
 
-export default function LogoSplash() {
+export default function Logo3D({ className = "" }) {
   const mountRef = useRef(null);
-  const [has3d, setHas3d] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-  const [gone, setGone] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let disposed = false;
-    let cleanupScene = () => {};
-    const start = performance.now();
-    let finishing = false;
+    let cleanup = () => {};
 
-    function finish() {
-      if (disposed || finishing) return;
-      finishing = true;
-      const wait = Math.max(0, MIN_VISIBLE_MS - (performance.now() - start));
-      setTimeout(() => {
-        if (disposed) return;
-        setLeaving(true);
-        setTimeout(() => !disposed && setGone(true), FADE_MS);
-      }, wait);
-    }
-
-    const maxTimer = setTimeout(finish, MAX_WAIT_MS);
-
-    // three.js is only fetched for the splash, never bundled into the
-    // main chunk.
     startScene(mountRef.current, () => disposed)
-      .then(cleanup => {
-        if (disposed) { cleanup(); return; }
-        cleanupScene = cleanup;
-        setHas3d(true);
-        // Leave the 3D logo on screen for a couple of seconds once it shows.
-        setTimeout(finish, 2000);
+      .then(stop => {
+        if (disposed) { stop(); return; }
+        cleanup = stop;
+        setReady(true);
       })
       .catch(err => {
-        console.warn("[LogoSplash] 3D logo unavailable, using the flat logo:", err?.message || err);
-        finish();
+        console.warn("[Logo3D] 3D logo unavailable, using the flat logo:", err?.message || err);
       });
 
     return () => {
       disposed = true;
-      clearTimeout(maxTimer);
-      cleanupScene();
+      cleanup();
     };
   }, []);
 
-  if (gone) return null;
-
   return (
-    <div className={`logo-splash${leaving ? " is-leaving" : ""}`} aria-hidden="true">
-      <div className="logo-splash-stage">
-        <div ref={mountRef} className={`logo-splash-canvas${has3d ? " is-ready" : ""}`} />
-        {!has3d && <img className="logo-splash-fallback" src="/logo.svg" alt="" />}
-      </div>
-      <div className="logo-splash-name">Lyra</div>
+    <div className={`logo-3d ${className}`} aria-hidden="true">
+      <div ref={mountRef} className={`logo-3d-canvas${ready ? " is-ready" : ""}`} />
+      {!ready && <img className="logo-3d-fallback" src="/logo.svg" alt="" />}
     </div>
   );
+}
+
+function loadTemplate() {
+  if (!templatePromise) {
+    // three.js is only fetched for the entry screens, never bundled into
+    // the main chunk.
+    templatePromise = Promise.all([
+      import("three"),
+      import("three/examples/jsm/loaders/GLTFLoader.js"),
+      import("three/examples/jsm/environments/RoomEnvironment.js"),
+      import("three/examples/jsm/utils/BufferGeometryUtils.js"),
+    ]).then(async ([THREE, { GLTFLoader }, { RoomEnvironment }, { mergeVertices }]) => {
+      const gltf = await loadFirst(new GLTFLoader(), MODEL_URLS);
+      polish(gltf.scene, THREE, mergeVertices);
+      return { THREE, RoomEnvironment, gltf };
+    });
+    // A failed load (no model yet, offline) can be retried on next mount.
+    templatePromise.catch(() => { templatePromise = null; });
+  }
+  return templatePromise;
 }
 
 async function startScene(mount, isDisposed) {
   if (!mount) throw new Error("no mount node");
 
-  const [THREE, { GLTFLoader }, { RoomEnvironment }, { mergeVertices }] = await Promise.all([
-    import("three"),
-    import("three/examples/jsm/loaders/GLTFLoader.js"),
-    import("three/examples/jsm/environments/RoomEnvironment.js"),
-    import("three/examples/jsm/utils/BufferGeometryUtils.js"),
-  ]);
-
-  const gltf = await loadFirst(new GLTFLoader(), MODEL_URLS);
+  const { THREE, RoomEnvironment, gltf } = await loadTemplate();
   if (isDisposed()) return () => {};
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
+  renderer.toneMappingExposure = 1.35;
 
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -105,12 +90,12 @@ async function startScene(mount, isDisposed) {
   const rim = new THREE.DirectionalLight(0xa78bfa, 2.2);
   rim.position.set(-2.5, 1.5, -2);
   scene.add(rim);
-  const key = new THREE.DirectionalLight(0xffffff, 1.2);
+  const key = new THREE.DirectionalLight(0xffffff, 2);
   key.position.set(2, 2.5, 3);
   scene.add(key);
 
-  const model = gltf.scene;
-  polish(model, THREE, mergeVertices);
+  // Clones share geometry and materials with the cached template.
+  const model = gltf.scene.clone(true);
 
   // Centre the model and scale it to a fixed size whatever units it was
   // exported in.
@@ -147,9 +132,9 @@ async function startScene(mount, isDisposed) {
     const dt = clock.getDelta();
     const t = clock.elapsedTime;
     if (!reduceMotion) {
-      pivot.rotation.y = t * 1.6;                    // slow turn
-      pivot.rotation.x = Math.sin(t * 1.3) * 0.12;   // slight tilt
-      pivot.position.y = Math.sin(t * 2.0) * 0.06;   // gentle float
+      pivot.rotation.y = t * 1.2;                    // slow turn
+      pivot.rotation.x = Math.sin(t * 1.1) * 0.12;   // slight tilt
+      pivot.position.y = Math.sin(t * 1.8) * 0.06;   // gentle float
       mixer?.update(dt);
     }
     renderer.render(scene, camera);
@@ -160,11 +145,7 @@ async function startScene(mount, isDisposed) {
   return () => {
     cancelAnimationFrame(raf);
     window.removeEventListener("resize", resize);
-    scene.traverse(obj => {
-      if (!obj.isMesh) return;
-      obj.geometry?.dispose();
-      [].concat(obj.material || []).forEach(m => m.dispose());
-    });
+    mixer?.stopAllAction();
     envTexture.dispose();
     pmrem.dispose();
     renderer.dispose();
@@ -192,8 +173,8 @@ function polish(root, THREE, mergeVertices) {
     if (!obj.isMesh) return;
 
     let geo = obj.geometry.clone();
-    // Normals (and split UVs) are what keep vertices apart along creases;
-    // drop the normals so the weld can join them, keep UVs for textures.
+    // Normals are what keep vertices apart along creases; drop them so
+    // the weld can join them (UVs are kept for textures).
     geo.deleteAttribute("normal");
     geo = mergeVertices(geo, 1e-4);
     geo.computeVertexNormals();
