@@ -2687,40 +2687,49 @@ button.mpc-limit-btn {
    UNLOCK SCREEN, redesign
 ================================ */
 
-.unlock-panel {
+/* Full-screen entry screens (first-visit welcome and unlock), with the
+   3D Lyra logo on top. */
+.entry-screen {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(var(--accent-rgb), 0.16), transparent 55%),
+    var(--void);
+  animation: contactsOverlayIn 0.25s ease-out;
+}
+
+.entry-panel {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 32px 24px 24px;
 }
 
-.unlock-icon-circle {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 18px;
-  color: var(--accent-strong);
-  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
-  box-shadow: 0 0 30px -4px rgba(var(--accent-rgb), 0.45);
-  border: 1px solid var(--line);
+.entry-logo {
+  width: min(200px, 52vw);
+  margin-bottom: 6px;
 }
 
-.unlock-title {
-  font-size: 20px;
+.entry-wordmark {
+  font-size: 34px;
   font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--beige);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.unlock-subtitle {
-  font-size: 13px;
+.entry-tagline {
+  font-size: 14px;
   color: var(--muted);
   line-height: 1.5;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
   max-width: 280px;
 }
+
+.entry-actions { margin-top: 0; margin-bottom: 6px; }
 
 .unlock-password-field {
   width: 100%;

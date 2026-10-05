@@ -59,6 +59,7 @@ import { CircleMenu } from "./CircleMenu";
 import { RewardsPanel } from "./Rewards.jsx";
 import { createPortal } from "react-dom";
 import { Box3D } from "./three-d/Box3D.jsx";
+import Logo3D from "./three-d/Logo3D.jsx";
 import { loadUiMode, saveUiMode, hasSeenTour, markTourSeen } from "./three-d/uiMode.js";
 import { InterfaceChooser } from "./three-d/InterfaceChooser.jsx";
 import { ActivityBlock } from "./three-d/ActivityBlock.jsx";
@@ -963,6 +964,10 @@ export default function App() {
   }, [wallet?.address, locked]);
 
   const [showWallet, setShowWallet] = useState(false);
+  // First-visit welcome screen ("Get started"), shown before the
+  // create/import panel when no wallet is saved on this device.
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [walletPanelMode, setWalletPanelMode] = useState("create");
   const [showSend, setShowSend] = useState(false);
   const [sendTo, setSendTo] = useState("");
   const [sendAmount, setSendAmount] = useState("");
@@ -1878,7 +1883,7 @@ useEffect(() => {
     setLocked(true);
     setShowUnlock(true);
   } else {
-    setShowWallet(true);
+    setShowWelcome(true);
   }
 }, []);
 
@@ -2333,7 +2338,7 @@ function resetWallet() {
   setLocked(false);
   setShowSettings(false);
   setShowResetConfirm(false);
-  setShowWallet(true);
+  setShowWelcome(true);
   setBalance(0n);
   setMessages([]);
   setActivityRuns([]);
@@ -2750,6 +2755,9 @@ async function unlockWithBiometric() {
 
     setForgotError("");
     setPendingPrivateKey(w.privateKey);
+    // Re-store the phrase under the new password too, otherwise "Show
+    // recovery phrase" stops working after a reset.
+    setPendingMnemonic(phrase);
     setResetMpcEnabled(!!saved.mpcEnabled);
     setPasswordSetupMode("reset");
     setShowForgotPassword(false);
@@ -7111,7 +7119,7 @@ function handleHoldEnd() {
   ];
 
   const anyOverlayOpen =
-    showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showRewards || showReceiveQr || showTxHistory || showUnlock || showWallet ||
+    showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showRewards || showReceiveQr || showTxHistory || showUnlock || showWallet || showWelcome ||
     showPasswordSetup || showSend || !!defiTicket || !!multiTicket;
 
   const frame = (
@@ -7465,8 +7473,11 @@ function handleHoldEnd() {
 
         <div className="wallet-modal" style={{display: showWallet ? "flex" : "none"}}>
           <WalletPanel
+            key={walletPanelMode}
+            initialMode={walletPanelMode}
             existing={!!wallet}
             onClose={() => setShowWallet(false)}
+            onBack={wallet ? null : () => { setShowWallet(false); setShowWelcome(true); }}
             onCreate={createWallet}
             onImport={importWallet}
           />
@@ -8631,16 +8642,49 @@ function handleHoldEnd() {
   </div>
 )}
 
-        {showUnlock && (
-  <div className="backup-overlay">
-    <div className="backup-panel unlock-panel">
+        {showWelcome && (
+  <div className="entry-screen">
+    <div className="entry-panel">
+      <Logo3D className="entry-logo" />
+      <div className="entry-wordmark">Lyra</div>
+      <div className="entry-tagline">Your AI-powered wallet. Just ask.</div>
 
-      <div className="unlock-icon-circle">
-        <Lock size={26} strokeWidth={1.8} />
+      <div className="unlock-actions entry-actions">
+        <button
+          type="button"
+          className="unlock-btn-gradient"
+          onClick={() => {
+            setWalletPanelMode("create");
+            setShowWelcome(false);
+            setShowWallet(true);
+          }}
+        >
+          <span>Get started</span>
+          <ArrowRight size={17} />
+        </button>
       </div>
 
-      <div className="unlock-title">Locked Wallet</div>
-      <div className="unlock-subtitle">Your wallet is locked. Please unlock to continue.</div>
+      <button
+        type="button"
+        className="forgot-password-link"
+        onClick={() => {
+          setWalletPanelMode("import");
+          setShowWelcome(false);
+          setShowWallet(true);
+        }}
+      >
+        I already have a wallet
+      </button>
+    </div>
+  </div>
+)}
+
+        {showUnlock && (
+  <div className="entry-screen">
+    <div className="entry-panel">
+      <Logo3D className="entry-logo" />
+      <div className="entry-wordmark">Lyra</div>
+      <div className="entry-tagline">Welcome back! Enter your password to unlock.</div>
 
       <div className="unlock-password-field">
         <Lock size={15} strokeWidth={1.8} className="unlock-password-icon" />
@@ -11282,8 +11326,8 @@ function PieChartView({ holdings }) {
   );
 }
 
-function WalletPanel({ existing, onClose, onCreate, onImport }) {
-  const [mode, setMode] = useState("create");
+function WalletPanel({ existing, initialMode = "create", onClose, onBack, onCreate, onImport }) {
+  const [mode, setMode] = useState(initialMode);
   const [wordCount, setWordCount] = useState(12);
   const [words, setWords] = useState({});
   const [error, setError] = useState("");
@@ -11327,10 +11371,18 @@ function WalletPanel({ existing, onClose, onCreate, onImport }) {
 
         <h2>Wallet</h2>
 
-        {existing && (
+        {existing ? (
           <button
             type="button"
             onClick={onClose}
+          >
+            ×
+          </button>
+        ) : onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back"
           >
             ×
           </button>

@@ -12,9 +12,10 @@ function sidePose(side) {
   return { scale, shiftX: (side === "right" ? -1 : 1) * shift };
 }
 
-// Mouse position (or device tilt, or idle drift) -> box rotation, with
-// "docking": reaching an edge catches the tilt at its max and reports
-// dockedSide ("left" | "right" | "top") so the caller can open a menu.
+// Mouse position (or device tilt) -> box pose. The box stays flat while
+// the pointer moves over it; only reaching an edge "docks" it: the tilt
+// catches at its max and dockedSide ("left" | "right" | "top") is
+// reported so the caller can open a menu.
 // `paused` freezes everything flat (used while a real modal is open).
 export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = null, tiltEnabled = false) {
   const rawRotateX = useMotionValue(0);
@@ -73,10 +74,9 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
     media.addEventListener("change", onChange);
     const scaleFactor = () => (reducedRef.current ? REDUCED_MOTION_SCALE : 1);
 
-    const applyFromNormalized = (nx) => {
-      const s = scaleFactor();
-      rawRotateY.set(-nx * PARALLAX.maxTiltDeg * s);
-      rawShiftX.set(-nx * PARALLAX.maxShiftPx * s);
+    const resetFlat = () => {
+      rawRotateY.set(0);
+      rawShiftX.set(0);
       rawRotateX.set(0);
       rawShiftY.set(0);
       rawScale.set(1);
@@ -89,7 +89,7 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
 
     // Coming back from a pinned (tour) pose or a re-setup: start flat.
     releaseDock();
-    applyFromNormalized(0);
+    resetFlat();
 
     const handlePosition = (nx, ny) => {
       const docked = dockedRef.current;
@@ -102,7 +102,8 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
         releaseDock();
       }
 
-      applyFromNormalized(nx);
+      // No edge reached: the box stays still, no follow-the-pointer tilt.
+      resetFlat();
 
       const s = scaleFactor();
       if (Math.abs(nx) >= DOCK.thresholdNx) {
@@ -125,7 +126,6 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
     const hasFinePointer = window.matchMedia("(pointer: fine)").matches;
     let cleanupPointer;
     let cleanupOrientation;
-    let idleRaf = 0;
 
     if (hasFinePointer) {
       const onMove = (e) => {
@@ -135,7 +135,7 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
       };
       const onLeave = () => {
         releaseDock();
-        applyFromNormalized(0);
+        resetFlat();
       };
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerleave", onLeave);
@@ -146,7 +146,6 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
         window.removeEventListener("blur", onLeave);
       };
     } else {
-      let gotOrientation = false;
       // Touch devices: tilt is opt-in (see TiltActivation). The neutral
       // pose is however the user holds the phone at that moment, not
       // beta/gamma = 0, then gamma/beta deltas map to nx/ny.
@@ -156,7 +155,6 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
       const onOrientation = (e) => {
         if (e.beta == null || e.gamma == null) return;
         if (!neutral) neutral = { beta: e.beta, gamma: e.gamma };
-        gotOrientation = true;
         let nx = -clampUnit((e.gamma - neutral.gamma) / 28);
         let ny = clampUnit((e.beta - neutral.beta) / 24);
         if (Math.abs(nx) < DEAD) nx = 0;
@@ -180,25 +178,12 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
         window.removeEventListener("deviceorientation", onOrientation);
         document.removeEventListener("visibilitychange", onVisibility);
       };
-
-      const start = performance.now();
-      const tick = (now) => {
-        if (!gotOrientation) {
-          const s = scaleFactor();
-          const t = (now - start) / PARALLAX.idleDriftPeriodMs;
-          const nx = Math.sin(t * Math.PI * 2) * (PARALLAX.idleDriftDeg / PARALLAX.maxTiltDeg);
-          applyFromNormalized(nx * s);
-        }
-        idleRaf = requestAnimationFrame(tick);
-      };
-      idleRaf = requestAnimationFrame(tick);
     }
 
     return () => {
       media.removeEventListener("change", onChange);
       cleanupPointer?.();
       cleanupOrientation?.();
-      if (idleRaf) cancelAnimationFrame(idleRaf);
     };
   }, [paused, forcedDock, tiltEnabled, rawRotateX, rawRotateY, rawShiftX, rawShiftY, rawScale, isTopMenuHovered]);
 
