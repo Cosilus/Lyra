@@ -4041,6 +4041,16 @@ html.lyra-card .d3-scene { height: 100%; }
 html.lyra-card .d3-face--front,
 html.lyra-card .d3-face--back,
 html.lyra-card .d3-face--front > .frame { border-radius: var(--card-radius); }
+/* The wallet never turns inside the card (the whole card does, in
+   overlay.js): drop its 3D stage (perspective, depth faces, layer hint) so
+   Chrome draws it as plain, sharp content instead of a 3D texture. */
+html.lyra-card .d3-stage { perspective: none; }
+html.lyra-card .d3-box { will-change: auto; transform-style: flat; }
+html.lyra-card .d3-room { transform: none !important; transform-style: flat; }
+html.lyra-card .d3-face--front { transform: none !important; }
+html.lyra-card .d3-face--back,
+html.lyra-card .d3-skirt { display: none; }
+
 /* The card's own shadow is drawn by the overlay, outside this frame. While a
    menu is open the wallet shrinks a little (CARD_DOCK.scale), with exactly the
    same transition as that shadow in overlay.js so the two move as one. */

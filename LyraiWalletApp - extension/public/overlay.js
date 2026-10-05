@@ -60,7 +60,6 @@
       width: ${WALLET_WIDTH + SIDE_PX * 2}px;
       max-width: calc(100vw - ${MARGIN * 2}px);
       height: min(${WALLET_MAX_HEIGHT + TOP_PX}px, calc(100vh - ${MARGIN * 2}px));
-      perspective: 1100px;
       pointer-events: none;
       /* Open/close animate the stage, so they never fight the card's tilt. */
       animation: lyra-in 260ms cubic-bezier(.2,.8,.2,1) both;
@@ -70,8 +69,6 @@
       position: relative;
       width: 100%;
       height: 100%;
-      transform-style: preserve-3d;
-      will-change: transform;
     }
     /* The wallet's shadow and glow, behind the (transparent) iframe. */
     .shadow {
@@ -194,7 +191,15 @@
     current.y += (target.y - current.y) * EASE;
     const done = Math.abs(target.x - current.x) < 0.01 && Math.abs(target.y - current.y) < 0.01;
     if (done) current = { ...target };
-    card.style.transform = `rotateX(${current.x.toFixed(3)}deg) rotateY(${current.y.toFixed(3)}deg)`;
+    const flat = done && current.x === 0 && current.y === 0;
+    // Back flat: no transform at all, so Chrome draws the wallet as plain,
+    // sharp text again (a "zero" 3D rotation still renders it as a texture).
+    // The perspective is part of the transform (not a parent's "perspective"
+    // style), so at rest nothing around the wallet is 3D any more.
+    card.style.transform = flat ? "" : `perspective(1100px) rotateX(${current.x.toFixed(3)}deg) rotateY(${current.y.toFixed(3)}deg)`;
+    // Only hint "this moves" while it actually moves: with the hint left on,
+    // Chrome keeps the wallet's image at one resolution and it looks blurry.
+    card.style.willChange = done ? "" : "transform";
     raf = done ? 0 : requestAnimationFrame(step);
   }
 
