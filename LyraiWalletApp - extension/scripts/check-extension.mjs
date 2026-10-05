@@ -13,7 +13,7 @@ const bad = (m) => { failed++; console.log("  FAIL " + m); };
 
 const manifest = JSON.parse(fs.readFileSync(path.join(dist, "manifest.json"), "utf8"));
 manifest.manifest_version === 3 ? ok("manifest_version 3") : bad("manifest_version must be 3");
-const named = [manifest.side_panel?.default_path, manifest.background?.service_worker, ...Object.values(manifest.icons || {}), ...Object.values(manifest.action?.default_icon || {})].filter(Boolean);
+const named = [manifest.side_panel?.default_path, manifest.background?.service_worker, "overlay.js", ...(manifest.web_accessible_resources || []).flatMap((r) => r.resources).filter((f) => !f.includes("*")), ...Object.values(manifest.icons || {}), ...Object.values(manifest.action?.default_icon || {})].filter(Boolean);
 for (const f of named) fs.existsSync(path.join(dist, f)) ? ok("file exists: " + f) : bad("missing file: " + f);
 
 const html = fs.readFileSync(path.join(dist, manifest.side_panel.default_path), "utf8");
