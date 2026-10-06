@@ -3532,10 +3532,28 @@ async function fetchUsdPriceFromCoingecko(coingeckoId) {
   return price;
 }
 
+// Several callers (price endpoint, portfolio, fees) ask for the same coin
+// within seconds of each other. Reusing a fresh price and sharing one
+// in-flight request keeps us under CoinGecko's public rate limit (429).
+const PRICE_FRESH_FOR_MS = 60 * 1000;
+const inFlightPriceByCoingeckoId = new Map(); // id -> Promise<number>
+
 async function getNativeUsdPrice(coingeckoId) {
-  const price = await fetchUsdPriceFromCoingecko(coingeckoId);
-  lastKnownPriceByCoingeckoId.set(coingeckoId, { priceUSD: price, fetchedAt: Date.now() });
-  return price;
+  const cached = lastKnownPriceByCoingeckoId.get(coingeckoId);
+  if (cached && Date.now() - cached.fetchedAt < PRICE_FRESH_FOR_MS) {
+    return cached.priceUSD;
+  }
+  let pending = inFlightPriceByCoingeckoId.get(coingeckoId);
+  if (!pending) {
+    pending = fetchUsdPriceFromCoingecko(coingeckoId)
+      .then(price => {
+        lastKnownPriceByCoingeckoId.set(coingeckoId, { priceUSD: price, fetchedAt: Date.now() });
+        return price;
+      })
+      .finally(() => inFlightPriceByCoingeckoId.delete(coingeckoId));
+    inFlightPriceByCoingeckoId.set(coingeckoId, pending);
+  }
+  return pending;
 }
 
 app.get("/api/price/xpl", async (req, res) => {
@@ -3874,6 +3892,18 @@ app.post("/api/x402/request", async (req, res) => {
     let parsedBody = text;
     if (contentType.includes("application/json") && text) {
       try { parsedBody = JSON.parse(text); } catch { /* keep as text */ }
+    }
+    // A web page or a script is not data the user paid for: never forward
+    // it raw (it would be dumped into the chat). Plain text stays, capped.
+    if (typeof parsedBody === "string") {
+      const head = parsedBody.trimStart().slice(0, 200).toLowerCase();
+      const looksLikePage = /text\/html|javascript|ecmascript|text\/css/.test(contentType) ||
+        head.startsWith("<!doctype") || head.startsWith("<html") || head.startsWith("<script");
+      if (looksLikePage) {
+        parsedBody = { nonData: true, contentType: contentType || "unknown", size: parsedBody.length };
+      } else if (parsedBody.length > 5000) {
+        parsedBody = parsedBody.slice(0, 5000);
+      }
     }
 
     res.json({
