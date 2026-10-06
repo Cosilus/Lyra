@@ -3,8 +3,8 @@
 //
 // The wallet itself runs in an <iframe> of the extension's own page, so the
 // website can't read or script it. This file only draws the card's frame and
-// shadow, and tilts the whole card with the mouse while the mouse is over the
-// wallet.
+// shadow, and turns the whole card toward a menu while that menu is open (it
+// stays still otherwise, mouse over the wallet included).
 //
 // The iframe is bigger than the wallet: transparent margins on the left, right
 // and top hold the wallet's 3D menus, which open outside the wallet (see the
@@ -26,7 +26,7 @@
     return;
   }
 
-  const MAX_TILT_DEG = 9;      // with the mouse at the card's edges
+  const MENU_TILT_DEG = 9;     // how far the card turns toward an open menu
   // While a menu is open the wallet shrinks a little (the menus don't): its
   // shadow here shrinks with it. Keep in sync with CARD_DOCK.scale in
   // src/three-d/config3d.js.
@@ -136,9 +136,9 @@
   root.append(style, stage);
   document.documentElement.append(host);
 
-  // Tilt: only while the mouse is over the wallet (or one of its open menus).
-  // The wallet frame reports the pointer (-1..1 across the frame) on a private
-  // channel; anywhere else on the page the card stays flat.
+  // Tilt: the card turns only toward an open menu (setMenuOpen). The wallet
+  // frame reports the pointer and which menu is open on a private channel;
+  // the pointer is only used to know when the mouse leaves the card.
   let target = { x: 0, y: 0 };
   let current = { x: 0, y: 0 };
   let raf = 0;
@@ -150,37 +150,34 @@
     if ("dock" in d) {
       // A menu opened or closed: let the margins catch the mouse only while
       // a menu is open.
-      setMenuOpen(!!d.dock);
+      setMenuOpen(d.dock);
       return;
     }
     if (d.leave) {
       pointerInWallet = false;
-      return flatten();
+      return;
     }
-    if (typeof d.nx !== "number" || typeof d.ny !== "number") return;
-    pointerInWallet = true;
-    if (reduceMotion) return;
-    const nx = Math.max(-1, Math.min(1, d.nx));
-    const ny = Math.max(-1, Math.min(1, d.ny));
-    // Mouse on the right: the right edge comes up toward the viewer (same on
-    // the left). Mouse at the top: the top edge goes down, away from the viewer.
-    target = { ...target, x: -ny * MAX_TILT_DEG, y: -nx * MAX_TILT_DEG };
-    kick();
+    // The pointer is over the wallet (or one of its open menus). The card
+    // doesn't follow it: it only turns when a menu opens.
+    if (typeof d.nx === "number") pointerInWallet = true;
   };
 
-  // A menu opened or closed: the margins catch the mouse only while a menu
-  // is open, and the wallet's shadow follows the wallet as it shrinks.
-  function setMenuOpen(open) {
-    card.classList.toggle("menu-open", open);
+  // A menu opened ("left" | "right" | "top") or closed (null): the margins
+  // catch the mouse only while a menu is open, the wallet's shadow follows
+  // the wallet as it shrinks, and the whole card turns toward that menu and
+  // holds still there (the side menus come forward, the top one leans back).
+  function setMenuOpen(side) {
+    card.classList.toggle("menu-open", !!side);
+    const pose = reduceMotion || !side ? { x: 0, y: 0 }
+      : side === "right" ? { x: 0, y: -MENU_TILT_DEG }
+      : side === "left" ? { x: 0, y: MENU_TILT_DEG }
+      : { x: MENU_TILT_DEG, y: 0 };
+    target = { ...target, ...pose };
+    kick();
   }
   frame.addEventListener("load", () => {
     frame.contentWindow.postMessage({ type: "lyra-card-port", key }, extensionOrigin, [channel.port2]);
   }, { once: true });
-
-  function flatten() {
-    target = { ...target, x: 0, y: 0 };
-    kick();
-  }
 
   function kick() {
     if (!raf) raf = requestAnimationFrame(step);
@@ -227,13 +224,12 @@
     if (side) {
       // Straight from the wallet into a menu margin: open that menu.
       channel.port1.postMessage({ type: "pointer-edge", side });
-      setMenuOpen(true);
+      setMenuOpen(side);
       return;
     }
     pointerInWallet = false;
     channel.port1.postMessage({ type: "pointer-left" });
-    setMenuOpen(false);
-    flatten();
+    setMenuOpen(null);
   }
   window.addEventListener("mousemove", pointerBackOnPage, { passive: true });
 
