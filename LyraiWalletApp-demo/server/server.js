@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import dns from "node:dns";
 import crypto from "node:crypto";
 import { Agent, setGlobalDispatcher } from "undici";
+import { registerSafeRoutes } from "./routes/safe.js";
 import { ethers } from "ethers";
 import { getNetworkByKey, DEFAULT_NETWORK, NETWORKS, TOKENS_BY_NETWORK, WNATIVE_BY_NETWORK, NATIVE_PSEUDO_ADDRESS, getDefiContracts, UNISWAP_V3_FEE_TIERS, UNISWAP_V3_FACTORY_ABI, UNISWAP_V3_QUOTER_ABI } from "../src/config.js";
 import { getBalance, getAddress } from "./tools/walletTools.js";
@@ -90,7 +91,7 @@ const serverProvidersByNetwork = new Map();
 // network.rpcUrl reads import.meta.env.VITE_ETH_RPC_URL / VITE_BASE_RPC_URL,
 // which is Vite-only. import.meta.env is always undefined in this plain
 // Node process, so the server always fell through to the hardcoded public
-// fallback RPCs (eth.llamarpc.com, mainnet.base.org) instead of the paid
+// fallback RPCs (ethereum-rpc.publicnode.com, mainnet.base.org) instead of the paid
 // Alchemy endpoints already sitting in .env. dotenv doesn't care about the
 // VITE_ prefix, so those same values are readable here as process.env,
 // use them when present instead of quietly depending on a public RPC's
@@ -167,6 +168,8 @@ app.get("/", (req, res) => {
 
 // ========================================
 // APP GUIDE + TROUBLESHOOTING (single source of truth for Lyra's own help)
+registerSafeRoutes(app);
+
 // ========================================
 // The UI is deliberately minimal and chat-first, so the chat is the
 // user's manual. This text feeds both the main classifier prompt (help
@@ -2003,7 +2006,7 @@ set, or reset the RPC endpoint/node/provider for a network:
 
 "change the RPC to https://my-node.example.com"
 "use this endpoint for Plasma: https://rpc.example.com"
-"set ethereum's RPC to https://eth.llamarpc.com"
+"set ethereum's RPC to https://ethereum-rpc.publicnode.com"
 "reset the RPC" / "go back to the default RPC"
 
 use:
@@ -2327,8 +2330,10 @@ intent = "CONSOLIDATE_FUNDS"
 
 IMPORTANT:
 - If the user names a specific chain (e.g. "on Base", "sur Ethereum"),
-  put that network's lowercase key in "network" ("plasma", "ethereum",
-  "base", or "polygon"), same values as SWITCH_NETWORK. If the user
+  put that network's lowercase key in "network": "ethereum", "base",
+  "polygon", or one of the extra chains only consolidate scans:
+  "bsc" (BNB Chain, Binance), "arbitrum", "optimism", "avalanche".
+  "consolidate my BNB" means asset "BNB", network "bsc". If the user
   names a specific asset (e.g. "my USDC"), put its symbol in "asset".
   Leave either null if not mentioned, the client scans every other
   network for any non-zero balance when both are missing.
@@ -5764,6 +5769,23 @@ you must use the GET_BALANCE intent.
         action.intent = INTENT_ALIASES[action.intent];
       }
 
+      // "consolidate my BNB" / "consolide mes bnb": live-confirmed
+      // (03.10.2026) that the model answers CHAT here ("BNB isn't
+      // available on Plasma, switch network?") because the asset isn't
+      // on the active network, which is the whole point of consolidating.
+      // The verb is unambiguous, so route it ourselves; the client
+      // scans every chain and finds the real balance.
+      if (action.intent === "CHAT" && /\b(consolidat\w*|consolid\w*|sweep)\b/i.test(String(message))) {
+        const words = String(message).toLowerCase();
+        const assetMatch = words.match(/\b(bnb|eth|usdc|usdt0?|pol|matic|avax|xpl|hype|eurc)\b/);
+        const networkMatch = words.match(/\b(bsc|bnb chain|binance|arbitrum|optimism|avalanche|ethereum|base|polygon)\b/);
+        action.intent = "CONSOLIDATE_FUNDS";
+        action.asset = assetMatch ? assetMatch[1].toUpperCase() : null;
+        action.network = networkMatch ? networkMatch[1] : null;
+        action.message = "";
+        delete action.text;
+      }
+
       // Same drift as the message/asset fields above, but for
       // MULTISIG_ADD_OWNER's own field: the exact same live call that
       // used the wrong intent name also ignored "multisigNewOwners"
@@ -6249,6 +6271,8 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
 // CONVERSION USD → native coin
 // ========================================
 
+const USD_STABLECOINS = new Set(["USDT0", "USDT", "USDC", "DAI", "PYUSD", "USDE"]);
+
 if (
   action.intent === "SEND_XPL" &&
   action.amountUSD !== null &&
@@ -6263,7 +6287,30 @@ if (
     });
   }
 
-  try {
+  // A dollar amount of a USD stablecoin is that many tokens. Converting
+  // it at the native coin's price instead turned "send $0.10 of USDT0"
+  // into a ticket for 1.0469 USDT0 (0.10 / XPL price), ten times too
+  // much (seen live 03.10.2026).
+  const sendSymbol = String(action.asset || "").toUpperCase();
+  const isNativeSend = !sendSymbol || sendSymbol === String(network.nativeSymbol).toUpperCase();
+  if (!isNativeSend) {
+    if (USD_STABLECOINS.has(sendSymbol)) {
+      action.amount = usdAmount.toFixed(6);
+      action.priceUSD = 1;
+      action.amountUSD = usdAmount.toString();
+      if (action.recipient) action.requires_confirmation = true;
+      action.message = action.recipient
+        ? `$${usdAmount.toFixed(2)} is ${usdAmount.toFixed(2)} ${sendSymbol}. Check the details, then hold the button to confirm.`
+        : `$${usdAmount.toFixed(2)} is ${usdAmount.toFixed(2)} ${sendSymbol}. Which address would you like to send it to?`;
+    } else {
+      // No reliable USD price for this token here: ask for a token
+      // amount rather than guess one.
+      return res.json({
+        intent: "CHAT", amount: null, amountUSD: null, recipient: null, asset: sendSymbol, requires_confirmation: false,
+        message: `How much ${sendSymbol} do you want to send? Give me the amount in ${sendSymbol} rather than in dollars.`
+      });
+    }
+  } else try {
     const nativePrice = await getNativeUsdPrice(network.coingeckoId);
 
     const nativeAmount = usdAmount / nativePrice;

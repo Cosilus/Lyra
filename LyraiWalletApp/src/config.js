@@ -30,7 +30,7 @@ export const ETHEREUM_MAINNET = {
   name: "Ethereum",
   chainId: 1,
   chainIdHex: "0x1",
-  rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_ETH_RPC_URL) || "https://eth.llamarpc.com",
+  rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_ETH_RPC_URL) || "https://ethereum-rpc.publicnode.com",
   nativeSymbol: "ETH",
   explorer: "https://etherscan.io",
   color: "#1436be",
@@ -61,8 +61,9 @@ export const POLYGON_MAINNET = {
   chainIdHex: "0x89",
   // polygon-rpc.com was returning 401 "tenant disabled" as of 09.09.2026
   // (a real outage on their end, not a config issue), publicnode's free
-  // endpoint verified working live instead.
-  rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_POLYGON_RPC_URL) || "https://polygon-bor-rpc.publicnode.com",
+  // endpoint then took over, but it was answering "upstream overloaded"
+  // on 03.10.2026, dRPC's free endpoint verified working live instead.
+  rpcUrl: (typeof import.meta !== "undefined" && import.meta.env?.VITE_POLYGON_RPC_URL) || "https://polygon.drpc.org",
   nativeSymbol: "POL",
   explorer: "https://polygonscan.com",
   color: "#8247E5",

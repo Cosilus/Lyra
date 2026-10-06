@@ -1938,6 +1938,10 @@ button.mpc-limit-btn {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
+  /* Its hover bubbles (staked amount + APY) open over the chart below:
+     without its own layer the chart's range buttons painted on top. */
+  position: relative;
+  z-index: 30;
 }
 
 .token-balance-chip {
@@ -2042,7 +2046,9 @@ button.mpc-limit-btn {
 
 .chart-svg { width: 100%; height: 90px; display: block; }
 
-.chart-mode-view { animation: chart-mode-in 350ms ease-out both; }
+/* Its own layer above the range buttons (z-index 1): the hover tooltip
+   rises over the toolbar and was drawn under the 24h/1W/1M labels. */
+.chart-mode-view { position: relative; z-index: 2; animation: chart-mode-in 350ms ease-out both; }
 
 @keyframes chart-mode-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -3757,7 +3763,11 @@ body {
    ACTIVITY: Lyra's work log under the user's message
 ================================ */
 .activity {
-  align-self: stretch;
+  /* as wide as its line, so the chevron sits right after the text; the
+     open recap takes the full width */
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
   margin: 2px 0 6px;
   border-radius: 14px;
   background: var(--panel);
@@ -3779,7 +3789,8 @@ body {
   font-weight: 600;
   color: var(--beige);
 }
-.act-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity.open { align-self: stretch; width: auto; }
+.act-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* a new phase fades in over the same line */
 .act-phase { animation: act-phase-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
 @keyframes act-phase-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }

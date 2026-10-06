@@ -11,6 +11,8 @@ import { isDefiFeatureEnabled, getDefiFeatureInfo } from "./tools/defiProtocols.
 import { isOnramperConfigured, buildOnramperBuyUrl, buildOnramperSellUrl } from "./tools/onramper.js";
 import { searchPolymarketMarkets, getClobPrice, getPolymarketMarketByConditionId, getPolymarketPositions, getPolymarketActivity } from "./tools/polymarketTools.js";
 import { registerMpcRoutes } from "./routes/mpc.js";
+import { registerSafeRoutes } from "./routes/safe.js";
+import { registerDappRoutes } from "./routes/dapp.js";
 import crypto from "node:crypto";
 
 dotenv.config();
@@ -93,7 +95,7 @@ const serverProvidersByNetwork = new Map();
 // network.rpcUrl reads import.meta.env.VITE_ETH_RPC_URL / VITE_BASE_RPC_URL,
 // which is Vite-only. import.meta.env is always undefined in this plain
 // Node process, so the server always fell through to the hardcoded public
-// fallback RPCs (eth.llamarpc.com, mainnet.base.org) instead of the paid
+// fallback RPCs (ethereum-rpc.publicnode.com, mainnet.base.org) instead of the paid
 // Alchemy endpoints already sitting in .env. dotenv doesn't care about the
 // VITE_ prefix, so those same values are readable here as process.env,
 // use them when present instead of quietly depending on a public RPC's
@@ -173,6 +175,8 @@ app.get("/", (req, res) => {
 });
 
 registerMpcRoutes(app);
+registerSafeRoutes(app);
+registerDappRoutes(app, { resolveNetwork, getServerRpc, lookupSecurityBadges });
 
 // ========================================
 // APP GUIDE + TROUBLESHOOTING (single source of truth for Lyra's own help)
@@ -724,6 +728,8 @@ CANCEL_PREDICTION
 RECEIVE_FIAT
 OFFRAMP_FUNDS
 CONSOLIDATE_FUNDS
+MANAGE_CONNECTED_SITES
+MANAGE_APPROVALS
 MULTI_ACTION
 ASK_CRYPTO
 CHAT
@@ -2091,7 +2097,7 @@ set, or reset the RPC endpoint/node/provider for a network:
 
 "change the RPC to https://my-node.example.com"
 "use this endpoint for Plasma: https://rpc.example.com"
-"set ethereum's RPC to https://eth.llamarpc.com"
+"set ethereum's RPC to https://ethereum-rpc.publicnode.com"
 "reset the RPC" / "go back to the default RPC"
 
 use:
@@ -2480,8 +2486,10 @@ intent = "CONSOLIDATE_FUNDS"
 
 IMPORTANT:
 - If the user names a specific chain (e.g. "on Base", "sur Ethereum"),
-  put that network's lowercase key in "network" ("plasma", "ethereum",
-  "base", or "polygon"), same values as SWITCH_NETWORK. If the user
+  put that network's lowercase key in "network": "ethereum", "base",
+  "polygon", or one of the extra chains only consolidate scans:
+  "bsc" (BNB Chain, Binance), "arbitrum", "optimism", "avalanche".
+  "consolidate my BNB" means asset "BNB", network "bsc". If the user
   names a specific asset (e.g. "my USDC"), put its symbol in "asset".
   Leave either null if not mentioned, the client scans every other
   network for any non-zero balance when both are missing.
@@ -2504,6 +2512,45 @@ Response:
 }
 
 ---
+
+## MANAGE_CONNECTED_SITES
+
+Websites (dApps) connected to Lyra through its browser extension: which
+ones can see the wallet, and cutting a site off.
+
+"which sites are connected?"
+"quels sites ont accès à mon wallet ?"
+"disconnect opensea"
+"déconnecte tous les sites"
+
+use:
+
+intent = "MANAGE_CONNECTED_SITES"
+siteAction = "list" or "disconnect"
+site = the site the user named (e.g. "opensea", "app.uniswap.org"), "all"
+       for every site, or null when listing
+
+## MANAGE_APPROVALS
+
+Token permissions ("approvals", "allowances") the wallet gave to apps:
+which apps can spend which tokens, and taking a permission back
+("revoke"). Not the same as connected sites.
+
+"show my approvals"
+"who can spend my USDC?"
+"quelles applis peuvent utiliser mes tokens ?"
+"revoke uniswap's access to my USDC"
+"révoque toutes les autorisations"
+
+use:
+
+intent = "MANAGE_APPROVALS"
+approvalAction = "list" or "revoke"
+asset = the token symbol the user named, or null
+spender = the app or address the user named (e.g. "uniswap", "opensea",
+          "0x…"), "all" for every app, or null
+
+Never invent an approval: the client reads the real ones on-chain.
 
 ## MULTI_ACTION
 
@@ -2720,7 +2767,7 @@ Never put text before or after the JSON.
 Required format:
 
 {
-  "intent": "GET_BALANCE | GET_ADDRESS | RECEIVE_XPL | SEND_XPL | REFRESH_BALANCE | OPEN_WALLET | CANCEL | GET_TRANSACTIONS | SWAP_XPL | BRIDGE_XPL | STAKE_XPL | UNSTAKE_XPL | PREDICT_MARKET | CANCEL_PREDICTION | RECEIVE_FIAT | OFFRAMP_FUNDS | CONSOLIDATE_FUNDS | MULTI_ACTION | ASK_CRYPTO | CHAT | OPEN_CONTACTS | OPEN_TRANSACTION_HISTORY | OPEN_SETTINGS | SWITCH_NETWORK | SET_RPC | SET_NEXT_NONCE | REVEAL_PRIVATE_KEY | PAY_X402 | DELEGATE_A2A | ACP_CHECKOUT | OPEN_AUDIT_TRAIL | LOCK_WALLET | OPEN_SEED_EXPORT | OPEN_MULTISIG_SETUP | FIND_X402_SERVICE | GATEWAY_DEPOSIT | GATEWAY_BALANCE | OPEN_MULTISIG | MULTISIG_ADD_OWNER",
+  "intent": "GET_BALANCE | GET_ADDRESS | RECEIVE_XPL | SEND_XPL | REFRESH_BALANCE | OPEN_WALLET | CANCEL | GET_TRANSACTIONS | SWAP_XPL | BRIDGE_XPL | STAKE_XPL | UNSTAKE_XPL | PREDICT_MARKET | CANCEL_PREDICTION | RECEIVE_FIAT | OFFRAMP_FUNDS | CONSOLIDATE_FUNDS | MANAGE_CONNECTED_SITES | MANAGE_APPROVALS | MULTI_ACTION | ASK_CRYPTO | CHAT | OPEN_CONTACTS | OPEN_TRANSACTION_HISTORY | OPEN_SETTINGS | SWITCH_NETWORK | SET_RPC | SET_NEXT_NONCE | REVEAL_PRIVATE_KEY | PAY_X402 | DELEGATE_A2A | ACP_CHECKOUT | OPEN_AUDIT_TRAIL | LOCK_WALLET | OPEN_SEED_EXPORT | OPEN_MULTISIG_SETUP | FIND_X402_SERVICE | GATEWAY_DEPOSIT | GATEWAY_BALANCE | OPEN_MULTISIG | MULTISIG_ADD_OWNER",
   "amount": null,
   "amountUSD": null,
   "recipient": null,
@@ -5812,7 +5859,7 @@ ${NEVER_STUCK_RULES}
 // /api/ai below.
 const VALID_INTENTS = new Set([
   "GET_BALANCE", "REFRESH_BALANCE", "GET_ADDRESS", "RECEIVE_XPL", "RECEIVE_FIAT", "OFFRAMP_FUNDS",
-  "CONSOLIDATE_FUNDS", "OPEN_WALLET", "OPEN_CONTACTS", "OPEN_TRANSACTION_HISTORY",
+  "CONSOLIDATE_FUNDS", "MANAGE_CONNECTED_SITES", "MANAGE_APPROVALS", "OPEN_WALLET", "OPEN_CONTACTS", "OPEN_TRANSACTION_HISTORY",
   "OPEN_SETTINGS", "OPEN_AUDIT_TRAIL", "LOCK_WALLET", "OPEN_SEED_EXPORT", "OPEN_MULTISIG_SETUP", "FIND_X402_SERVICE", "GATEWAY_DEPOSIT", "GATEWAY_BALANCE", "SWITCH_NETWORK", "OPEN_MULTISIG",
   "MULTISIG_ADD_OWNER", "PAY_X402", "DELEGATE_A2A", "ACP_CHECKOUT", "SET_RPC",
   "SET_NEXT_NONCE", "GET_TRANSACTIONS", "GET_HISTORY", "SEND_XPL", "CANCEL",
@@ -6109,6 +6156,38 @@ app.post("/api/x402/explain", async (req, res) => {
   }
 });
 
+// Connected sites and token permissions: phrases explicit enough to route
+// without the model (live-confirmed 04.10.2026 that a model answered
+// "show my approvals" / "disconnect opensea" with CHAT, and when every
+// provider is down nothing reached the client at all). Questions ABOUT
+// approvals ("what is an approval?") still go to the model.
+function walletManagementShortcut(message) {
+  const text = String(message || "");
+  const lower = text.toLowerCase();
+  if (/^\s*(what|why|how|explain|qu'est|c'est quoi|pourquoi|comment)\b/i.test(lower)) return null;
+  const all = /\b(all|every|tous|toutes|tout)\b/i.test(lower);
+  const app = lower.match(/\b(uniswap|opensea|permit2|1inch|aave|kyberswap|cow ?swap|li\.?fi|jumper|polymarket|matcha|0x)\b/);
+  const address = text.match(/0x[a-fA-F0-9]{40}/)?.[0];
+  const base = { amount: null, amountUSD: null, recipient: null, message: "", requires_confirmation: false };
+
+  if (/\b(connected sites?|disconnect|déconnecte\w*)|\bsites?\b[^.?!]{0,30}(connect|accès|acces|access)/i.test(lower)) {
+    const disconnecting = /\b(disconnect|déconnecte\w*)\b/i.test(lower);
+    const domain = text.match(/\b([a-z0-9-]+\.)+[a-z]{2,}\b/i)?.[0];
+    const named = lower.replace(/.*\b(disconnect|déconnecte\w*)\b\s*/i, "").replace(/^(from |de |le |la |du )/, "").split(/\s+/)[0] || null;
+    return { ...base, intent: "MANAGE_CONNECTED_SITES", asset: null, siteAction: disconnecting ? "disconnect" : "list", site: disconnecting ? (all ? "all" : domain || app?.[1] || named) : null };
+  }
+  if (/\b(approvals?|allowances?|autorisations?|permissions?|revoke|révoque\w*|revoque\w*|who can (spend|use)|peu(t|vent) (utiliser|dépenser))\b/i.test(lower)) {
+    return {
+      ...base,
+      intent: "MANAGE_APPROVALS",
+      approvalAction: /\b(revoke|révoque\w*|revoque\w*|retire\w*|remove|supprime\w*)\b/i.test(lower) ? "revoke" : "list",
+      asset: lower.match(/\b(usdc\.e|usdc|usdt0?|eurc|weth|dai|xpl|pol)\b/)?.[1]?.toUpperCase() || null,
+      spender: all ? "all" : address || app?.[1] || null,
+    };
+  }
+  return null;
+}
+
 app.post("/api/ai", async (req, res) => {
   try {
     const {
@@ -6128,6 +6207,9 @@ app.post("/api/ai", async (req, res) => {
     }
 
     const network = resolveNetwork(networkKey);
+
+    const shortcut = walletManagementShortcut(message);
+    if (shortcut) return res.json(shortcut);
 
     // ========================================
     // One-time recovery: USDC.e mistakenly sent to a legacy Polymarket
@@ -6451,6 +6533,23 @@ you must use the GET_BALANCE intent.
       };
       if (INTENT_ALIASES[action.intent]) {
         action.intent = INTENT_ALIASES[action.intent];
+      }
+
+      // "consolidate my BNB" / "consolide mes bnb": live-confirmed
+      // (03.10.2026) that the model answers CHAT here ("BNB isn't
+      // available on Plasma, switch network?") because the asset isn't
+      // on the active network, which is the whole point of consolidating.
+      // The verb is unambiguous, so route it ourselves; the client
+      // scans every chain and finds the real balance.
+      if (action.intent === "CHAT" && /\b(consolidat\w*|consolid\w*|sweep)\b/i.test(String(message))) {
+        const words = String(message).toLowerCase();
+        const assetMatch = words.match(/\b(bnb|eth|usdc|usdt0?|pol|matic|avax|xpl|hype|eurc)\b/);
+        const networkMatch = words.match(/\b(bsc|bnb chain|binance|arbitrum|optimism|avalanche|ethereum|base|polygon)\b/);
+        action.intent = "CONSOLIDATE_FUNDS";
+        action.asset = assetMatch ? assetMatch[1].toUpperCase() : null;
+        action.network = networkMatch ? networkMatch[1] : null;
+        action.message = "";
+        delete action.text;
       }
 
       // Same drift as the message/asset fields above, but for
@@ -7068,6 +7167,8 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
 // CONVERSION USD → native coin
 // ========================================
 
+const USD_STABLECOINS = new Set(["USDT0", "USDT", "USDC", "DAI", "PYUSD", "USDE"]);
+
 if (
   action.intent === "SEND_XPL" &&
   action.amountUSD !== null &&
@@ -7082,7 +7183,30 @@ if (
     });
   }
 
-  try {
+  // A dollar amount of a USD stablecoin is that many tokens. Converting
+  // it at the native coin's price instead turned "send $0.10 of USDT0"
+  // into a ticket for 1.0469 USDT0 (0.10 / XPL price), ten times too
+  // much (seen live 03.10.2026).
+  const sendSymbol = String(action.asset || "").toUpperCase();
+  const isNativeSend = !sendSymbol || sendSymbol === String(network.nativeSymbol).toUpperCase();
+  if (!isNativeSend) {
+    if (USD_STABLECOINS.has(sendSymbol)) {
+      action.amount = usdAmount.toFixed(6);
+      action.priceUSD = 1;
+      action.amountUSD = usdAmount.toString();
+      if (action.recipient) action.requires_confirmation = true;
+      action.message = action.recipient
+        ? `$${usdAmount.toFixed(2)} is ${usdAmount.toFixed(2)} ${sendSymbol}. Check the details, then hold the button to confirm.`
+        : `$${usdAmount.toFixed(2)} is ${usdAmount.toFixed(2)} ${sendSymbol}. Which address would you like to send it to?`;
+    } else {
+      // No reliable USD price for this token here: ask for a token
+      // amount rather than guess one.
+      return res.json({
+        intent: "CHAT", amount: null, amountUSD: null, recipient: null, asset: sendSymbol, requires_confirmation: false,
+        message: `How much ${sendSymbol} do you want to send? Give me the amount in ${sendSymbol} rather than in dollars.`
+      });
+    }
+  } else try {
     const nativePrice = await getNativeUsdPrice(network.coingeckoId);
 
     const nativeAmount = usdAmount / nativePrice;

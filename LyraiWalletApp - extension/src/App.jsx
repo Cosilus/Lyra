@@ -124,7 +124,7 @@ function describeSellerRejection(body) {
 // backend (/api/x402/explain). Best effort with a hard timeout: returns
 // null on any problem and the caller shows the raw data instead.
 async function explainPurchasedContent({ url, description, amountText, body }) {
-  if (body == null || body === "") return null;
+  if (body == null || body === "" || body.nonData) return null;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000);
   try {
@@ -149,6 +149,9 @@ async function explainPurchasedContent({ url, description, amountText, body }) {
 // paid for. Capped so a huge payload can't flood the conversation.
 function formatPurchasedContent(body) {
   if (body == null || body === "") return "";
+  if (body.nonData) {
+    return "\n\nThe service answered with a web page or program code instead of data, so there's nothing readable to show. Check that this URL is a data API.";
+  }
   const MAX = 900;
   let text;
   if (typeof body === "string") {
@@ -163,6 +166,15 @@ function formatPurchasedContent(body) {
 
 function shortAddress(a) {
   return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "";
+}
+
+// Display only (the ticket still sends the exact amount): at most 3
+// decimals, and never a misleading "0" for a tiny non-zero amount.
+function formatTicketAmount(amount) {
+  const n = Number(amount);
+  if (!amount || !Number.isFinite(n) || n === 0) return "0";
+  if (n > 0 && n < 0.001) return "<0.001";
+  return n.toLocaleString("en-US", { maximumFractionDigits: 3 });
 }
 
 const AUTO_LOCK_OPTIONS = [
@@ -575,7 +587,7 @@ function recordPortfolioSnapshot(xplBalanceWei, defiValueXpl = 0, networkKey) {
 
     const next = [
       ...history,
-      { t: now, balance: balanceStr, defi: defiValueXpl, network: networkKey }
+      { t: now, balance: balanceStr, defi: defiValueXpl, network: networkKey, priced: true }
     ].slice(-MAX_HISTORY_POINTS);
 
     localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(next));
@@ -622,7 +634,14 @@ function filterHistoryByRange(history, rangeKey) {
 // a "network" field. We attach them to DEFAULT_NETWORK so they don't
 // silently disappear from the Plasma history.
 function filterHistoryByNetwork(history, networkKey) {
-  return history.filter(p => (p.network || DEFAULT_NETWORK.key) === networkKey);
+  const onNetwork = history.filter(p => (p.network || DEFAULT_NETWORK.key) === networkKey);
+  // Older snapshots were recorded before the XPL price had loaded, so
+  // their stablecoins counted as 0 (defi: 0). The first priced point
+  // after them then looked like a huge gain (+1236% on 8 USDT0, seen
+  // live). New snapshots carry `priced`; an unpriced 0 that a later
+  // point contradicts is that artifact, not real history.
+  const lastNonZeroDefi = onNetwork.reduce((at, p, i) => (p.defi > 0 ? i : at), -1);
+  return onNetwork.filter((p, i) => p.priced || p.defi > 0 || i > lastNonZeroDefi);
 }
 
 async function deriveKey(password, salt) {
@@ -1890,6 +1909,14 @@ useEffect(() => {
 
 useEffect(() => {
   let cancelled = false;
+  // Never show the previous network's price on this one (e.g. ETH's price
+  // applied to Arc's USDC balance) while the new price loads or if it fails.
+  setXplPriceUSD(null);
+  // A stablecoin native coin (Arc's USDC) is worth $1: no lookup to fail.
+  if (activeNetwork.coingeckoId === "usd-coin") {
+    setXplPriceUSD(1);
+    return;
+  }
 
   async function fetchPrice() {
     try {
@@ -2624,15 +2651,17 @@ async function unlockWithBiometric() {
     }
   }
 
-  async function refreshBalance(address = wallet?.address) {
+  // silent: the background poll below. No spinner, no status line, no toast,
+  // just the numbers updating when something arrives.
+  async function refreshBalance(address = wallet?.address, { silent = false } = {}) {
   if (!address) return;
-  setBalanceLoading(true);
+  if (!silent) setBalanceLoading(true);
   try {
-    setStatus("Reading the network…");
+    if (!silent) setStatus("Reading the network…");
     const b = await RPC.getBalance(address);
     setBalance(b);
     setBalanceReady(true);
-    setStatus(`Connected to ${activeNetwork.name}`);
+    if (!silent) setStatus(`Connected to ${activeNetwork.name}`);
 
     const [walletTokens, staked] = await Promise.all([
       refreshTokenBalances(address),
@@ -2645,17 +2674,33 @@ async function unlockWithBiometric() {
       const stakedAmt = Number(ethers.formatUnits(staked[symbol] || 0n, token.decimals));
       stableUsdValue += walletAmt + stakedAmt;
     });
-    const defiValueXpl = xplPriceUSD ? stableUsdValue / xplPriceUSD : 0;
-
-        setPortfolioHistory(recordPortfolioSnapshot(b, defiValueXpl, activeNetworkKey));
+    // Without the XPL price the stablecoins can't be counted, and a
+    // snapshot missing them would show up later as a fake jump.
+    if (stableUsdValue === 0 || xplPriceUSD) {
+      const defiValueXpl = xplPriceUSD ? stableUsdValue / xplPriceUSD : 0;
+      setPortfolioHistory(recordPortfolioSnapshot(b, defiValueXpl, activeNetworkKey));
+    }
   } catch (e) {
     console.error(e);
+    if (silent) return;
     setStatus("RPC unavailable");
     setToast("Network unavailable, couldn't refresh the balance.");
   } finally {
-    setBalanceLoading(false);
+    if (!silent) setBalanceLoading(false);
   }
 }
+
+// Anything received (native coin, any listed token, staked position) shows
+// up on its own: re-read the balances every 15s while the wallet is
+// unlocked and Lyra is on screen.
+useEffect(() => {
+  if (!wallet?.address || locked) return;
+  const t = setInterval(() => {
+    if (document.visibilityState === "visible") refreshBalance(wallet.address, { silent: true });
+  }, 15000);
+  return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [wallet?.address, locked, activeNetworkKey]);
 
   async function createWallet() {
   const w = ethers.Wallet.createRandom();
@@ -2941,13 +2986,23 @@ async function unlockWithBiometric() {
   const adapter = createEthersAdapterFromPrivateKey({ privateKey: unlockedPrivateKey });
   const kit = new SwapKit();
   const slippageBps = Math.round((ticket.slippage ?? DEFAULT_SLIPPAGE) * 10000);
-  const result = await kit.swap({
-    from: { adapter, chain: "Arc_Testnet" },
-    tokenIn: assetInSymbol,
-    tokenOut: assetOutSymbol,
-    amountIn: String(ticket.amount),
-    config: { slippageBps },
-  });
+  let result;
+  try {
+    result = await kit.swap({
+      from: { adapter, chain: "Arc_Testnet" },
+      tokenIn: assetInSymbol,
+      tokenOut: assetOutSymbol,
+      amountIn: String(ticket.amount),
+      config: { slippageBps },
+    });
+  } catch (e) {
+    // Arc Testnet's swap pools are thin: Circle returns "No route
+    // available" when it can't fill this amount right now.
+    if (/UNSUPPORTED_ROUTE|No route/i.test(String(e?.code || "") + " " + String(e?.message || ""))) {
+      throw new Error(`Circle found no route for ${ticket.amount} ${assetInSymbol} -> ${assetOutSymbol} on Arc Testnet right now (testnet liquidity is thin). Try a smaller amount or retry in a few minutes.`);
+    }
+    throw e;
+  }
 
   const tx = await fetchBroadcastTx(signer.provider, result.txHash);
   await advanceToDoneWithBeat(steps.length);
@@ -2962,7 +3017,6 @@ async function unlockWithBiometric() {
  }
  function reportLyraFee(result) {
   if (result.collected) {
-    setMessages(m => [...m, { role: "ai", text: `Lyra fee (${LYRA_FEE_PERCENT_LABEL}): ${result.amount} ${result.asset} sent to the Lyra treasury.` }]);
     logAuditEvent({ category: "fee", action: "lyra-fee", networkKey: activeNetworkKey, asset: result.asset, amount: result.amount, counterparty: LYRA_TREASURY, txHash: result.hash });
   } else {
     console.warn("Lyra fee not collected:", result.reason);
@@ -6142,12 +6196,28 @@ async function executeAIIntent(action) {
       setStatus("Scanning other networks for balances…");
       const stray = await scanForStrayBalances();
 
-      const requestedNetworkKey = action.network ? String(action.network).toLowerCase() : null;
+      // The model doesn't always use our exact keys for the extra
+      // chains ("bnb", "binance", "BNB Chain" for bsc...), and an
+      // unknown key used to filter out a balance that was really there.
+      const CONSOLIDATE_NETWORK_ALIASES = {
+        bnb: "bsc", binance: "bsc", "bnb chain": "bsc", "bnb smart chain": "bsc", "binance smart chain": "bsc",
+        arb: "arbitrum", "arbitrum one": "arbitrum",
+        op: "optimism",
+        avax: "avalanche", "avalanche c-chain": "avalanche",
+        eth: "ethereum", matic: "polygon", xpl: "plasma",
+      };
+      const rawNetwork = action.network ? String(action.network).toLowerCase().trim() : null;
+      const requestedNetworkKey = rawNetwork ? (CONSOLIDATE_NETWORK_ALIASES[rawNetwork] || rawNetwork) : null;
       const requestedAsset = action.asset ? String(action.asset).toUpperCase() : null;
 
       let candidates = stray;
-      if (requestedNetworkKey) candidates = candidates.filter(c => c.networkKey === requestedNetworkKey);
       if (requestedAsset) candidates = candidates.filter(c => c.symbol.toUpperCase() === requestedAsset);
+      // A network name we still can't match shouldn't hide the balance:
+      // only narrow by network when that leaves something to show.
+      if (requestedNetworkKey) {
+        const onNetwork = candidates.filter(c => c.networkKey === requestedNetworkKey);
+        if (onNetwork.length > 0 || !requestedAsset) candidates = onNetwork;
+      }
 
       presentConsolidationCandidates(candidates, stray);
       break;
@@ -7313,34 +7383,6 @@ function handleHoldEnd() {
 )}
             </div>
 
-          {(Object.entries(tokens).some(([symbol]) => (tokenBalances[symbol] || 0n) > 0n) ||
-            Object.entries(tokens).some(([symbol]) => (stakedBalances[symbol] || 0n) > 0n)) && (
-            <div className="token-balances-row">
-              {Object.entries(tokens)
-                .filter(([symbol]) => (tokenBalances[symbol] || 0n) > 0n || (stakedBalances[symbol] || 0n) > 0n)
-                .map(([symbol, token], chipIndex) => {
-                  const walletAmt = Number(ethers.formatUnits(tokenBalances[symbol] || 0n, token.decimals));
-                  const stakedAmt = Number(ethers.formatUnits(stakedBalances[symbol] || 0n, token.decimals));
-                  const hasStaked = stakedAmt > 0;
-                  const apy = stakedApy[symbol];
-                  return (
-                    <div className="token-balance-chip" key={symbol} style={{ "--i": chipIndex }}>
-                      <TokenLogo symbol={symbol} size={14} className="token-chip-logo" fallback={<span className="token-dot" style={{ background: token.color }} />} />
-                      {walletAmt.toLocaleString("en-US", { maximumFractionDigits: 2 })} {symbol}
-                      {hasStaked && (
-                        <span className="info-tooltip staked-info-tooltip">
-                          <Coins size={11} strokeWidth={2} />
-                          <span className="info-tooltip-bubble">
-                            <strong>{stakedAmt.toLocaleString("en-US", { maximumFractionDigits: 2 })} {symbol} staked</strong> on Aave
-                            {typeof apy === "number" ? ` · ${apy.toFixed(2)}% APY` : ""}
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
 
             {showAddFunds ? (
               <div className="add-funds-card">
@@ -7604,22 +7646,26 @@ function handleHoldEnd() {
     <div className="transaction-summary tx-confirm">
 
       <div className="tx-confirm-k">You send</div>
-      <div className="tx-confirm-amount">
-        {sendAmount || "0"} {sendAssetSymbol}
+      <div className="tx-confirm-amount" title={`${sendAmount || "0"} ${sendAssetSymbol}`}>
+        {formatTicketAmount(sendAmount)} {sendAssetSymbol}
       </div>
       {sendAmountUSD && sendPriceUSD && (
         <div className="tx-confirm-sub">≈ {Number(sendAmountUSD).toFixed(2)} $</div>
       )}
 
-      <div className="transaction-row recipient-row">
-        <span>To</span>
-        <strong title={sendTo}>
-          {contacts.find(c => c.address?.toLowerCase() === String(sendTo).toLowerCase())?.name || shortAddress(sendTo)}
-        </strong>
-      </div>
-      {/* Always the full address: a shortened one can't tell two
-          look-alike addresses apart. */}
-      <div className="tx-confirm-addr">{sendTo}</div>
+      {(() => {
+        // Contact name first when there is one, then the short address
+        // (full one on hover).
+        const contactName = contacts.find(c => c.address?.toLowerCase() === String(sendTo).toLowerCase())?.name;
+        return (
+          <div className="transaction-row recipient-row">
+            <span>To</span>
+            <strong title={sendTo}>
+              {contactName ? `${contactName} · ${shortAddress(sendTo)}` : shortAddress(sendTo)}
+            </strong>
+          </div>
+        );
+      })()}
 
       <div className="transaction-row">
         <span>Network</span>
@@ -7778,7 +7824,7 @@ function handleHoldEnd() {
           <div className="detail-row">
             <span>Conversion rate</span>
             <span>
-              1 {activeNetwork.nativeSymbol} = {Number(sendPriceUSD).toFixed(6)} $
+              1 {sendAssetSymbol} = {Number(sendPriceUSD).toFixed(6)} $
             </span>
           </div>
         )}
