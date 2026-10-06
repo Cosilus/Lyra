@@ -125,7 +125,7 @@ function describeSellerRejection(body) {
 // backend (/api/x402/explain). Best effort with a hard timeout: returns
 // null on any problem and the caller shows the raw data instead.
 async function explainPurchasedContent({ url, description, amountText, body }) {
-  if (body == null || body === "") return null;
+  if (body == null || body === "" || body.nonData) return null;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000);
   try {
@@ -150,6 +150,9 @@ async function explainPurchasedContent({ url, description, amountText, body }) {
 // paid for. Capped so a huge payload can't flood the conversation.
 function formatPurchasedContent(body) {
   if (body == null || body === "") return "";
+  if (body.nonData) {
+    return "\n\nThe service answered with a web page or program code instead of data, so there's nothing readable to show. Check that this URL is a data API.";
+  }
   const MAX = 900;
   let text;
   if (typeof body === "string") {
@@ -1908,6 +1911,14 @@ useEffect(() => {
 
 useEffect(() => {
   let cancelled = false;
+  // Never show the previous network's price on this one (e.g. ETH's price
+  // applied to Arc's USDC balance) while the new price loads or if it fails.
+  setXplPriceUSD(null);
+  // A stablecoin native coin (Arc's USDC) is worth $1: no lookup to fail.
+  if (activeNetwork.coingeckoId === "usd-coin") {
+    setXplPriceUSD(1);
+    return;
+  }
 
   async function fetchPrice() {
     try {
@@ -2985,13 +2996,23 @@ useEffect(() => {
   const adapter = createEthersAdapterFromPrivateKey({ privateKey: unlockedPrivateKey });
   const kit = new SwapKit();
   const slippageBps = Math.round((ticket.slippage ?? DEFAULT_SLIPPAGE) * 10000);
-  const result = await kit.swap({
-    from: { adapter, chain: "Arc_Testnet" },
-    tokenIn: assetInSymbol,
-    tokenOut: assetOutSymbol,
-    amountIn: String(ticket.amount),
-    config: { slippageBps },
-  });
+  let result;
+  try {
+    result = await kit.swap({
+      from: { adapter, chain: "Arc_Testnet" },
+      tokenIn: assetInSymbol,
+      tokenOut: assetOutSymbol,
+      amountIn: String(ticket.amount),
+      config: { slippageBps },
+    });
+  } catch (e) {
+    // Arc Testnet's swap pools are thin: Circle returns "No route
+    // available" when it can't fill this amount right now.
+    if (/UNSUPPORTED_ROUTE|No route/i.test(String(e?.code || "") + " " + String(e?.message || ""))) {
+      throw new Error(`Circle found no route for ${ticket.amount} ${assetInSymbol} -> ${assetOutSymbol} on Arc Testnet right now (testnet liquidity is thin). Try a smaller amount or retry in a few minutes.`);
+    }
+    throw e;
+  }
 
   const tx = await fetchBroadcastTx(signer.provider, result.txHash);
   await advanceToDoneWithBeat(steps.length);

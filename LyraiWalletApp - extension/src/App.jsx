@@ -124,7 +124,7 @@ function describeSellerRejection(body) {
 // backend (/api/x402/explain). Best effort with a hard timeout: returns
 // null on any problem and the caller shows the raw data instead.
 async function explainPurchasedContent({ url, description, amountText, body }) {
-  if (body == null || body === "") return null;
+  if (body == null || body === "" || body.nonData) return null;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000);
   try {
@@ -149,6 +149,9 @@ async function explainPurchasedContent({ url, description, amountText, body }) {
 // paid for. Capped so a huge payload can't flood the conversation.
 function formatPurchasedContent(body) {
   if (body == null || body === "") return "";
+  if (body.nonData) {
+    return "\n\nThe service answered with a web page or program code instead of data, so there's nothing readable to show. Check that this URL is a data API.";
+  }
   const MAX = 900;
   let text;
   if (typeof body === "string") {
@@ -1906,6 +1909,14 @@ useEffect(() => {
 
 useEffect(() => {
   let cancelled = false;
+  // Never show the previous network's price on this one (e.g. ETH's price
+  // applied to Arc's USDC balance) while the new price loads or if it fails.
+  setXplPriceUSD(null);
+  // A stablecoin native coin (Arc's USDC) is worth $1: no lookup to fail.
+  if (activeNetwork.coingeckoId === "usd-coin") {
+    setXplPriceUSD(1);
+    return;
+  }
 
   async function fetchPrice() {
     try {
@@ -2640,15 +2651,17 @@ async function unlockWithBiometric() {
     }
   }
 
-  async function refreshBalance(address = wallet?.address) {
+  // silent: the background poll below. No spinner, no status line, no toast,
+  // just the numbers updating when something arrives.
+  async function refreshBalance(address = wallet?.address, { silent = false } = {}) {
   if (!address) return;
-  setBalanceLoading(true);
+  if (!silent) setBalanceLoading(true);
   try {
-    setStatus("Reading the network…");
+    if (!silent) setStatus("Reading the network…");
     const b = await RPC.getBalance(address);
     setBalance(b);
     setBalanceReady(true);
-    setStatus(`Connected to ${activeNetwork.name}`);
+    if (!silent) setStatus(`Connected to ${activeNetwork.name}`);
 
     const [walletTokens, staked] = await Promise.all([
       refreshTokenBalances(address),
@@ -2669,12 +2682,25 @@ async function unlockWithBiometric() {
     }
   } catch (e) {
     console.error(e);
+    if (silent) return;
     setStatus("RPC unavailable");
     setToast("Network unavailable, couldn't refresh the balance.");
   } finally {
-    setBalanceLoading(false);
+    if (!silent) setBalanceLoading(false);
   }
 }
+
+// Anything received (native coin, any listed token, staked position) shows
+// up on its own: re-read the balances every 15s while the wallet is
+// unlocked and Lyra is on screen.
+useEffect(() => {
+  if (!wallet?.address || locked) return;
+  const t = setInterval(() => {
+    if (document.visibilityState === "visible") refreshBalance(wallet.address, { silent: true });
+  }, 15000);
+  return () => clearInterval(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [wallet?.address, locked, activeNetworkKey]);
 
   async function createWallet() {
   const w = ethers.Wallet.createRandom();
@@ -2960,13 +2986,23 @@ async function unlockWithBiometric() {
   const adapter = createEthersAdapterFromPrivateKey({ privateKey: unlockedPrivateKey });
   const kit = new SwapKit();
   const slippageBps = Math.round((ticket.slippage ?? DEFAULT_SLIPPAGE) * 10000);
-  const result = await kit.swap({
-    from: { adapter, chain: "Arc_Testnet" },
-    tokenIn: assetInSymbol,
-    tokenOut: assetOutSymbol,
-    amountIn: String(ticket.amount),
-    config: { slippageBps },
-  });
+  let result;
+  try {
+    result = await kit.swap({
+      from: { adapter, chain: "Arc_Testnet" },
+      tokenIn: assetInSymbol,
+      tokenOut: assetOutSymbol,
+      amountIn: String(ticket.amount),
+      config: { slippageBps },
+    });
+  } catch (e) {
+    // Arc Testnet's swap pools are thin: Circle returns "No route
+    // available" when it can't fill this amount right now.
+    if (/UNSUPPORTED_ROUTE|No route/i.test(String(e?.code || "") + " " + String(e?.message || ""))) {
+      throw new Error(`Circle found no route for ${ticket.amount} ${assetInSymbol} -> ${assetOutSymbol} on Arc Testnet right now (testnet liquidity is thin). Try a smaller amount or retry in a few minutes.`);
+    }
+    throw e;
+  }
 
   const tx = await fetchBroadcastTx(signer.provider, result.txHash);
   await advanceToDoneWithBeat(steps.length);
@@ -7347,34 +7383,6 @@ function handleHoldEnd() {
 )}
             </div>
 
-          {(Object.entries(tokens).some(([symbol]) => (tokenBalances[symbol] || 0n) > 0n) ||
-            Object.entries(tokens).some(([symbol]) => (stakedBalances[symbol] || 0n) > 0n)) && (
-            <div className="token-balances-row">
-              {Object.entries(tokens)
-                .filter(([symbol]) => (tokenBalances[symbol] || 0n) > 0n || (stakedBalances[symbol] || 0n) > 0n)
-                .map(([symbol, token], chipIndex) => {
-                  const walletAmt = Number(ethers.formatUnits(tokenBalances[symbol] || 0n, token.decimals));
-                  const stakedAmt = Number(ethers.formatUnits(stakedBalances[symbol] || 0n, token.decimals));
-                  const hasStaked = stakedAmt > 0;
-                  const apy = stakedApy[symbol];
-                  return (
-                    <div className="token-balance-chip" key={symbol} style={{ "--i": chipIndex }}>
-                      <TokenLogo symbol={symbol} size={14} className="token-chip-logo" fallback={<span className="token-dot" style={{ background: token.color }} />} />
-                      {walletAmt.toLocaleString("en-US", { maximumFractionDigits: 2 })} {symbol}
-                      {hasStaked && (
-                        <span className="info-tooltip staked-info-tooltip">
-                          <Coins size={11} strokeWidth={2} />
-                          <span className="info-tooltip-bubble">
-                            <strong>{stakedAmt.toLocaleString("en-US", { maximumFractionDigits: 2 })} {symbol} staked</strong> on Aave
-                            {typeof apy === "number" ? ` · ${apy.toFixed(2)}% APY` : ""}
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
 
             {showAddFunds ? (
               <div className="add-funds-card">
