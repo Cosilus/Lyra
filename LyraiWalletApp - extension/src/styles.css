@@ -2693,40 +2693,49 @@ button.mpc-limit-btn {
    UNLOCK SCREEN, redesign
 ================================ */
 
-.unlock-panel {
+/* Full-screen entry screens (first-visit welcome and unlock), with the
+   3D Lyra logo on top. */
+.entry-screen {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(var(--accent-rgb), 0.16), transparent 55%),
+    var(--void);
+  animation: contactsOverlayIn 0.25s ease-out;
+}
+
+.entry-panel {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 32px 24px 24px;
 }
 
-.unlock-icon-circle {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 18px;
-  color: var(--accent-strong);
-  background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
-  box-shadow: 0 0 30px -4px rgba(var(--accent-rgb), 0.45);
-  border: 1px solid var(--line);
+.entry-logo {
+  width: min(200px, 52vw);
+  margin-bottom: 6px;
 }
 
-.unlock-title {
-  font-size: 20px;
+.entry-wordmark {
+  font-size: 34px;
   font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--beige);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.unlock-subtitle {
-  font-size: 13px;
+.entry-tagline {
+  font-size: 14px;
   color: var(--muted);
   line-height: 1.5;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
   max-width: 280px;
 }
+
+.entry-actions { margin-top: 0; margin-bottom: 6px; }
 
 .unlock-password-field {
   width: 100%;
@@ -3989,3 +3998,105 @@ body {
 .header-rewards:hover { background: var(--accent-soft); border-color: var(--accent); box-shadow: 0 0 16px -4px rgba(var(--accent-rgb), 0.6); }
 .header-rewards:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .header-rewards.is-hidden { opacity: 0; pointer-events: none; }
+
+/* ================================
+   FLOATING CARD (extension on a website, see cardBridge.js / public/overlay.js)
+   This frame is bigger than the wallet: transparent margins on the left, right
+   and top hold the 3D menus, which open outside the wallet. The wallet itself
+   (#root) sits in the middle at a fixed size and never moves.
+   Keep --card-side / --card-top in sync with SIDE_PX / TOP_PX in overlay.js.
+   ================================ */
+html.lyra-card {
+  --card-side: 96px;
+  --card-top: 110px;
+  --card-radius: 28px;
+  background: transparent;
+  color-scheme: dark;
+}
+html.lyra-card body {
+  min-height: 0;
+  background: transparent;
+  overflow: hidden;
+}
+html.lyra-card #root,
+html.lyra-card #card-overlays {
+  position: fixed;
+  top: var(--card-top);
+  left: var(--card-side);
+  right: var(--card-side);
+  bottom: 0;
+}
+/* Fixed-position overlays inside are laid over the wallet, not the whole frame. */
+html.lyra-card #root { transform: translateZ(0); }
+html.lyra-card #card-overlays {
+  transform: translateZ(0);
+  pointer-events: none;
+  border-radius: var(--card-radius);
+  overflow: hidden;
+}
+html.lyra-card #card-overlays > * { pointer-events: auto; }
+
+html.lyra-card .page {
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  overflow: visible;
+}
+html.lyra-card .frame {
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border-radius: var(--card-radius);
+}
+html.lyra-card .d3-scene { height: 100%; }
+html.lyra-card .d3-face--front,
+html.lyra-card .d3-face--back,
+html.lyra-card .d3-face--front > .frame { border-radius: var(--card-radius); }
+/* The wallet never turns inside the card (the whole card does, in
+   overlay.js): drop its 3D stage (perspective, depth faces, layer hint) so
+   Chrome draws it as plain, sharp content instead of a 3D texture. */
+html.lyra-card .d3-stage { perspective: none; }
+html.lyra-card .d3-box { will-change: auto; transform-style: flat; }
+html.lyra-card .d3-room { transform: none !important; transform-style: flat; }
+html.lyra-card .d3-face--front { transform: none !important; }
+html.lyra-card .d3-face--back,
+html.lyra-card .d3-skirt { display: none; }
+
+/* The card's own shadow is drawn by the overlay, outside this frame. While a
+   menu is open the wallet shrinks a little (CARD_DOCK.scale), with exactly the
+   same transition as that shadow in overlay.js so the two move as one. */
+html.lyra-card .d3-face--front {
+  box-shadow: none;
+  transition: scale 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+html.lyra-card .d3-scene--docked .d3-face--front { scale: 0.94; }
+@media (prefers-reduced-motion: reduce) {
+  html.lyra-card .d3-scene--docked .d3-face--front { scale: none; }
+}
+
+/* Side menus: just outside the wallet's left/right edges. No drop shadow or
+   glow around the menus here: on a light website they read as a grey smudge. */
+html.lyra-card .d3-side-menu,
+html.lyra-card .d3-side-menu--show,
+html.lyra-card .d3-assets-menu,
+html.lyra-card .d3-assets-menu--show { box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.18); }
+html.lyra-card .d3-side-menu--left { right: calc(100% + 14px - var(--card-dock-dx, 0px)); left: auto; }
+html.lyra-card .d3-side-menu,
+html.lyra-card .d3-assets-menu {
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.35s cubic-bezier(0.22, 1, 0.36, 1), right 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    bottom 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+html.lyra-card .d3-side-menu--right { left: calc(100% + 14px - var(--card-dock-dx, 0px)); right: auto; }
+
+/* Assets menu: above the wallet, in the top margin. */
+html.lyra-card .d3-assets-menu {
+  top: auto;
+  bottom: calc(100% + 12px - var(--card-dock-dy, 0px));
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(var(--card-top) - 20px);
+  overflow-y: auto;
+  transform: translateX(-50%) translateY(14px) scale(0.94);
+}
+html.lyra-card .d3-assets-menu--show { transform: translateX(-50%) translateY(0) scale(1); }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMotionValue, useSpring } from "framer-motion";
-import { BOX, DOCK, PARALLAX, REDUCED_MOTION_SCALE, SIDE_DOCK, TOP_DOCK } from "./config3d.js";
+import { BOX, CARD_DOCK, DOCK, PARALLAX, REDUCED_MOTION_SCALE, SIDE_DOCK, TOP_DOCK } from "./config3d.js";
+import { IS_CARD } from "../cardBridge.js";
 
 // Where the box goes when docked to a side: it moves away from the menu and shrinks a bit.
 function sidePose(side) {
@@ -12,9 +13,10 @@ function sidePose(side) {
   return { scale, shiftX: (side === "right" ? -1 : 1) * shift };
 }
 
-// Mouse position (or device tilt, or idle drift) -> box rotation, with
-// "docking": reaching an edge catches the tilt at its max and reports
-// dockedSide ("left" | "right" | "top") so the caller can open a menu.
+// Mouse position (or device tilt) -> box pose. The box stays flat while
+// the pointer moves over it; only reaching an edge "docks" it: the tilt
+// catches at its max and dockedSide ("left" | "right" | "top") is
+// reported so the caller can open a menu.
 // `paused` freezes everything flat (used while a real modal is open).
 export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = null, tiltEnabled = false) {
   const rawRotateX = useMotionValue(0);
@@ -46,6 +48,17 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
     }
 
     // Guided tour: pin the box in a given dock pose, ignore the mouse.
+    // In the floating card the wallet never moves: only the menu opens.
+    if (forcedDock && IS_CARD) {
+      rawRotateY.set(0);
+      rawShiftX.set(0);
+      rawRotateX.set(0);
+      rawShiftY.set(0);
+      rawScale.set(1);
+      dockedRef.current = forcedDock;
+      setDockedSide(forcedDock);
+      return;
+    }
     if (forcedDock) {
       const f = REDUCED_MOTION_SCALE && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? REDUCED_MOTION_SCALE : 1;
       rawScale.set(1);
@@ -73,10 +86,9 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
     media.addEventListener("change", onChange);
     const scaleFactor = () => (reducedRef.current ? REDUCED_MOTION_SCALE : 1);
 
-    const applyFromNormalized = (nx) => {
-      const s = scaleFactor();
-      rawRotateY.set(-nx * PARALLAX.maxTiltDeg * s);
-      rawShiftX.set(-nx * PARALLAX.maxShiftPx * s);
+    const resetFlat = () => {
+      rawRotateY.set(0);
+      rawShiftX.set(0);
       rawRotateX.set(0);
       rawShiftY.set(0);
       rawScale.set(1);
@@ -89,7 +101,7 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
 
     // Coming back from a pinned (tour) pose or a re-setup: start flat.
     releaseDock();
-    applyFromNormalized(0);
+    resetFlat();
 
     const handlePosition = (nx, ny) => {
       const docked = dockedRef.current;
@@ -102,7 +114,8 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
         releaseDock();
       }
 
-      applyFromNormalized(nx);
+      // No edge reached: the box stays still, no follow-the-pointer tilt.
+      resetFlat();
 
       const s = scaleFactor();
       if (Math.abs(nx) >= DOCK.thresholdNx) {
@@ -122,12 +135,53 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
       }
     };
 
+    // Floating card (extension on a website): the wallet stays still, the menus
+    // open outside it. A menu opens when the mouse reaches that edge of the
+    // wallet and stays open while the mouse is on the menu or near that edge.
+    const handleCardPosition = (x, y) => {
+      const stage = document.querySelector(".d3-stage");
+      if (!stage) return;
+      const r = stage.getBoundingClientRect();
+      const docked = dockedRef.current;
+      if (docked === "left" && x < r.left + CARD_DOCK.holdPx) return;
+      if (docked === "right" && x > r.right - CARD_DOCK.holdPx) return;
+      if (docked === "top" && (y < r.top + CARD_DOCK.holdPx || isTopMenuHovered?.())) return;
+
+      let side = null;
+      if (x < r.left + CARD_DOCK.edgePx) side = "left";
+      else if (x > r.right - CARD_DOCK.edgePx) side = "right";
+      else if (y < r.top + CARD_DOCK.edgePx) side = "top";
+      if (side !== docked) {
+        dockedRef.current = side;
+        setDockedSide(side);
+      }
+    };
+
+
     const hasFinePointer = window.matchMedia("(pointer: fine)").matches;
     let cleanupPointer;
     let cleanupOrientation;
-    let idleRaf = 0;
 
-    if (hasFinePointer) {
+    if (IS_CARD) {
+      const onMove = (e) => handleCardPosition(e.clientX, e.clientY);
+      const onLeave = () => releaseDock();
+      const onEdge = (e) => {
+        const side = e.detail;
+        if (dockedRef.current === side) return;
+        dockedRef.current = side;
+        setDockedSide(side);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("lyra-pointer-left", onLeave);
+      window.addEventListener("lyra-pointer-edge", onEdge);
+      window.addEventListener("blur", onLeave);
+      cleanupPointer = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("lyra-pointer-left", onLeave);
+        window.removeEventListener("lyra-pointer-edge", onEdge);
+        window.removeEventListener("blur", onLeave);
+      };
+    } else if (hasFinePointer) {
       const onMove = (e) => {
         const nx = (e.clientX / window.innerWidth) * 2 - 1;
         const ny = (e.clientY / window.innerHeight) * 2 - 1;
@@ -135,18 +189,22 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
       };
       const onLeave = () => {
         releaseDock();
-        applyFromNormalized(0);
+        resetFlat();
       };
+      // In the floating card, leaving the wallet for the page is reported
+      // by cardBridge.js ("lyra-pointer-left"): the frame itself gets no
+      // reliable leave event then.
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerleave", onLeave);
+      window.addEventListener("lyra-pointer-left", onLeave);
       window.addEventListener("blur", onLeave);
       cleanupPointer = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerleave", onLeave);
+        window.removeEventListener("lyra-pointer-left", onLeave);
         window.removeEventListener("blur", onLeave);
       };
     } else {
-      let gotOrientation = false;
       // Touch devices: tilt is opt-in (see TiltActivation). The neutral
       // pose is however the user holds the phone at that moment, not
       // beta/gamma = 0, then gamma/beta deltas map to nx/ny.
@@ -156,7 +214,6 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
       const onOrientation = (e) => {
         if (e.beta == null || e.gamma == null) return;
         if (!neutral) neutral = { beta: e.beta, gamma: e.gamma };
-        gotOrientation = true;
         let nx = -clampUnit((e.gamma - neutral.gamma) / 28);
         let ny = clampUnit((e.beta - neutral.beta) / 24);
         if (Math.abs(nx) < DEAD) nx = 0;
@@ -180,25 +237,12 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
         window.removeEventListener("deviceorientation", onOrientation);
         document.removeEventListener("visibilitychange", onVisibility);
       };
-
-      const start = performance.now();
-      const tick = (now) => {
-        if (!gotOrientation) {
-          const s = scaleFactor();
-          const t = (now - start) / PARALLAX.idleDriftPeriodMs;
-          const nx = Math.sin(t * Math.PI * 2) * (PARALLAX.idleDriftDeg / PARALLAX.maxTiltDeg);
-          applyFromNormalized(nx * s);
-        }
-        idleRaf = requestAnimationFrame(tick);
-      };
-      idleRaf = requestAnimationFrame(tick);
     }
 
     return () => {
       media.removeEventListener("change", onChange);
       cleanupPointer?.();
       cleanupOrientation?.();
-      if (idleRaf) cancelAnimationFrame(idleRaf);
     };
   }, [paused, forcedDock, tiltEnabled, rawRotateX, rawRotateY, rawShiftX, rawShiftY, rawScale, isTopMenuHovered]);
 

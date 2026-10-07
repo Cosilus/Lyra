@@ -5,8 +5,6 @@ export const PARALLAX = {
   maxTiltDeg: 10,
   maxShiftPx: 0,
   spring: { stiffness: 120, damping: 18, mass: 0.6 },
-  idleDriftDeg: 2.5,
-  idleDriftPeriodMs: 9000,
 };
 
 export const DOCK = {
@@ -23,6 +21,16 @@ export const DOCK = {
   itemStaggerMs: 130,
   itemStepPx: 52,
 };
+
+// Floating card on a website (extension, see cardBridge.js): the wallet never moves, the menus
+// open outside it. edgePx: how close to a wallet edge the mouse must get to open that menu;
+// holdPx: the menu stays open while the mouse is within this distance of the edge (or past it,
+// on the menu itself).
+// scale: while a menu is open the wallet shrinks a little (the menus keep their size and move in
+// to keep the same gap). The shrink itself is a CSS transition (card rules in styles.css), the
+// same one the card's shadow uses in public/overlay.js, so both move as one: keep the value and
+// the timing in sync with MENU_SCALE / MENU_EASE there.
+export const CARD_DOCK = { edgePx: 18, holdPx: 70, scale: 0.94 };
 
 export const TOP_DOCK = { tiltDeg: 14, scale: 0.9, shiftYPx: 46 };
 

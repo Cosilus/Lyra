@@ -5,8 +5,6 @@ export const PARALLAX = {
   maxTiltDeg: 10,
   maxShiftPx: 0,
   spring: { stiffness: 120, damping: 18, mass: 0.6 },
-  idleDriftDeg: 2.5,
-  idleDriftPeriodMs: 9000,
 };
 
 export const DOCK = {

@@ -1,9 +1,10 @@
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BOX, DOCK } from "./config3d.js";
+import { BOX, CARD_DOCK, DOCK } from "./config3d.js";
 import { useParallax3d } from "./useParallax3d.js";
 import { Tour3D, TOUR_STEPS } from "./Tour3D.jsx";
 import { TokenLogo } from "../tokenLogo.jsx";
+import { IS_CARD, reportCardDock } from "../cardBridge.js";
 import "./three-d.css";
 
 // The box is 420 x up to 820 on a normal window, but must also fit a narrow, tall
@@ -27,6 +28,13 @@ function viewportSize() {
 }
 
 function computeBoxSize() {
+  // Floating card: the wallet fills its area (#root, see the card rules in three-d.css);
+  // the rest of the frame is the transparent margin the menus open into.
+  if (IS_CARD) {
+    const root = document.getElementById("root");
+    const w = root?.clientWidth || 0, h = root?.clientHeight || 0;
+    return { width: w >= MIN_VIEW_W ? w : FALLBACK_VIEW_W, height: h >= MIN_VIEW_H ? h : FALLBACK_VIEW_H };
+  }
   const { vw, vh } = viewportSize();
   // Side panel / phone: the box IS the window, edge to edge (straight corners, see three-d.css).
   if (vw <= BOX.fillBelowPx) return { width: vw, height: vh };
@@ -150,10 +158,22 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
   const assetsMenuHoveredRef = useRef(false);
   const isAssetsMenuHovered = useCallback(() => assetsMenuHoveredRef.current, []);
   const { rotateX, rotateY, shiftX, shiftY, scale, dockedSide } = useParallax3d(paused, isAssetsMenuHovered, forcedDock, tiltEnabled);
+  useEffect(() => {
+    if (IS_CARD) reportCardDock(dockedSide);
+  }, [dockedSide]);
 
   return (
     <div className={`d3-scene${dockedSide ? " d3-scene--docked" : ""}`}>
-      <div className="d3-stage" style={{ width, height }}>
+      <div
+        className="d3-stage"
+        style={{
+          width,
+          height,
+          // Floating card: the wallet shrinks a little while a menu is open (the menus don't), so the
+          // menus move in by as much to keep the same gap (card rules in styles.css).
+          ...(IS_CARD && dockedSide && !window.matchMedia("(prefers-reduced-motion: reduce)").matches ? { "--card-dock-dx": `${(width * (1 - CARD_DOCK.scale)) / 2}px`, "--card-dock-dy": `${(height * (1 - CARD_DOCK.scale)) / 2}px` } : null),
+        }}
+      >
       <SideMenu side={dockedSide} items={leftItems} position="left" spotIndex={step?.dock === "left" ? step.index : -1} />
       <SideMenu side={dockedSide} items={rightItems} position="right" spotIndex={step?.dock === "right" ? step.index : -1} />
       <AssetsTopMenu
