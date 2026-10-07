@@ -8,8 +8,11 @@ import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
 import { LYRA_TREASURY, LYRA_FEE_PERCENT_LABEL, feeOf, splitOnTop, toRaw, isFeeExempt, assetInfo, usdPerUnit, feeIsWorthCharging, includedFeePreview, collectLyraFee, runWithLyraFee, estimateAfterFee } from "./fees.js";
 import { parseUiModeCommand } from "./uiModeCommand.js";
+import { parseNetworkCommand } from "./networkCommand.js";
 import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiometricPresence, encryptWithKey, decryptWithKey } from "./Biometric";
 import { splitPrivateKey, combineFragments, registerMpcWallet, getMpcStatus, setMpcDailyLimit, releaseFragment2, recoverFragment2 } from "./mpc";
+import { loadSavedWallet, encryptPrivateKey, decryptPrivateKey, reconstructPrivateKey } from "./walletVault.js";
+import { syncAddress } from "./providerSync.js";
 import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodePaymentResponseHeader, decodePaymentRequiredHeader, findEip3009SettlementTx, selectGatewayOptions, signGatewayPayment, fetchGatewayBalances, GATEWAY_NETWORKS, GATEWAY_WALLET_MAINNET, GATEWAY_WALLET_ABI } from "./x402";
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
 import { DEMO_A2A_AGENT_URL, sendA2ATask, fetchAgentCard } from "./a2a";
@@ -59,11 +62,13 @@ import { CircleMenu } from "./CircleMenu";
 import { RewardsPanel } from "./Rewards.jsx";
 import { createPortal } from "react-dom";
 import { Box3D } from "./three-d/Box3D.jsx";
+import Logo3D from "./three-d/Logo3D.jsx";
 import { loadUiMode, saveUiMode, hasSeenTour, markTourSeen } from "./three-d/uiMode.js";
 import { InterfaceChooser } from "./three-d/InterfaceChooser.jsx";
 import { ActivityBlock } from "./three-d/ActivityBlock.jsx";
 import { HelpFaq } from "./three-d/HelpFaq.jsx";
 import { TokenLogo } from "./tokenLogo.jsx";
+import { IS_CARD } from "./cardBridge.js";
 import { TiltActivation, isTouchOnly, needsMotionPermission, rememberTilt, tiltRemembered } from "./three-d/TiltActivation.jsx";
 
 // In the 3D interface the wallet frame lives inside a perspective +
@@ -105,7 +110,9 @@ function clearBackupPendingStorage() {
 }
 
 function OverlayPortal({ active, children }) {
-  return active ? createPortal(children, document.body) : <>{children}</>;
+  // In the floating card the overlays cover the wallet area only, not the
+  // whole frame with its transparent menu margins (see cardBridge.js).
+  return active ? createPortal(children, (IS_CARD && document.getElementById("card-overlays")) || document.body) : <>{children}</>;
 }
 
 // Turns the reason a seller (or Circle Gateway) gives when it refuses a
@@ -455,15 +462,6 @@ function completedSummaryLine(step) {
   }
 }
 
-function loadSavedWallet() {
-  try {
-    return JSON.parse(
-      localStorage.getItem("plasma_wallet_v2") || "null"
-    );
-  } catch {
-    return null;
-  }
-}
 
 function loadBiometricRecord() {
   try { return JSON.parse(localStorage.getItem("plasma_biometric_v1") || "null"); }
@@ -644,123 +642,6 @@ function filterHistoryByNetwork(history, networkKey) {
   return onNetwork.filter((p, i) => p.priced || p.defi > 0 || i > lastNonZeroDefi);
 }
 
-async function deriveKey(password, salt) {
-  const encoder = new TextEncoder();
-
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveKey"]
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: 310000,
-      hash: "SHA-256"
-    },
-    keyMaterial,
-    {
-      name: "AES-GCM",
-      length: 256
-    },
-    false,
-    ["encrypt", "decrypt"]
-  );
-}
-
-function uint8ToBase64(bytes) {
-  let binary = "";
-  bytes.forEach(b => {
-    binary += String.fromCharCode(b);
-  });
-
-  return btoa(binary);
-}
-
-function base64ToUint8(base64) {
-  const binary = atob(base64);
-
-  return Uint8Array.from(
-    binary,
-    char => char.charCodeAt(0)
-  );
-}
-
-async function encryptPrivateKey(privateKey, password) {
-  const encoder = new TextEncoder();
-
-  const salt = crypto.getRandomValues(
-    new Uint8Array(16)
-  );
-
-  const iv = crypto.getRandomValues(
-    new Uint8Array(12)
-  );
-
-  const key = await deriveKey(password, salt);
-
-  const encrypted = await crypto.subtle.encrypt(
-    {
-      name: "AES-GCM",
-      iv
-    },
-    key,
-    encoder.encode(privateKey)
-  );
-
-  return {
-    salt: uint8ToBase64(salt),
-    iv: uint8ToBase64(iv),
-    ciphertext: uint8ToBase64(
-      new Uint8Array(encrypted)
-    )
-  };
-}
-
-async function decryptPrivateKey(encryptedWallet, password) {
-  const decoder = new TextDecoder();
-
-  const salt = base64ToUint8(
-    encryptedWallet.salt
-  );
-
-  const iv = base64ToUint8(
-    encryptedWallet.iv
-  );
-
-  const ciphertext = base64ToUint8(
-    encryptedWallet.ciphertext
-  );
-
-  const key = await deriveKey(password, salt);
-
-  const decrypted = await crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv
-    },
-    key,
-    ciphertext
-  );
-
-  return decoder.decode(decrypted);
-}
-
-// Turns whatever decryptPrivateKey() just handed back into the actual
-// signing key. For a non-MPC wallet, `localSecret` already *is* the
-// full private key (unchanged behavior). For an MPC wallet,
-// `localSecret` is only fragment1 -- fragment2 has to come from the
-// backend (spending-limit + biometric gated there) before the two can
-// be XORed back into a usable key, entirely in memory, here.
-async function reconstructPrivateKey(localSecret, address, mpcRecord, opts = {}) {
-  if (!mpcRecord) return localSecret;
-  const fragment2 = await releaseFragment2(address, opts);
-  return combineFragments(localSecret, fragment2);
-}
 
 function findContact(name) {
   const contacts = loadContacts();
@@ -982,6 +863,10 @@ export default function App() {
   }, [wallet?.address, locked]);
 
   const [showWallet, setShowWallet] = useState(false);
+  // First-visit welcome screen ("Get started"), shown before the
+  // create/import panel when no wallet is saved on this device.
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [walletPanelMode, setWalletPanelMode] = useState("create");
   const [showSend, setShowSend] = useState(false);
   const [sendTo, setSendTo] = useState("");
   const [sendAmount, setSendAmount] = useState("");
@@ -1086,6 +971,14 @@ export default function App() {
   const [newContactAddress, setNewContactAddress] = useState("");
   const [pendingMnemonic, setPendingMnemonic] = useState(null);
   const [showPasswordSetup, setShowPasswordSetup] = useState(false);
+
+  // Websites connected to Lyra see the address of the wallet saved on this
+  // device (public/providerBackground.js). Read from storage rather than from
+  // `wallet`, which is still empty on the first render and holds a not yet
+  // secured wallet during setup; re-checked when the password setup closes.
+  useEffect(() => {
+    syncAddress(loadSavedWallet()?.address || null);
+  }, [wallet?.address, showPasswordSetup]);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSetupError, setPasswordSetupError] = useState("");
@@ -1886,6 +1779,7 @@ useEffect(() => {
 
   const saved = useMemo(loadSavedWallet, []);
 
+
   useEffect(() => {
   const saved = loadSavedWallet();
 
@@ -1897,7 +1791,7 @@ useEffect(() => {
     setLocked(true);
     setShowUnlock(true);
   } else {
-    setShowWallet(true);
+    setShowWelcome(true);
   }
 }, []);
 
@@ -2360,7 +2254,7 @@ function resetWallet() {
   setLocked(false);
   setShowSettings(false);
   setShowResetConfirm(false);
-  setShowWallet(true);
+  setShowWelcome(true);
   setBalance(0n);
   setMessages([]);
   setActivityRuns([]);
@@ -2795,6 +2689,9 @@ useEffect(() => {
 
     setForgotError("");
     setPendingPrivateKey(w.privateKey);
+    // Re-store the phrase under the new password too, otherwise "Show
+    // recovery phrase" stops working after a reset.
+    setPendingMnemonic(phrase);
     setResetMpcEnabled(!!saved.mpcEnabled);
     setPasswordSetupMode("reset");
     setShowForgotPassword(false);
@@ -5639,6 +5536,9 @@ const signer = new ethers.Wallet(
   // common ones to plain language the user can actually act on, and
   // only fall back to the raw message for genuinely unrecognized cases.
   function friendlyErrorText(e) {
+    if (e.serverUnreachable) {
+      return `❌ Lyra's server isn't answering (${API_BASE_URL}). Check that the backend is running, then try again.`;
+    }
     if (e.message === "Failed to fetch") {
       return "❌ Lost connection before this could finish (this can happen on a slow network, some of these requests need several round trips). Please try again.";
     }
@@ -5799,6 +5699,17 @@ const signer = new ethers.Wallet(
     changeUiMode(uiModeCmd);
     return;
   }
+  const networkCmd = parseNetworkCommand(text);
+  if (networkCmd) {
+    const target = getNetworkByKey(networkCmd);
+    setMessages(m => [
+      ...m,
+      { role: "user", text },
+      { role: "ai", text: networkCmd === activeNetworkKey ? `You're already on ${target.name}.` : `Switched to ${target.name}.` }
+    ]);
+    switchNetwork(networkCmd);
+    return;
+  }
   try {
     setBusy(true);
     setStatus("Lyra redefine...");
@@ -5830,6 +5741,10 @@ const signer = new ethers.Wallet(
       network: activeNetworkKey
     })
     })
+      .catch(() => {
+        // fetch() itself failed: Lyra's server didn't answer at all.
+        throw Object.assign(new Error("Failed to fetch"), { serverUnreachable: true });
+      })
       .then(async (r) => ({ ok: r.ok, data: await r.json() }))
       .finally(() => { aiDone = true; });
     aiRequest.catch(() => { /* handled where it is awaited below */ });
@@ -7181,7 +7096,7 @@ function handleHoldEnd() {
   ];
 
   const anyOverlayOpen =
-    showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showRewards || showReceiveQr || showTxHistory || showUnlock || showWallet ||
+    showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showRewards || showReceiveQr || showTxHistory || showUnlock || showWallet || showWelcome ||
     showPasswordSetup || showSend || !!defiTicket || !!multiTicket;
 
   const frame = (
@@ -7507,8 +7422,11 @@ function handleHoldEnd() {
 
         <div className="wallet-modal" style={{display: showWallet ? "flex" : "none"}}>
           <WalletPanel
+            key={walletPanelMode}
+            initialMode={walletPanelMode}
             existing={!!wallet}
             onClose={() => setShowWallet(false)}
+            onBack={wallet ? null : () => { setShowWallet(false); setShowWelcome(true); }}
             onCreate={createWallet}
             onImport={importWallet}
           />
@@ -8677,16 +8595,49 @@ function handleHoldEnd() {
   </div>
 )}
 
-        {showUnlock && (
-  <div className="backup-overlay">
-    <div className="backup-panel unlock-panel">
+        {showWelcome && (
+  <div className="entry-screen">
+    <div className="entry-panel">
+      <Logo3D className="entry-logo" />
+      <div className="entry-wordmark">Lyra</div>
+      <div className="entry-tagline">Your AI-powered wallet. Just ask.</div>
 
-      <div className="unlock-icon-circle">
-        <Lock size={26} strokeWidth={1.8} />
+      <div className="unlock-actions entry-actions">
+        <button
+          type="button"
+          className="unlock-btn-gradient"
+          onClick={() => {
+            setWalletPanelMode("create");
+            setShowWelcome(false);
+            setShowWallet(true);
+          }}
+        >
+          <span>Get started</span>
+          <ArrowRight size={17} />
+        </button>
       </div>
 
-      <div className="unlock-title">Locked Wallet</div>
-      <div className="unlock-subtitle">Your wallet is locked. Please unlock to continue.</div>
+      <button
+        type="button"
+        className="forgot-password-link"
+        onClick={() => {
+          setWalletPanelMode("import");
+          setShowWelcome(false);
+          setShowWallet(true);
+        }}
+      >
+        I already have a wallet
+      </button>
+    </div>
+  </div>
+)}
+
+        {showUnlock && (
+  <div className="entry-screen">
+    <div className="entry-panel">
+      <Logo3D className="entry-logo" />
+      <div className="entry-wordmark">Lyra</div>
+      <div className="entry-tagline">Welcome back! Enter your password to unlock.</div>
 
       <div className="unlock-password-field">
         <Lock size={15} strokeWidth={1.8} className="unlock-password-icon" />
@@ -11328,8 +11279,8 @@ function PieChartView({ holdings }) {
   );
 }
 
-function WalletPanel({ existing, onClose, onCreate, onImport }) {
-  const [mode, setMode] = useState("create");
+function WalletPanel({ existing, initialMode = "create", onClose, onBack, onCreate, onImport }) {
+  const [mode, setMode] = useState(initialMode);
   const [wordCount, setWordCount] = useState(12);
   const [words, setWords] = useState({});
   const [error, setError] = useState("");
@@ -11373,10 +11324,18 @@ function WalletPanel({ existing, onClose, onCreate, onImport }) {
 
         <h2>Wallet</h2>
 
-        {existing && (
+        {existing ? (
           <button
             type="button"
             onClick={onClose}
+          >
+            ×
+          </button>
+        ) : onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back"
           >
             ×
           </button>
