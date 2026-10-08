@@ -18,7 +18,7 @@ css/
 js/
   main.js             bootstrap + scroll loop: scroll -> p -> phases -> modules
   timeline.js         scroll budget (in vh) and p -> named phases (pure, linear)
-  chapters.js         chapter plans: virtual timeline of typing/answer/ticket/hold (pure)
+  chapters.js         chapter plans: virtual timeline of typing/answer/plan/confirm (pure)
   story.js            chapters, tabs, networks (pure data)
   scene.js            room ornaments, cover fit, moon/clouds
   chat.js             conversation as a pure function of the scroll (scrubbed, reversible)

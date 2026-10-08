@@ -42,7 +42,7 @@ export const TERMS = {
     points: [
       "Say it in plain words: send, swap, bridge, stake, ask.",
       "Lyra checks the live rate, route and risk first.",
-      "You read a ticket, then hold one button to confirm.",
+      "You read the plan, then confirm it with your fingerprint.",
       "Your key stays encrypted on your device.",
       "Plasma, Ethereum, Base, Polygon, Arc, Hyperliquid.",
     ],
@@ -59,14 +59,14 @@ export const TERMS = {
   },
   defi: {
     title: "DeFi interactions",
-    lead: "Real on-chain actions, prepared as tickets you confirm.",
+    lead: "Real on-chain actions, prepared as a plan you confirm.",
     points: [
       "Swap: best route (KyberSwap).",
       "Bridge: LI.FI, Circle Bridge Kit on Arc.",
       "Stake: Aave V3 (V4 on Arc), withdraw anytime.",
       "Bring funds back: consolidate chains.",
       "Ask first: check a contract or a rate.",
-      "Multi-step (\"swap then stake\"): one ticket per step, you review each one.",
+      "Multi-step (\"swap then stake\"): one plan, one confirmation, nothing sent if a step can't run.",
     ],
   },
   stake: {
@@ -75,7 +75,7 @@ export const TERMS = {
     points: [
       "Aave V3 on Plasma, Ethereum and Base (V4 on Arc).",
       "Lyra reads the live supply rate and the risk first.",
-      "Withdraw anytime, same one-hold confirmation.",
+      "Withdraw anytime, same one-touch confirmation.",
     ],
     note: "Not available on Polygon or Hyperliquid yet.",
   },
@@ -85,13 +85,13 @@ export const TERMS = {
     points: [
       "Route requested live from LI.FI, the engine behind Jumper.",
       "On Arc: Circle's Bridge Kit (USDC and EURC).",
-      "You see what you'll receive before you hold.",
+      "You see what you'll receive before you confirm.",
     ],
     note: "Final once broadcast: check the amount and the network.",
   },
   web3: {
     title: "Questions about Web3",
-    lead: "Ask first, act after. No ticket unless you want one.",
+    lead: "Ask first, act after. No plan unless you want one.",
     points: [
       "Is this contract risky? What does this rate mean?",
       "Lyra checks the explorer and public scam lists.",
@@ -105,9 +105,9 @@ export const TERMS = {
     points: [
       "Switch network, open your history, change 2D / 3D.",
       "Send to a saved contact by name.",
-      "Prepare swaps, bridges and staking as tickets.",
+      "Prepare swaps, bridges and staking as a plan.",
     ],
-    note: "Anything that moves funds still needs your hold.",
+    note: "Anything that moves funds still needs your confirmation.",
   },
   a2a: {
     title: "Hire an agent (A2A)",

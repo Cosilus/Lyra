@@ -3,7 +3,7 @@ window.SITE = {
  "defi": {
   "eyebrow": "03 / DeFi",
   "title": "Swap, bridge, and stake by asking. Still one button to confirm.",
-  "lead": "Lyra prepares real DeFi transactions across Plasma, Ethereum, Base, Polygon, Arc, and Hyperliquid. It reads the live rate, route, and risk first, puts everything on one ticket, and only signs when you hold the button. Several steps in one sentence still means one confirmation.",
+  "lead": "Lyra prepares real DeFi transactions across Plasma, Ethereum, Base, Polygon, Arc, and Hyperliquid. It reads the live rate, route, and risk first, lays it all out as one plan, and only signs once you confirm with your fingerprint. Several steps in one sentence still means one plan and one confirmation.",
   "cards": [
    {
     "title": "Swap",
@@ -21,19 +21,19 @@ window.SITE = {
     "title": "Stake",
     "tag": "via Aave V3 · Aave V4 on Arc",
     "text": "Lyra checks the real market before proposing a deposit: current yield, lock status, and a plain-language risk level, not a static promise.",
-    "check": "Withdraw anytime, same one-hold confirmation"
+    "check": "Withdraw anytime, same one-touch confirmation"
    },
    {
     "title": "Several steps at once",
-    "tag": "one sentence, one ticket set",
-    "text": "Say \"swap then stake\" or \"bridge and swap\" and Lyra chains the steps in order, shows each one, and asks for a single hold to run them.",
+    "tag": "one sentence, one plan",
+    "text": "Say \"swap then stake\" or \"bridge and swap\" and Lyra chains the steps into one plan, shows each one, and asks for a single confirmation to run them. It checks every step first: if one can't run, nothing is sent.",
     "check": "You still see every step before it runs"
    },
    {
     "title": "Bring funds back",
     "tag": "consolidate",
     "text": "Sent funds to a chain Lyra doesn't actively use? Ask it to consolidate and it routes them back to your main balance.",
-    "check": "Same ticket, same hold to confirm"
+    "check": "Same plan, same one-touch confirmation"
    },
    {
     "title": "Ask before you act",
@@ -42,12 +42,12 @@ window.SITE = {
     "check": "It tells you when it doesn't know"
    }
   ],
-  "note": "Final once confirmed. Swaps and bridges are on-chain transactions: once you hold to confirm and they are broadcast, neither Lyra nor anyone else can undo them. Read the ticket, especially the amount and the network, before you hold the button."
+  "note": "Final once confirmed. Swaps and bridges are on-chain transactions: once you confirm and they are broadcast, neither Lyra nor anyone else can undo them. Read the plan, especially the amount and the network, before you confirm."
  },
  "control": {
   "eyebrow": "04 / Control by chat",
   "title": "Run the whole wallet from the chat. Still one button to confirm.",
-  "lead": "Anything you would click in the wallet, you can ask for: switch network, open your history, change the view, send to a saved contact. Lyra prepares and navigates, but nothing moves until you hold the button.",
+  "lead": "Anything you would click in the wallet, you can ask for: switch network, open your history, change the view, send to a saved contact. Lyra prepares and navigates, but nothing moves until you confirm.",
   "cards": [
    {
     "title": "Switch network",
@@ -70,7 +70,7 @@ window.SITE = {
    {
     "title": "Send to a name",
     "tag": "contacts",
-    "text": "Save a contact, then say \"send 10 USDC to Alice\". Lyra resolves the name, checks the address, and prepares the ticket.",
+    "text": "Save a contact, then say \"send 10 USDC to Alice\". Lyra resolves the name, checks the address, and prepares the plan.",
     "check": "The address is checked before you confirm"
    },
    {
@@ -80,13 +80,13 @@ window.SITE = {
     "check": "It tells you when it can't verify something"
    },
    {
-    "title": "Money still needs your hold",
-    "tag": "hold to confirm",
-    "text": "The chat can navigate, explain, and prepare. Anything that moves funds still becomes a ticket that only you can confirm.",
+    "title": "Money still needs your confirmation",
+    "tag": "fingerprint to confirm",
+    "text": "The chat can navigate, explain, and prepare. Anything that moves funds still becomes a plan that only you can confirm.",
     "check": "Lyra can't sign on its own"
    }
   ],
-  "note": "Lyra answers questions about your wallet, Web3, crypto, and blockchains, and nothing else. Moving funds always goes through a ticket you confirm with the hold button."
+  "note": "Lyra answers questions about your wallet, Web3, crypto, and blockchains, and nothing else. Moving funds always goes through a plan you confirm with your fingerprint."
  },
  "networks": {
   "eyebrow": "05 / Networks",
@@ -135,7 +135,7 @@ window.SITE = {
  "thinks": {
   "eyebrow": "06 / How it thinks",
   "title": "It doesn't answer from memory. It goes and checks.",
-  "lead": "Every ticket Lyra shows you comes from the same three-step loop | no cached rates, no assumed contract addresses, nothing invented to fill a gap.",
+  "lead": "Every plan Lyra shows you comes from the same three-step loop | no cached rates, no assumed contract addresses, nothing invented to fill a gap.",
   "cards": [
    {
     "title": "Understand",
@@ -150,7 +150,7 @@ window.SITE = {
    {
     "title": "Propose",
     "tag": "03",
-    "text": "You get a ticket you can read line by line : rate, fees, risk. Nothing is signed or sent until you hold the button yourself."
+    "text": "You get a plan you can read step by step : rate, fees, risk. Nothing is signed or sent until you confirm it yourself."
    }
   ]
  },
@@ -168,7 +168,7 @@ window.SITE = {
    },
    {
     "title": "It never signs itself",
-    "text": "Every action, including withdrawing from staking, waits for you to hold the button."
+    "text": "Every action, including withdrawing from staking, waits for your confirmation."
    },
    {
     "title": "Locks itself automatically",
@@ -196,7 +196,7 @@ window.SITE = {
     "text": "A local log of what was sent, paid, and delegated, including what got blocked, so you can always see what happened."
    }
   ],
-  "note": "Every transaction shown on this page is real, across Plasma, Ethereum, Base, Polygon, Arc, and Hyperliquid. Automation reduces the number of steps, not the responsibility. Always read a ticket before you hold the button."
+  "note": "Every transaction shown on this page is real, across Plasma, Ethereum, Base, Polygon, Arc, and Hyperliquid. Automation reduces the number of steps, not the responsibility. Always read the plan before you confirm."
  },
  "faq": {
   "groups": [
@@ -210,11 +210,11 @@ window.SITE = {
      },
      {
       "q": "How is this different from just using Uniswap, Aave, or LI.FI directly?",
-      "a": "Nothing about those protocols changes. Lyra sits in front of them. Instead of opening each site, checking a rate, approving a token, and setting parameters yourself, you say what you want once and Lyra assembles the same transaction as a single ticket you review and confirm."
+      "a": "Nothing about those protocols changes. Lyra sits in front of them. Instead of opening each site, checking a rate, approving a token, and setting parameters yourself, you say what you want once and Lyra assembles the same transaction as a single plan you review and confirm."
      },
      {
       "q": "Do I need to know anything about DeFi to use it?",
-      "a": "No. You can ask in ordinary sentences | \"swap 200 XPL for USDT0\" or \"what's the safest way to earn yield on USDT0 right now\" | and Lyra translates that into a real, verified transaction. Every ticket still shows the underlying numbers, so you can learn as you go if you want to."
+      "a": "No. You can ask in ordinary sentences | \"swap 200 XPL for USDT0\" or \"what's the safest way to earn yield on USDT0 right now\" | and Lyra translates that into a real, verified transaction. Every plan still shows the underlying numbers, so you can learn as you go if you want to."
      },
      {
       "q": "Can I ask Lyra questions without making a transaction?",
@@ -222,7 +222,7 @@ window.SITE = {
      },
      {
       "q": "Can I control the whole wallet from the chat?",
-      "a": "Most of it, yes. You can switch network, open your history, change between the 2D and 3D view, send to a saved contact, and prepare swaps, bridges, and staking. Anything that moves funds still becomes a ticket that only you can confirm with the hold button."
+      "a": "Most of it, yes. You can switch network, open your history, change between the 2D and 3D view, send to a saved contact, and prepare swaps, bridges, and staking. Anything that moves funds still becomes a plan that only you can confirm."
      },
      {
       "q": "Can I receive funds from any chain, or only the network I'm on?",
@@ -244,11 +244,11 @@ window.SITE = {
      },
      {
       "q": "Can Lyra sign or send a transaction on its own?",
-      "a": "No. Every single action, including withdrawing from a staking position, waits for you to hold the confirm button yourself. There's no setting that lets Lyra skip that step."
+      "a": "No. Every single action, including withdrawing from a staking position, waits for you to confirm it yourself. There's no setting that lets Lyra skip that step."
      },
      {
-      "q": "What is the \"hold to confirm\" button, exactly?",
-      "a": "It's the one control used for every transaction in Lyra, on purpose. Reading the ticket and then deliberately holding a button for a moment is harder to do by accident than a single tap, so it's the same gesture whether you're sending, swapping, bridging, or staking."
+      "q": "How do I confirm a transaction, exactly?",
+      "a": "With your fingerprint or your face (Touch ID, Windows Hello, or your phone's biometrics). It's the one gesture used for every transaction in Lyra, on purpose: you read the plan, then confirm it yourself, whether you're sending, swapping, bridging, or staking. On a device without biometrics, you press and hold the confirm button instead, which is just as hard to do by accident."
      },
      {
       "q": "What happens if I walk away with Lyra unlocked?",
@@ -260,7 +260,7 @@ window.SITE = {
      },
      {
       "q": "How does Lyra avoid sending me to a fake or malicious contract?",
-      "a": "Lyra only proposes addresses it can confirm are the protocol's own verified, published contracts. If it can't verify one with confidence, it tells you that directly rather than guessing and preparing a ticket anyway."
+      "a": "Lyra only proposes addresses it can confirm are the protocol's own verified, published contracts. If it can't verify one with confidence, it tells you that directly rather than guessing and preparing a plan anyway."
      },
      {
       "q": "What is the optional 2-of-2 key protection?",
@@ -268,7 +268,7 @@ window.SITE = {
      },
      {
       "q": "What are spending limits?",
-      "a": "With the 2-of-2 key protection you can set a daily limit in USD: above it, Lyra's backend refuses to release its half of the key, so nothing can be signed. You can also require a biometric confirmation above an amount you choose, on top of the hold-to-confirm."
+      "a": "With the 2-of-2 key protection you can set a daily limit in USD: above it, Lyra's backend refuses to release its half of the key, so nothing can be signed. Every transaction is also confirmed with your fingerprint or face, so a signature always needs you in person."
      },
      {
       "q": "Can I set up a shared wallet with several owners?",
@@ -294,11 +294,11 @@ window.SITE = {
      },
      {
       "q": "Can I ask for more than one action at once, like swap then stake?",
-      "a": "Yes. You can ask for something like \"swap 1,200 XPL to USDT0 and stake it,\" and Lyra will prepare each step as its own ticket, in order, you still confirm each one individually."
+      "a": "Yes. You can ask for something like \"swap 1,200 XPL to USDT0 and stake it,\" and Lyra will prepare both steps as one plan, in order, that you confirm once. It checks every step before signing anything: if one can't run, nothing is sent."
      },
      {
       "q": "Can I withdraw from staking whenever I want?",
-      "a": "Yes, staking through Aave on Lyra has no lock. You can withdraw at any time, using the same one-hold confirmation as every other action."
+      "a": "Yes, staking through Aave on Lyra has no lock. You can withdraw at any time, using the same one-touch confirmation as every other action."
      }
     ]
    },
@@ -312,7 +312,7 @@ window.SITE = {
      },
      {
       "q": "Does Lyra cost anything to use?",
-      "a": "Downloading and using Lyra is free. Lyra charges a 0.25% fee on swaps, bridges, staking deposits, and sends. It is shown on the ticket before you confirm: it is taken out of the amount for swaps, bridges, and staking, and added on top for sends. The chain's own network fee is separate, and Lyra shows that plainly too."
+      "a": "Downloading and using Lyra is free. Lyra charges a 0.25% fee on swaps, bridges, staking deposits, and sends. It is shown on the plan before you confirm: it is taken out of the amount for swaps, bridges, and staking, and added on top for sends. The chain's own network fee is separate, and Lyra shows that plainly too."
      },
      {
       "q": "Do I need to create an account to use Lyra?",

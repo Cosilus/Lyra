@@ -1,5 +1,5 @@
 /*
- * Chapter plans. A chapter is a sequence of stages laid on a virtual timeline (milliseconds).
+ * Chapter plans (timelines). A chapter is a sequence of stages laid on a virtual timeline (milliseconds).
  * The scroll maps linearly onto that timeline, so the conversation is a pure function of the scroll:
  * scroll down = it types on, scroll up = it un-types. Nothing here touches the DOM.
  */
@@ -7,7 +7,7 @@ import { clamp } from "./util.js";
 
 /* speeds, in virtual ms */
 const TYPE_CHAR = 38, ANSWER_CHAR = 13, PUNCT = 110, SEND = 260, THINK = 380;
-const STEP = 460, CHIP = 90, TICKET = 240, HOLD_PAUSE = 320, HOLD = 1700, AFTER_PAUSE = 260, DWELL = 700, VISUAL = 1800;
+const STEP = 460, CHIP = 90, PLAN_STEP = 260, CONFIRM_PAUSE = 320, CONFIRM = 2400, AFTER_PAUSE = 260, DWELL = 700, VISUAL = 1800;
 
 const punct = (s) => (s.match(/[.,]/g) || []).length;
 
@@ -27,9 +27,12 @@ export function planOf(c, lead = 0) {
   plan.chipsStart = t;
   const nChips = (c.nets ? 6 : 0) + (c.chips ? c.chips.length : 0);
   plan.chipsEnd = mark(nChips * CHIP);
-  plan.ticketsStart = t;
-  plan.ticketsEnd = mark((c.tickets ? c.tickets.length : 0) * TICKET);
-  if (c.tickets) { mark(HOLD_PAUSE); plan.holdStart = t; plan.holdEnd = mark(HOLD); }
+  // the plan card: its steps land one by one, then the confirmation plays
+  // (fingerprint scan, steps checked in order, "Done")
+  const nPlan = c.plan ? c.plan.steps.length : 0;
+  plan.planStart = t;
+  plan.planEnd = mark(nPlan * PLAN_STEP);
+  if (c.plan) { mark(CONFIRM_PAUSE); plan.confirmStart = t; plan.confirmEnd = mark(CONFIRM); }
   if (c.visual) { mark(200); plan.visualStart = t; plan.visualEnd = mark(VISUAL); }
   if (c.after) { mark(AFTER_PAUSE); plan.afterStart = t; plan.afterEnd = mark(c.after.length * ANSWER_CHAR + punct(c.after) * PUNCT); }
   plan.total = mark(DWELL);
@@ -51,9 +54,9 @@ export function stateAt(plan, tau) {
     steps: plan.steps.map((st) => (tau < st ? 0 : tau < st + 300 ? 1 : 2)),   // 0 hidden, 1 spinner, 2 done
     answer: tau < plan.answerStart ? 0 : upTo(c.a, plan.answerStart, plan.answerEnd, tau),
     chips: nOf(plan.chipsStart, plan.chipsEnd, (c.nets ? 6 : 0) + (c.chips ? c.chips.length : 0), tau),
-    tickets: c.tickets ? nOf(plan.ticketsStart, plan.ticketsEnd, c.tickets.length, tau) : 0,
-    hold: c.tickets ? clamp((tau - plan.holdStart) / (plan.holdEnd - plan.holdStart)) : 0,
-    holdShown: c.tickets ? tau >= plan.ticketsEnd : false,
+    planSteps: c.plan ? nOf(plan.planStart, plan.planEnd, c.plan.steps.length, tau) : 0,
+    confirm: c.plan ? clamp((tau - plan.confirmStart) / (plan.confirmEnd - plan.confirmStart)) : 0,
+    confirmShown: c.plan ? tau >= plan.planEnd : false,
     visual: c.visual ? clamp((tau - plan.visualStart) / (plan.visualEnd - plan.visualStart)) : 0,
     visualShown: c.visual ? tau >= plan.visualStart : false,
     after: c.after ? (tau < plan.afterStart ? 0 : upTo(c.after, plan.afterStart, plan.afterEnd, tau)) : 0,

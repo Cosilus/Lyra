@@ -12,17 +12,18 @@ export const CH = [
     title: "What it is",
     q: "What is Lyra?",
     steps: ["Reading the docs"],
-    a: "An [[Intelligent Conversational Wallet|icw]] (ICW). Say what you want to do and I research the real rate, route and risk first. You only hold one button to confirm.",
+    a: "An [[Intelligent Conversational Wallet|icw]] (ICW). Say what you want to do and I research the real rate, route and risk first, then show you the plan. One touch of your fingerprint confirms it.",
     nets: true,
   },
   {
-    title: "Swap in one hold",
+    title: "Swap in one touch",
     q: "[[Swap|swap]] 1,200 XPL to USDT0.",
     steps: ["Live rate · KyberSwap"],
-    a: "Best route found. Check the ticket, then hold.",
-    tickets: [
-      { title: "Swap · KyberSwap", rows: [["Rate", "1 XPL ≈ 0.08 USDT0"], ["You'll receive", "≈ 96 USDT0"], ["Risk level", "Low", "low"]] },
-    ],
+    a: "Best route found. Here's the plan: confirm it with your fingerprint.",
+    plan: {
+      steps: [{ kind: "swap", label: "Swap · KyberSwap", from: "1,200 XPL", to: "≈ 96 USDT0" }],
+      details: [["Rate", "1 XPL ≈ 0.08 USDT0"], ["Risk level", "Low", "low"]],
+    },
     note: "Example numbers. The app reads them live.",
   },
   {
@@ -36,11 +37,14 @@ export const CH = [
     title: "Several steps at once",
     q: "[[Stake|stake]] 100,000 USDC and [[bridge|bridge]] $40 USDT0 to Base.",
     steps: ["Reading your balance", "Live rate · Aave", "Best route · LI.FI"],
-    a: "Two steps, two tickets. Check each one, then hold once to run them in order.",
-    tickets: [
-      { title: "Stake · Aave", rows: [["Amount", "100,000 USDC"], ["Supply rate", "≈ 4.2% APY"], ["Lyra fee (0.25%)", "250 USDC"], ["Risk level", "Low", "low"]] },
-      { title: "Bridge · LI.FI", rows: [["Amount", "40 USDT0"], ["To", "Base"], ["You'll receive", "≈ 39.7 USDT0"], ["Risk level", "Low", "low"]] },
-    ],
+    a: "Two steps, one plan, one confirmation. If a step can't run, nothing is sent.",
+    plan: {
+      steps: [
+        { kind: "stake", label: "Stake · Aave", from: "100,000 USDC", to: "≈ 4.2% APY" },
+        { kind: "bridge", label: "Bridge · LI.FI", from: "40 USDT0", to: "Base" },
+      ],
+      details: [["Lyra fee (0.25%)", "250 USDC"], ["You'll receive on Base", "≈ 39.7 USDT0"], ["Risk level", "Low", "low"]],
+    },
     note: "Example numbers. The app reads them live.",
   },
   {
@@ -53,10 +57,11 @@ export const CH = [
     title: "Hire an agent",
     q: "[[Hire|a2a]] an agent to show me around the site.",
     steps: ["Reading the agent card · A2A", "Sending the task"],
-    a: "Found one. Check the task, then hold to hire it.",
-    tickets: [
-      { title: "A2A · Site guide agent", rows: [["Agent", "Lyra Guide"], ["Task", "List the site's tabs"], ["Cost", "Free", "low"]] },
-    ],
+    a: "Found one. Here's the task: confirm to hire it.",
+    plan: {
+      steps: [{ kind: "agent", label: "Hire · A2A", from: "List the site's tabs", to: "Lyra Guide" }],
+      details: [["Cost", "Free", "low"]],
+    },
     note: "Alpha: the built-in agent is a demo. No money moves.",
     after: "Done. Here are the tabs I found. Tap one and I'll walk you through it.",
   },
@@ -73,7 +78,7 @@ for (const c of CH) {
 
 /* Tabs of the interactive menu: [id, label, short description, Lyra's intro line]. */
 export const MENU = [
-  ["defi", "DeFi", "Swap · bridge · stake", "DeFi: swap, bridge and stake by asking. One hold confirms everything."],
+  ["defi", "DeFi", "Swap · bridge · stake", "DeFi: swap, bridge and stake by asking. One touch confirms the whole plan."],
   ["control", "Control by chat", "Network · history · view", "Control the wallet by chat: switch network, open history, change the view."],
   ["networks", "Networks", "Six networks, one wallet", "Six networks today. Switch between them by asking."],
   ["thinks", "How it thinks", "Understand · research · propose", "I don't answer from memory. I go and check."],

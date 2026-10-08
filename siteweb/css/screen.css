@@ -84,26 +84,6 @@
 
 .chip img { width: 1.3em; height: 1.3em; }
 
-.ticket { margin-top: .7em; width: 100%; background: rgba(167, 139, 250, .12); border: 1px solid var(--line); border-radius: .85em; padding: .8em 1em; animation: rise .4s ease both; }
-
-.tk-title { font-family: var(--mono); font-size: .62em; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: .7em; }
-
-.tk-row { display: flex; justify-content: space-between; align-items: baseline; gap: 1.2em; padding: .32em 0; font-size: .82em; }
-
-.tk-row span { flex: 0 0 auto; color: var(--muted); }
-
-.tk-row strong { min-width: 0; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; color: var(--beige); }
-
-.tk-row strong.low { color: #6EE7B7; }
-
-.hold { position: relative; margin-top: .75em; width: 100%; padding: 1.05em 0; border-radius: .85em; background: linear-gradient(135deg, #F3EBFF, #D9D2E8); overflow: hidden; display: grid; place-items: center; font-weight: 600; font-size: .85em; color: #241735; }
-
-.hold canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-
-.hold span { position: relative; transition: color .25s ease; }
-
-.hold.cover span { color: #fff; }
-
 .tk-note { margin-top: .5em; font-family: var(--mono); font-size: .66em; color: var(--muted); }
 
 .composer { display: flex; gap: .6em; padding: .7em 1.1em 1em; }
@@ -137,10 +117,6 @@
 .app-dl em { background: #150E2022; border-radius: 999px; padding: .1em .55em; font-size: .85em; }
 
 .app-dl:hover { background: var(--accent-strong); transform: translateY(-1px); }
-
-.tk-wrap { align-self: center; width: min(100%, 34em); }
-
-.tk-wrap .ticket:first-child { margin-top: 0; }
 
 .tk-note { text-align: center; }
 
@@ -180,3 +156,41 @@
 }
 .m3d-menu span { width: 1.5em; height: 1.5em; border-radius: 50%; display: grid; place-items: center; background: #241a38; color: var(--accent-strong); }
 .m3d-menu svg { width: .9em; height: .9em; display: block; }
+
+
+/* ------------------------------------------------ plan card (the wallet's new flow: plan, fingerprint, done) */
+.plan { align-self: center; width: min(100%, 34em); display: flex; flex-direction: column; gap: .55em; animation: rise .4s ease both; }
+.plan-head { display: flex; align-items: center; gap: .5em; }
+.plan-head b { font-family: var(--display); font-weight: 600; font-size: 1.02em; color: var(--beige); }
+.plan-star { width: .95em; height: .95em; color: #fff; filter: drop-shadow(0 0 .35em #c4b0ffaa); }
+.plan-steps { position: relative; display: flex; flex-direction: column; gap: .4em; border-radius: 1em; transition: box-shadow .4s ease, background .4s ease; }
+.plan-steps.grouped { gap: 0; padding: .25em; background: #150e20; border: 1px solid rgba(167, 139, 250, .55); box-shadow: 0 0 0 .2em rgba(167, 139, 250, .1), 0 0 2.4em -.7em rgba(167, 139, 250, .6); }
+.plan.done .plan-steps.grouped { border-color: var(--line); box-shadow: none; }
+.plan-step { display: flex; align-items: center; gap: .7em; padding: .6em .75em; border-radius: .85em; background: #150e20; border: 1px solid var(--line); animation: rise .35s ease both; }
+.plan-steps.grouped .plan-step { background: transparent; border-color: transparent; }
+.plan-ic { position: relative; flex: none; width: 2em; height: 2em; border-radius: .6em; display: grid; place-items: center; color: var(--accent-strong); background: rgba(167, 139, 250, .14); transition: background .3s, color .3s; }
+.plan-ic svg { width: 1.05em; height: 1.05em; display: block; }
+.plan-step.active .plan-ic { background: linear-gradient(135deg, var(--accent), var(--accent-deep)); color: #fff; }
+.plan-ok { position: absolute; right: -.3em; bottom: -.3em; width: 1em; height: 1em; border-radius: 50%; display: grid; place-items: center; background: #3DDC84; color: #08140D; box-shadow: 0 0 0 .14em #150e20; transform: scale(0); transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.plan-ok svg { width: .62em; height: .62em; }
+.plan-step.ok .plan-ok { transform: scale(1); }
+.plan-txt { min-width: 0; display: flex; flex-direction: column; gap: .1em; }
+.plan-txt small { font-size: .68em; color: var(--muted); }
+.plan-txt b { font-size: .86em; font-weight: 600; color: var(--beige); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-txt em { font-style: normal; color: var(--muted); font-weight: 400; }
+.plan-scan { position: absolute; inset: 0; border-radius: 1em; display: grid; place-items: center; background: rgba(13, 9, 22, .6); backdrop-filter: blur(3px); }
+.plan-scan > span { position: relative; display: flex; flex-direction: column; align-items: center; gap: .35em; padding: .8em 1.1em .6em; border-radius: 1em; background: #1e162e; border: 1px solid var(--line); overflow: hidden; color: var(--accent-strong); }
+.plan-scan svg { width: 2em; height: 2em; }
+.plan-scan small { font-size: .62em; font-weight: 600; color: var(--beige); }
+.plan-scan i { position: absolute; left: .8em; right: .8em; top: .8em; height: 2px; border-radius: 2px; background: var(--accent-strong); box-shadow: 0 0 .6em var(--accent); animation: plan-scan 1s ease-in-out infinite alternate; }
+@keyframes plan-scan { to { top: 2.6em; } }
+.plan-details { display: flex; flex-direction: column; border-radius: .85em; background: #150e20; border: 1px solid var(--line); padding: .15em .9em; }
+.plan-details > div { display: flex; justify-content: space-between; gap: 1em; padding: .38em 0; font-size: .74em; }
+.plan-details > div + div { border-top: 1px solid rgba(167, 139, 250, .08); }
+.plan-details span { color: var(--muted); }
+.plan-details strong { font-family: var(--mono); font-weight: 600; color: var(--beige); text-align: right; }
+.plan-details strong.low { color: #6EE7B7; }
+.plan-confirm { display: flex; align-items: center; justify-content: center; gap: .55em; padding: .95em 0; border-radius: 999px; font-weight: 600; font-size: .85em; color: #150e20; background: linear-gradient(135deg, #C4B0FF, #A78BFA); box-shadow: 0 .7em 2em -.8em rgba(167, 139, 250, .8); transition: opacity .3s, background .3s; }
+.plan-confirm svg { width: 1.15em; height: 1.15em; }
+.plan-confirm.busy { opacity: .8; }
+.plan-confirm.done { background: linear-gradient(135deg, #F3EBFF, #D9D2E8); }
