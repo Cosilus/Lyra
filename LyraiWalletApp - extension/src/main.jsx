@@ -2,10 +2,11 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
-import { startCardBridge } from "./cardBridge.js";
+import { startCardBridge, startCloseShortcut } from "./cardBridge.js";
 import { syncNetworks } from "./providerSync.js";
 
 startCardBridge();
+startCloseShortcut();
 syncNetworks();
 
 // Startup watchdog for the extension: if the panel is still empty a few seconds after load (a crash

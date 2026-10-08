@@ -19,6 +19,31 @@ export const IS_CARD = !!cardKey && window.parent !== window;
 let port = null;
 let lastDock = null;
 
+// Close shortcut: holding C (outside any text field) for HOLD_TO_CLOSE_MS
+// closes the wallet: the floating card on a website, or the side panel.
+export const HOLD_TO_CLOSE_MS = 1500;
+
+export function isTypingTarget(el) {
+  return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+}
+
+export function startCloseShortcut() {
+  let timer = 0;
+  const cancel = () => { clearTimeout(timer); timer = 0; };
+  window.addEventListener("keydown", (e) => {
+    if (e.repeat || timer || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key !== "c" && e.key !== "C") return;
+    if (isTypingTarget(document.activeElement)) return;
+    timer = setTimeout(() => {
+      timer = 0;
+      if (IS_CARD) port?.postMessage({ close: true });
+      else window.close(); // the extension's side panel page
+    }, HOLD_TO_CLOSE_MS);
+  });
+  window.addEventListener("keyup", (e) => { if (e.key === "c" || e.key === "C") cancel(); });
+  window.addEventListener("blur", cancel);
+}
+
 // Which menu is open ("left" | "right" | "top" | null), see Box3D.jsx.
 export function reportCardDock(side) {
   lastDock = side || null;

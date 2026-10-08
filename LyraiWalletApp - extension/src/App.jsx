@@ -61,6 +61,11 @@ async function fetchBroadcastTx(provider, hash) {
 import { CircleMenu } from "./CircleMenu";
 import { RewardsPanel } from "./Rewards.jsx";
 import { createPortal } from "react-dom";
+import { AskLyra } from "./AskLyra.jsx";
+import { buildIdeas } from "./askLyraIdeas.js";
+import { loadLyraLanguage, saveLyraLanguage } from "./lyraLanguages.js";
+import { PlanCard, RequestBox } from "./PlanCard.jsx";
+import { parseAskLyra } from "./askLyraParse.js";
 import { Box3D } from "./three-d/Box3D.jsx";
 import Logo3D from "./three-d/Logo3D.jsx";
 import { loadUiMode, saveUiMode, hasSeenTour, markTourSeen } from "./three-d/uiMode.js";
@@ -1120,6 +1125,17 @@ export default function App() {
   const [multisigActionError, setMultisigActionError] = useState("");
 
   const [biometricSupported] = useState(() => isWebAuthnAvailable());
+  // Biometrics are ON by default: the plan card offers them on any device with a
+  // built-in reader, and the first confirmation enrolls it. Only an explicit
+  // "turn off" in Settings stops that.
+  const [platformBiometric, setPlatformBiometric] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable?.()
+      .then(ok => { if (alive) setPlatformBiometric(!!ok); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
   const [biometricEnabled, setBiometricEnabled] = useState(() => !!loadBiometricRecord());
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricError, setBiometricError] = useState("");
@@ -1175,6 +1191,7 @@ export default function App() {
   async function requireBiometricForLargeAmount(amountUSD) {
     const amt = Number(amountUSD);
     if (!Number.isFinite(amt) || amt < biometricThresholdUSD) return;
+    if (Date.now() - biometricPassedAtRef.current < 60000) return; // just confirmed on the plan card
     if (!biometricEnabled) return; // can't require hardware the wallet never registered
     const record = loadBiometricRecord();
     if (!record) return;
@@ -1213,6 +1230,10 @@ export default function App() {
   const [stakedApy, setStakedApy] = useState({});
   const [defiTicket, setDefiTicket] = useState(null);
 
+  // The language Lyra answers in (and listens to, for voice), "auto" by default.
+  const [lyraLanguage, setLyraLanguage] = useState(loadLyraLanguage);
+  function changeLyraLanguage(code) { setLyraLanguage(code); saveLyraLanguage(code); }
+
   // Spending cap specifically for x402 payments and ACP checkouts
   // (separate from a real send/swap, which the user already confirms
   // individually every time). $50 is a starting default, editable in
@@ -1237,6 +1258,19 @@ export default function App() {
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [auditLogEntries, setAuditLogEntries] = useState([]);
   const [multiTicket, setMultiTicket] = useState(null);
+  const [pendingPlan, setPendingPlan] = useState(null); // steps read from the user's sentence, until Lyra answers
+  const [planRequest, setPlanRequest] = useState("");   // the sentence the plan answers, shown at the top of the plan sheet
+  const planStartedAtRef = useRef(0);                   // when that request was sent: picks its own work log
+  const planMsgStartRef = useRef(0);                    // chat length before that request: what the request box replaces
+  const [planError, setPlanError] = useState(null);     // why a confirmed plan stopped (never sends it back to "confirm")
+  const [planBanner, setPlanBanner] = useState(null);   // { title, detail } on the home screen after a plan finished
+  const biometricPassedAtRef = useRef(0);               // the plan's own biometric confirm covers the large-amount check
+  // the home banner fades away on its own
+  useEffect(() => {
+    if (!planBanner) return;
+    const t = setTimeout(() => setPlanBanner(null), 8000);
+    return () => clearTimeout(t);
+  }, [planBanner]);
   // True only between "the user asked for their receive QR" and
   // either an auto-consolidated deposit landing or the next QR
   // request replacing it, see the consolidate poll effect below.
@@ -1253,7 +1287,7 @@ export default function App() {
     const el = chatScrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages.length, busy, defiTicket, collapsedTickets.length, activityRuns]);
+  }, [messages.length, busy, defiTicket, multiTicket, showSend, pendingPlan, collapsedTickets.length, activityRuns]);
 
   // Execution progress checklist, real progress of the on-chain
   // sub-actions the AI is running under a single "Hold to Confirm".
@@ -1280,6 +1314,12 @@ export default function App() {
   // everything's done.
   const [stepTxHashes, setStepTxHashes] = useState([]);
   const [multiTicketDone, setMultiTicketDone] = useState(false);
+
+  // the plan card grows as steps land: keep its bottom in view
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [planStepIndex, multiTicketDone, executionStepIndex]);
 
   function resetExecutionProgress() {
   setExecutionSteps([]);
@@ -1390,6 +1430,7 @@ useEffect(() => {
   }
 
   function clearActiveTicket() {
+    setPlanError(null);
     setShowSend(false);
     setDefiTicket(null);
     setMultiTicket(null);
@@ -2263,6 +2304,28 @@ function resetWallet() {
   setBiometricEnabled(false);
 }
 
+// Registers this device's biometrics for the wallet (one OS prompt) and
+// stores the record. Throws if cancelled. `quiet` skips the toast.
+async function enrollBiometric({ quiet = false } = {}) {
+  if (!unlockedPrivateKey) throw new Error("Unlock your wallet with your password first.");
+  const secretToEncrypt = localSecretRef.current || unlockedPrivateKey;
+  const { credentialId, supportsPrf, prfSalt } = await registerBiometric(wallet.address);
+  let record;
+  if (supportsPrf) {
+    const aesKey = await getBiometricAesKey(credentialId, prfSalt);
+    if (!aesKey) throw new Error("Couldn't derive a biometric key, try again.");
+    const { iv, ciphertext } = await encryptWithKey(aesKey, secretToEncrypt);
+    record = { tier: "prf", credentialId, prfSalt, iv, ciphertext, address: wallet.address };
+  } else {
+    record = { tier: "gate", credentialId, address: wallet.address };
+  }
+  saveBiometricRecord(record);
+  try { localStorage.removeItem("lyra_biometric_optout_v1"); } catch {}
+  setBiometricEnabled(true);
+  if (!quiet) setToast(supportsPrf ? "Biometric unlock enabled. No password needed on this device." : "Biometric shortcut enabled. Still needs your password after the extension fully closes.");
+  return record;
+}
+
 async function enableBiometric() {
   setBiometricError("");
   setBiometricBusy(true);
@@ -2297,6 +2360,7 @@ async function enableBiometric() {
 
 function disableBiometric() {
   clearBiometricRecord();
+  try { localStorage.setItem("lyra_biometric_optout_v1", "1"); } catch {}
   setBiometricEnabled(false);
   sessionKeyCacheRef.current = null;
   setToast("Biometric unlock disabled.");
@@ -5079,6 +5143,28 @@ function decimalsOfAsset(asset) {
   return asset === activeNetwork.nativeSymbol ? 18 : (tokens[asset]?.decimals ?? 18);
 }
 
+      // All or nothing: check every step BEFORE the first signature, with
+      // fresh balances, so a plan never stops after sending only part of it.
+      {
+        const blocker = planBlocker(multiTicket.steps);
+        if (blocker) throw new Error(`Nothing was sent. ${blocker}`);
+        const need = {};
+        for (const st of multiTicket.steps) {
+          if (!["send", "swap", "bridge", "stake"].includes(st.kind) || st.amountIsEstimate || !st.asset) continue;
+          const amt = Number(st.amount);
+          if (Number.isFinite(amt) && amt > 0) need[st.asset] = (need[st.asset] || 0) + amt;
+        }
+        for (const [asset, amt] of Object.entries(need)) {
+          const have = await balanceOfAsset(asset);
+          if (have < ethers.parseUnits(amt.toFixed(decimalsOfAsset(asset) > 6 ? 6 : decimalsOfAsset(asset)), decimalsOfAsset(asset))) {
+            throw new Error(`Nothing was sent. You have ${ethers.formatUnits(have, decimalsOfAsset(asset))} ${asset}, this plan needs ${amt} ${asset}.`);
+          }
+        }
+        if ((await RPC.getBalance(signer.address)) === 0n) {
+          throw new Error(`Nothing was sent. You need a little ${activeNetwork.nativeSymbol} on ${activeNetwork.name} to pay the network fees.`);
+        }
+      }
+
             for (let i = 0; i < multiTicket.steps.length; i++) {
         const step = multiTicket.steps[i];
         const stepLabel = `Step ${i + 1}/${multiTicket.steps.length}`;
@@ -5735,10 +5821,12 @@ const signer = new ethers.Wallet(
       message: text,
       walletAddress: wallet?.address || null,
       balance: fmtXpl(balance),
-      history: messages,
+      // a finished plan's box goes back to Lyra as the request it was
+      history: messages.map(m => (m.role === "request" ? { role: "user", text: m.text } : m)),
       pendingTransaction,
       contacts: loadContacts(),
-      network: activeNetworkKey
+      network: activeNetworkKey,
+      language: lyraLanguage
     })
     })
       .catch(() => {
@@ -5783,7 +5871,14 @@ const signer = new ethers.Wallet(
   }
 }
 
-    if (data.message && data.intent !== "GET_TRANSACTIONS") {
+    // A request that opens the plan sheet doesn't also get a chat line
+    // ("I'll send…, check the details, then hold the button"): the sheet says it all.
+    const opensPlan =
+      (data.intent === "MULTI_ACTION" && Array.isArray(data.steps) && data.steps.length > 0) ||
+      (/^(SWAP|BRIDGE|STAKE|UNSTAKE)_XPL$/.test(String(data.intent)) && !!data.defiTicket &&
+        !/(not specified|is required|required to complete|missing|unknown (token|network|chain))/i.test(`${data.defiTicket.riskReason || ""} ${data.defiTicket.summary || ""}`)) ||
+      (data.intent === "SEND_XPL" && !!data.recipient && Number(data.amount) > 0);
+    if (data.message && data.intent !== "GET_TRANSACTIONS" && !opensPlan) {
   setMessages(m => [
     ...m,
     {
@@ -6933,10 +7028,24 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
   }
 }
 
-  function handleIntent(text) {
+  async function handleIntent(text) {
   if (!text.trim()) return;
 
-  askAI(text.trim());
+  const { steps } = parseAskLyra(text, {
+    tokenSymbols: [activeNetwork.nativeSymbol, ...Object.keys(tokens)],
+    contacts,
+    networks: NETWORKS,
+  });
+  setPlanBanner(null);
+  setPendingPlan(steps.length ? { steps } : null);
+  setPlanRequest(text.trim());
+  planStartedAtRef.current = Date.now();
+  planMsgStartRef.current = messages.length;
+  try {
+    await askAI(text.trim());
+  } finally {
+    setPendingPlan(null);
+  }
 }
 
   async function copy(text) {
@@ -7099,8 +7208,292 @@ function handleHoldEnd() {
     showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showRewards || showReceiveQr || showTxHistory || showUnlock || showWallet || showWelcome ||
     showPasswordSetup || showSend || !!defiTicket || !!multiTicket;
 
+  // ---- Plan card (send / swap / bridge / stake / multi-step) ----
+  const planEligible = !!(showSend || multiTicket || (defiTicket && ["swap", "bridge", "staking"].includes(defiTicket.feature)));
+
+  function networkLabel(key) {
+    return NETWORKS.find(x => x.key === key)?.name || key || "another network";
+  }
+  function personLabel(address, name) {
+    if (name) return name;
+    const c = contacts.find(x => x.address?.toLowerCase() === String(address || "").toLowerCase());
+    return c?.name || shortAddress(address || "");
+  }
+  function heldAmount(symbol) {
+    if (!symbol) return null;
+    if (symbol === activeNetwork.nativeSymbol) return Number(ethers.formatEther(balance || 0n));
+    const t = tokens[symbol];
+    return t ? Number(ethers.formatUnits(tokenBalances[symbol] || 0n, t.decimals)) : null;
+  }
+  const fmtAmt = x => Number(x).toLocaleString("en-US", { maximumFractionDigits: 4 });
+
+  // One row per step, from a send / defi ticket / multi-step plan.
+  function planStepFrom(kind, { amount, asset, estimate, toAsset, receive, recipient, contactName, network, platform, sub }) {
+    const from = amount ? `${estimate ? "≈ " : ""}${fmtAmt(amount)} ${asset || ""}`.trim() : asset || null;
+    if (kind === "send") return { kind, label: "Send", sub, from, to: recipient || contactName ? personLabel(recipient, contactName) : null, avatar: true };
+    if (kind === "swap") return { kind, label: "Swap", sub: sub || platform, from, to: receive || toAsset || null };
+    if (kind === "bridge") return { kind, label: "Bridge", sub, from, to: network ? networkLabel(network) : null };
+    if (kind === "unstake") return { kind, label: "Withdraw", sub: sub || platform, from, to: "Wallet" };
+    if (kind === "stake") return { kind, label: "Stake", sub: sub || platform, from, to: "Staking" };
+    return { kind, label: kind, sub, from, to: null };
+  }
+
+  function buildPlanAfter(rows) {
+    const after = [];
+    const spent = {};
+    let exact = true;
+    for (const r of rows) {
+      const amt = Number(r.amount);
+      if (["send", "swap", "bridge", "stake"].includes(r.kind) && r.asset) {
+        if (!Number.isFinite(amt) || r.estimate) exact = false;
+        else spent[r.asset] = (spent[r.asset] || 0) + amt;
+      }
+      if (r.kind === "send" && r.amount) after.push({ label: `${personLabel(r.recipient, r.contactName)} gets`, value: `${r.estimate ? "≈ " : ""}${fmtAmt(r.amount)} ${r.asset}` });
+      if (r.kind === "stake" && r.amount) after.push({ label: "Staking", value: `+ ${r.estimate ? "≈ " : ""}${fmtAmt(r.amount)} ${r.asset}` });
+      if (r.kind === "unstake" && r.amount) after.push({ label: "Back in your wallet", value: `+ ${fmtAmt(r.amount)} ${r.asset}` });
+      if (r.kind === "swap" && r.receive) after.push({ label: "You get", value: `≈ ${r.receive}` });
+      if (r.kind === "bridge" && r.amount) after.push({ label: `On ${networkLabel(r.network)}`, value: `+ ${r.estimate ? "≈ " : ""}${fmtAmt(r.amount)} ${r.asset}` });
+    }
+    // the main asset's balance, before -> after, only when every amount is exact
+    const main = Object.keys(spent)[0];
+    const held = heldAmount(main);
+    if (exact && main && held !== null && held >= spent[main]) {
+      after.unshift({ label: `Your ${main}`, before: fmtAmt(held), value: fmtAmt(Math.max(0, held - spent[main])) });
+    }
+    return after;
+  }
+
+  // All or nothing: the first step of a plan that this wallet can't run on this
+  // network, checked BEFORE anything is signed (a plan must never stop halfway
+  // with only its first steps sent). Same rules as the executors below.
+  function planBlocker(steps) {
+    const net = activeNetwork.name;
+    for (let i = 0; i < (steps || []).length; i++) {
+      const st = steps[i];
+      const n = steps.length > 1 ? `Step ${i + 1} (${st.kind}): ` : "";
+      const asset = st.asset;
+      const isNative = asset === activeNetwork.nativeSymbol;
+      const known = isNative || !!tokens[asset]?.address;
+      if (st.ticket && (st.ticket.dataFound === false || st.ticket.executable === false)) {
+        return `${n}${st.ticket.summary || st.ticket.riskReason || "Lyra can't run this step here yet."}`;
+      }
+      if (st.kind === "send") {
+        if (!st.recipient || !ethers.isAddress(st.recipient)) return `${n}the recipient isn't a valid address.`;
+        if (!known) return `${n}${asset} isn't supported on ${net}.`;
+      } else if (st.kind === "swap") {
+        if (activeNetworkKey === "arc") {
+          if (!ARC_SWAP_TOKENS.includes(asset) || !ARC_SWAP_TOKENS.includes(st.tokenOutSymbol)) return `${n}only USDC and EURC can be swapped on Arc.`;
+        } else if (IS_TESTNET) {
+          return `${n}swaps aren't available on ${net} yet.`;
+        } else if (!known) return `${n}${asset} isn't supported for swaps on ${net}.`;
+      } else if (st.kind === "stake" || st.kind === "unstake") {
+        const v4 = aaveV4Reserve(asset);
+        if (!v4 && !(tokens[asset]?.address && defi.aave?.pool)) return `${n}staking ${asset} isn't available on ${net} yet.`;
+      } else if (st.kind === "bridge") {
+        if (IS_TESTNET || activeNetworkKey === "arc" || st.destinationChainKey === "arc") {
+          const sym = isNative ? "USDC" : asset;
+          if (sym !== "USDC" && sym !== "EURC") return `${n}only USDC and EURC can be bridged on testnet.`;
+          const toKey = LIFI_KEY_TO_NETWORK_KEY[String(st.destinationChainKey || "").toLowerCase()] || String(st.destinationChainKey || "").toLowerCase();
+          if (!NETWORK_KEY_TO_CIRCLE_CHAIN[activeNetworkKey] || !NETWORK_KEY_TO_CIRCLE_CHAIN[toKey]) return `${n}that bridge route isn't supported yet.`;
+        } else if (!known || !defi.lifi?.diamond) return `${n}bridging ${asset} isn't available on ${net} yet.`;
+      }
+    }
+    return null;
+  }
+
+  // "You have 0 USDC, this needs 1 USDC", only when the amounts are exact
+  function planShortfall(rows) {
+    const spent = {};
+    for (const r of rows) {
+      const amt = Number(r.amount);
+      if (!["send", "swap", "bridge", "stake"].includes(r.kind) || !r.asset) continue;
+      if (!Number.isFinite(amt) || r.estimate) return null;
+      spent[r.asset] = (spent[r.asset] || 0) + amt;
+    }
+    for (const [sym, need] of Object.entries(spent)) {
+      const held = heldAmount(sym);
+      if (held !== null && held + 1e-9 < need) return `You have ${fmtAmt(held)} ${sym}, this needs ${fmtAmt(need)} ${sym}. Add funds first, or lower the amount.`;
+    }
+    return null;
+  }
+
+  const planRows = (() => {
+    if (multiTicket) {
+      return multiTicket.steps.map((st, i) => ({
+        kind: st.kind === "predict" ? "send" : st.kind,
+        amount: st.amount, asset: st.asset, estimate: !!st.amountIsEstimate,
+        toAsset: st.tokenOutSymbol, receive: st.ticket?.estimatedReceive,
+        recipient: st.recipient, contactName: st.contactName,
+        network: st.destinationChainKey, platform: st.ticket?.platform,
+        sub: st.amountIsEstimate && i > 0 ? "From the previous step" : st.auto ? "Required" : null,
+        fees: st.ticket?.fees,
+      }));
+    }
+    if (defiTicket && planEligible) {
+      const kind = defiTicket.feature === "swap" ? "swap"
+        : defiTicket.feature === "bridge" ? "bridge"
+        : defiTicket.intent === "UNSTAKE_XPL" ? "unstake" : "stake";
+      return [{
+        kind, amount: defiTicket.amount, asset: defiTicket.asset || activeNetwork.nativeSymbol,
+        toAsset: defiTicket.tokenOutSymbol, receive: defiTicket.estimatedReceive,
+        network: defiTicket.destinationChainKey, platform: defiTicket.platform,
+        sub: kind === "swap" ? defiTicket.rate : null, fees: defiTicket.fees,
+      }];
+    }
+    if (showSend) {
+      return [{ kind: "send", amount: sendAmount, asset: sendAssetSymbol, recipient: sendTo, contactName: suggestedContact?.name }];
+    }
+    return null;
+  })();
+
+  const planView = (() => {
+    if (planRows) {
+      const single = !multiTicket;
+      const done = multiTicket ? multiTicketDone : executionSteps.length > 0 && executionStepIndex >= executionSteps.length && !busy;
+      const running = !done && (busy || executionSteps.length > 0);
+      const lastHash = multiTicket ? [...stepTxHashes].reverse().find(Boolean) : txHash;
+      const fee = showSend
+        ? (sendFeeEstimate !== null ? `${fmtXpl(sendFeeEstimate, 6)} ${activeNetwork.nativeSymbol}` : null)
+        : planRows.map(r => r.fees).filter(x => x && !/^(n\/?a|unknown|none|—|-)$/i.test(String(x).trim()))[0] || null;
+      // anything that would make the plan stop halfway blocks it before confirming
+      const shortfall = (multiTicket ? planBlocker(multiTicket.steps) : null) || planShortfall(planRows);
+      return {
+        key: "plan",
+        phase: planError ? "failed" : done ? "done" : running ? "running" : "review",
+        error: planError,
+        steps: planRows.map(r => planStepFrom(r.kind, r)),
+        after: buildPlanAfter(planRows),
+        // a real amount reads "Network fee ≈ 0.004 USDC"; a sentence from the server stays as written
+        note: `${fee ? (/\d/.test(fee) ? `Network fee ≈ ${fee} · ` : `${fee} · `) : ""}Nothing moves until you confirm`,
+        warning: defiTicket?.dataFound === false ? (defiTicket.summary || "No reliable data found for this operation.") : shortfall,
+        executable: !shortfall && (defiTicket && planEligible ? !!defiTicket.executable : true),
+        activeIndex: single ? 0 : planStepIndex,
+        doneCount: single ? (done ? 1 : 0) : Math.max(0, planStepIndex),
+        txUrl: lastHash ? explorerTx(lastHash, activeNetwork) : null,
+      };
+    }
+    if (pendingPlan) {
+      return {
+        key: "plan",
+        phase: "thinking",
+        steps: pendingPlan.steps.map((st, i) => planStepFrom(st.kind, {
+          amount: /^\d/.test(st.amount || "") ? st.amount : null,
+          asset: st.asset, toAsset: st.toAsset, contactName: st.recipient,
+          network: NETWORKS.find(x => x.name === st.network)?.key,
+          sub: i > 0 && st.amount === "the rest" ? "The rest" : null,
+        })),
+      };
+    }
+    return null;
+  })();
+
+  const planBiometric = (() => {
+    const ua = navigator.userAgent || "";
+    const label = /Mac|iPhone|iPad/.test(ua) ? "Touch ID" : /Windows/.test(ua) ? "Windows Hello" : "biometrics";
+    const record = biometricEnabled ? loadBiometricRecord() : null;
+    if (record) return { label, verify: () => confirmBiometricPresence(record.credentialId) };
+    // not set up yet: on by default, the first confirmation enrolls this device
+    // (the OS asks for the fingerprint / face, which is itself the confirmation)
+    let optedOut = false;
+    try { optedOut = localStorage.getItem("lyra_biometric_optout_v1") === "1"; } catch {}
+    if (platformBiometric && !optedOut && unlockedPrivateKey) {
+      return { label, verify: () => enrollBiometric({ quiet: true }) };
+    }
+    return null;
+  })();
+
+  async function confirmPlan() {
+    if (planBiometric) biometricPassedAtRef.current = Date.now();
+    try {
+      await signAndSend();
+    } catch (e) {
+      console.error(e);
+      // stays on the card as "stopped": a half-run plan must never be offered again as-is
+      setPlanError(String(friendlyErrorText(e)).replace(/^❌\s*/, ""));
+    }
+  }
+
+  // The plan leaves ONE box in the chat ("LYRA · Request 1 › …", details in a
+  // drop-down) in place of the request bubble and the per-step lines.
+  function leaveRequestBox(status, reason = null) {
+    const start = planMsgStartRef.current;
+    const entry = {
+      role: "request",
+      status,
+      text: planRequest,
+      steps: planView?.steps || [],
+      error: status === "failed" ? (reason || planError) : null,
+      txUrl: status === "cancelled" ? null : planView?.txUrl || null,
+    };
+    setMessages(m => {
+      const n = m.filter(x => x.role === "request").length + 1;
+      return [...m.slice(0, Math.min(start, m.length)), { ...entry, n }];
+    });
+  }
+
+  function finishPlan() {
+    const steps = planView?.steps || [];
+    const detail = steps.map(st => `${st.label} ${st.from || ""}${st.to ? ` → ${st.to}` : ""}`.replace(/\s+/g, " ").trim()).join(" · ");
+    setPlanBanner({ title: steps.length > 1 ? `Done, ${steps.length} steps` : "Done", detail });
+    leaveRequestBox("done");
+    clearActiveTicket();
+    refreshBalance();
+  }
+
+  // Cancel (before confirming) or Close (after it stopped)
+  function closePlan() {
+    // a plan that couldn't run (blocked before confirming) is "Stopped", with its reason
+    const blocked = planView?.phase === "review" && planView.executable === false;
+    leaveRequestBox(planView?.phase === "failed" || blocked ? "failed" : "cancelled", blocked ? `${planView.warning} Nothing was sent.` : null);
+    clearActiveTicket();
+  }
+
+  // "Try" examples under Ask Lyra, built from what this network really has.
+  const askLyraSuggestions = (() => {
+    const native = activeNetwork.nativeSymbol;
+    const syms = Object.keys(tokens);
+    const stable = syms.find(x => /USD/.test(x)) || native;
+    const other = syms.find(x => x !== stable) || native;
+    const who = contacts[0]?.name || "Alice";
+    const who2 = contacts[1]?.name || "Bob";
+    return buildIdeas({
+      stable, native, who, who2,
+      other: other === stable ? native : other,
+      otherNet: NETWORKS.find(x => x.key !== activeNetwork.key)?.name || "Base",
+    });
+  })();
+
   const frame = (
-      <main className="frame">
+      <main className="frame frame--ask">
+        {/* The plan takes the whole wallet while it is on screen, like a sheet. */}
+        <AnimatePresence>
+          {planView && (
+            <motion.div
+              className="plan-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div className="plan-sheet-body">
+                {planRequest && <div className="plan-sheet-request">{planRequest}</div>}
+                {/* Lyra's work log for this request: live phase + seconds, then "Worked for…" */}
+                {(() => {
+                  const run = activityRuns[activityRuns.length - 1];
+                  return run && run.t0 >= planStartedAtRef.current - 1000 ? <ActivityBlock key={run.id} run={run} /> : null;
+                })()}
+                <PlanCard
+                  key={planView.key}
+                  {...planView}
+                  biometric={planBiometric}
+                  onConfirm={confirmPlan}
+                  onCancel={closePlan}
+                  onDone={finishPlan}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <header className="header">
           <div className="brand">
   <img
@@ -7215,6 +7608,21 @@ function handleHoldEnd() {
 )}
 </OverlayPortal>
 
+            {planBanner && (
+              <motion.div
+                className="plan-banner"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+              >
+                <span className="plan-banner-dot"><Check size={14} strokeWidth={3} /></span>
+                <span className="plan-banner-text">
+                  <strong>{planBanner.title}</strong>
+                  <span>{planBanner.detail}</span>
+                </span>
+              </motion.div>
+            )}
+
             <div className="balance-card">
             <div className="balance-label-row">
             <div className="balance-label">Available balance</div>
@@ -7298,8 +7706,22 @@ function handleHoldEnd() {
 )}
             </div>
 
+            {wallet && (
+              <AskLyra
+                value={input}
+                onChange={setInput}
+                onSubmit={text => { handleIntent(text); setInput(""); }}
+                busy={busy}
+                tokenSymbols={[activeNetwork.nativeSymbol, ...Object.keys(tokens)]}
+                contacts={contacts}
+                networks={NETWORKS}
+                suggestions={askLyraSuggestions}
+                language={lyraLanguage}
+                onLanguageChange={changeLyraLanguage}
+              />
+            )}
 
-            {showAddFunds ? (
+            {input.trim() || planView ? null : showAddFunds ? (
               <div className="add-funds-card">
                 <div className="add-funds-title">Add funds to get started</div>
                 <div className="add-funds-row">
@@ -7372,7 +7794,9 @@ function handleHoldEnd() {
   </div>
 )}
 
-          {messages.map((m, i) => (
+          {messages.map((m, i) => m.role === "request" ? (
+            <RequestBox key={i} entry={m} />
+          ) : (
             <React.Fragment key={i}>
               <div className={`msg ${m.role}`}>
                 {m.role === "ai" && <div className="ai-label">Lyra</div>}
@@ -7381,7 +7805,6 @@ function handleHoldEnd() {
                   {m.variant === "onboarding" && <OnboardingExamples />}
                 </div>
               </div>
-              {activityRuns.filter(r => r.anchor === i).map(r => <ActivityBlock key={r.id} run={r} />)}
             </React.Fragment>
           ))}
 
@@ -7411,14 +7834,6 @@ function handleHoldEnd() {
 
         </section>
 
-        <div className="inputbar">
-          <input value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && input.trim()) { handleIntent(input.trim()); setInput(""); } }}
-            placeholder="Message Lyra…" />
-          <button className="send" onClick={() => { if(input.trim()){ handleIntent(input.trim()); setInput(""); }}}>
-            <MousePointer2 size={15} fill="currentColor" strokeWidth={0} style={{ transform: "rotate(135deg)" }} />
-          </button>
-        </div>
 
         <div className="wallet-modal" style={{display: showWallet ? "flex" : "none"}}>
           <WalletPanel
@@ -7530,7 +7945,7 @@ function handleHoldEnd() {
     </div>
   </div>
 )}
-{(showSend || defiTicket || multiTicket) && (
+{(showSend || defiTicket || multiTicket) && !planEligible && (
   <div className="ticket-fullscreen-overlay">
     <motion.div className="ticket-fullscreen-panel" layout transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}>
 

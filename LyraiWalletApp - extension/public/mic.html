@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lyra · Microphone</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0D0916; color: #EDE6F5; font: 15px/1.5 system-ui, sans-serif; }
+    main { max-width: 360px; padding: 24px; text-align: center; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    p { color: #A99DBB; margin: 0; }
+    .ok h1 { color: #B9F0CF; }
+    .no h1 { color: #F5B8C4; }
+  </style>
+</head>
+<body>
+  <main id="box">
+    <h1>Allow the microphone</h1>
+    <p>Chrome is asking if Lyra can use your microphone. Click <b>Allow</b> to talk to Lyra.</p>
+  </main>
+  <script src="mic.js"></script>
+</body>
+</html>

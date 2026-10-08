@@ -26,7 +26,11 @@
     return;
   }
 
-  const MENU_TILT_DEG = 9;     // how far the card turns toward an open menu
+  // How far the card turns toward an open menu. 0 on purpose: turning the
+  // iframe in 3D makes Chrome draw the whole wallet (menus included) as a
+  // fixed image, and it goes blurry. Flat, the wallet just shrinks a little
+  // and the menu slides out, and every pixel stays sharp.
+  const MENU_TILT_DEG = 0;
   // While a menu is open the wallet shrinks a little (the menus don't): its
   // shadow here shrinks with it. Keep in sync with CARD_DOCK.scale in
   // src/three-d/config3d.js.
@@ -129,7 +133,7 @@
   const frame = document.createElement("iframe");
   frame.src = chrome.runtime.getURL("index.html?card=" + key);
   frame.title = "Lyra wallet";
-  frame.allow = "clipboard-write; publickey-credentials-get; publickey-credentials-create";
+  frame.allow = "clipboard-write; publickey-credentials-get; publickey-credentials-create; microphone";
 
   card.append(shadow, frame);
   stage.append(card);
@@ -147,6 +151,11 @@
   let pointerInWallet = false;
   channel.port1.onmessage = (e) => {
     const d = e.data || {};
+    // The wallet's close shortcut (hold C), see src/cardBridge.js.
+    if (d.close) {
+      close();
+      return;
+    }
     if ("dock" in d) {
       // A menu opened or closed: let the margins catch the mouse only while
       // a menu is open.
@@ -233,10 +242,30 @@
   }
   window.addEventListener("mousemove", pointerBackOnPage, { passive: true });
 
+  // Same close shortcut while the website has the focus: hold C for 1.5 s,
+  // never while typing in one of the page's fields.
+  const HOLD_TO_CLOSE_MS = 1500;
+  let holdTimer = 0;
+  function onKeyDown(e) {
+    if (e.repeat || holdTimer || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key !== "c" && e.key !== "C") return;
+    const el = document.activeElement;
+    if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+    holdTimer = setTimeout(() => { holdTimer = 0; close(); }, HOLD_TO_CLOSE_MS);
+  }
+  function onKeyUp(e) {
+    if (e.key === "c" || e.key === "C") { clearTimeout(holdTimer); holdTimer = 0; }
+  }
+  window.addEventListener("keydown", onKeyDown, true);
+  window.addEventListener("keyup", onKeyUp, true);
+
   function close() {
     if (!window.__lyraCard) return;
     delete window.__lyraCard;
     window.removeEventListener("mousemove", pointerBackOnPage);
+    window.removeEventListener("keydown", onKeyDown, true);
+    window.removeEventListener("keyup", onKeyUp, true);
+    clearTimeout(holdTimer);
     channel.port1.close();
     cancelAnimationFrame(raf);
     stage.classList.add("closing");
