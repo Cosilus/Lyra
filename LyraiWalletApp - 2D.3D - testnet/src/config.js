@@ -81,7 +81,9 @@ export const ARC_TESTNET = {
   name: "Arc Testnet",
   chainId: 5042002,
   chainIdHex: "0x4cef52",
-  rpcUrl: "https://rpc.testnet.arc.network",
+  // Blockdaemon's public Arc endpoint: the default rpc.testnet.arc.network
+  // (Cloudflare) can ban an IP that polls it (error 1006).
+  rpcUrl: "https://rpc.blockdaemon.testnet.arc.network",
   nativeSymbol: "USDC",
   explorer: "https://explorer.testnet.arc.io",
   color: "#1473E6",

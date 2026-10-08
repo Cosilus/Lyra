@@ -15,7 +15,7 @@ import "./ask-lyra.css";
 
 const STEP_LABELS = { swap: "Swap", send: "Send", stake: "Stake", unstake: "Withdraw", bridge: "Bridge" };
 
-function StepPreview({ step, index, previous }) {
+function StepPreview({ step, index, previous, via }) {
   const label = STEP_LABELS[step.kind] || "Send";
   const chained = index > 0;
   const subtitle =
@@ -44,6 +44,7 @@ function StepPreview({ step, index, previous }) {
         <div className="ask-step-label">
           {chained && <span className="ask-step-chain">↳</span>}
           {label}
+          {via && <span className="step-via"> · {via}</span>}
           {subtitle && <span className="ask-step-sub"> · {subtitle}</span>}
         </div>
         <div className="ask-step-line">
@@ -58,7 +59,7 @@ function StepPreview({ step, index, previous }) {
   );
 }
 
-export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols, contacts, networks, suggestions = [], language = "auto", onLanguageChange }) {
+export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols, contacts, networks, suggestions = [], protocolLabel, language = "auto", onLanguageChange }) {
   const [focused, setFocused] = useState(false);
   // three ideas from the deck, drawn again each time the box gets focus
   const [ideas, setIdeas] = useState({ id: 0, list: [] });
@@ -195,6 +196,7 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
             onClick={submit}
             disabled={!value.trim() || busy}
             aria-label="Send to Lyra"
+            title="Send to Lyra"
           >
             <MousePointer2 size={15} fill="currentColor" strokeWidth={0} style={{ transform: "rotate(135deg)" }} />
           </button>
@@ -228,7 +230,7 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
             <LyraStar className="is-moving ask-star" />
             {steps.length > 1 ? `Understanding… ${steps.length} steps` : "Understanding…"}
           </div>
-          {steps.map((s, i) => <StepPreview key={i} step={s} index={i} previous={steps[i - 1]} />)}
+          {steps.map((s, i) => <StepPreview key={i} step={s} index={i} previous={steps[i - 1]} via={protocolLabel?.(s.kind, { asset: s.asset || steps[i - 1]?.toAsset || steps[i - 1]?.asset, network: s.network })} />)}
         </div>
       )}
     </div>

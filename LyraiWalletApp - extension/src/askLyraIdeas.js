@@ -12,31 +12,28 @@ export function buildIdeas({ stable, native, other, who, who2, otherNet }) {
     { kind: "send", text: `Send 5 ${stable} to ${who}` },
     { kind: "send", text: `Send $10 of ${native} to ${who}` },
     { kind: "receive", text: `Show my address to receive ${stable}` },
-    { kind: "wallet", text: `What's my balance on every network?` },
+    { kind: "wallet", text: `Show my balance on every network` },
     { kind: "wallet", text: `Show my last 5 transactions` },
     { kind: "wallet", text: `Switch to ${otherNet}` },
     { kind: "wallet", text: `Open my contacts` },
     { kind: "wallet", text: `Gather all my ${stable} on one network` },
-    { kind: "ask", text: `How much did I spend this week?` },
+    { kind: "send", text: `Send 1 ${stable} to ${who2}` },
 
     // DeFi
     { kind: "swap", text: `Swap all my ${stable} to ${other}` },
     { kind: "swap", text: `Swap half my ${native} to ${stable}` },
-    { kind: "swap", text: `How much ${other} would I get for 50 ${stable}?` },
     { kind: "bridge", text: `Bridge 10 ${stable} to ${otherNet}` },
     { kind: "stake", text: `Stake 20 ${stable} to earn yield` },
     { kind: "unstake", text: `Withdraw my staked ${stable}` },
-    { kind: "ask", text: `What yield can I get on my ${stable}?` },
-    { kind: "ask", text: `What's the price of ${native} today?` },
-    { kind: "ask", text: `Explain staking to me, simply` },
+    { kind: "stake", text: `Stake all my ${stable}` },
+    { kind: "bridge", text: `Bridge half my ${stable} to ${otherNet}` },
 
     // x402 and paid APIs
     { kind: "pay", text: `Pay a few cents for a market news summary with x402` },
     { kind: "pay", text: `Find a paid weather API and pay it with x402` },
-    { kind: "pay", text: `What's my Nanopayments balance?` },
+    { kind: "pay", text: `Show my Nanopayments balance` },
     { kind: "pay", text: `Deposit 5 USDC into Nanopayments` },
     { kind: "pay", text: `Set my x402 spending limit to $5` },
-    { kind: "ask", text: `What is x402, in one sentence?` },
 
     // Several steps, one plan
     { kind: "multi", text: `Swap 20 ${stable} to ${other}, then send it to ${who}` },
@@ -45,7 +42,14 @@ export function buildIdeas({ stable, native, other, who, who2, otherNet }) {
     { kind: "multi", text: `Withdraw my staked ${stable}, then bridge it to ${otherNet}` },
     { kind: "multi", text: `Swap 10 ${stable} to ${native}, then send it to ${who}` },
     { kind: "multi", text: `Swap half my ${native} to ${stable} and stake it` },
-  ];
+    { kind: "multi", text: `Swap 5 ${stable} to ${other} and bridge it to ${otherNet}` },
+  ].filter(idea => !sameAssetTwice(idea.text));
+}
+
+// On a network whose gas coin is the stablecoin (Arc: USDC), "swap USDC to
+// USDC" ideas make no sense: drop them.
+function sameAssetTwice(text) {
+  return /\b([A-Z][A-Za-z0-9.]{1,9}) to \1\b/.test(text) || /\$\d+ of USD/.test(text);
 }
 
 function shuffled(n) {

@@ -101,6 +101,30 @@
       clip-path: ${walletClip};
     }
     .card.menu-open iframe { clip-path: none; }
+    /* "Moving mode": small and grey, just above the wallet, while it moves */
+    .move-label {
+      position: absolute;
+      top: ${TOP_PX - 24}px;
+      left: 50%;
+      transform: translate(-50%, 4px);
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(13, 9, 22, 0.55);
+      color: rgba(200, 196, 210, 0.75);
+      font: 500 11px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+    }
+    .card.moving .move-label { opacity: 1; transform: translate(-50%, 0); }
+    .card.moving .shadow {
+      box-shadow:
+        0 40px 90px -20px rgba(13, 9, 22, 0.85),
+        0 0 0 1px rgba(167, 139, 250, 0.35),
+        0 0 56px -10px rgba(167, 139, 250, 0.55);
+    }
     .shadow { transition: transform ${MENU_EASE}; }
     .card.menu-open .shadow { transform: scale(${MENU_SCALE}); }
     @media (prefers-reduced-motion: reduce) {
@@ -135,7 +159,11 @@
   frame.title = "Lyra wallet";
   frame.allow = "clipboard-write; publickey-credentials-get; publickey-credentials-create; microphone";
 
-  card.append(shadow, frame);
+  const moveLabel = document.createElement("div");
+  moveLabel.className = "move-label";
+  moveLabel.textContent = "Moving mode";
+
+  card.append(shadow, frame, moveLabel);
   stage.append(card);
   root.append(style, stage);
   document.documentElement.append(host);
@@ -149,8 +177,95 @@
 
   const channel = new MessageChannel();
   let pointerInWallet = false;
+  // Moving the card (long press in the wallet, see src/cardBridge.js). The
+  // offset is applied with the "translate" property, separate from the
+  // open/close animation's transform, and kept for the next time.
+  const OFFSET_KEY = "lyra_card_offset_v1";
+  let offset = { x: 0, y: 0 };   // where the card is drawn
+  let moveTarget = null;             // where it is heading while it moves
+  let grab = null;               // the offset when the move began
+  let glideRaf = 0;
+  // 0..1: how much of the remaining distance the card covers each frame.
+  // Below 1 the card follows the mouse with a soft, smooth lag.
+  const GLIDE = 0.32;
+
+  function clampOffset(o) {
+    // keep the wallet itself inside the window
+    const r = shadow.getBoundingClientRect();
+    const baseLeft = r.left - offset.x, baseTop = r.top - offset.y;
+    const minX = -baseLeft, maxX = window.innerWidth - (baseLeft + r.width);
+    const minY = -baseTop, maxY = window.innerHeight - (baseTop + Math.min(r.height, 120));
+    return { x: Math.round(Math.min(maxX, Math.max(minX, o.x))), y: Math.round(Math.min(maxY, Math.max(minY, o.y))) };
+  }
+  function drawOffset(o) {
+    offset = o;
+    stage.style.translate = o.x || o.y ? `${o.x.toFixed(1)}px ${o.y.toFixed(1)}px` : "";
+  }
+  function applyOffset(o) {
+    const c = clampOffset(o);
+    moveTarget = null;
+    drawOffset({ x: c.x, y: c.y });
+  }
+  function glide() {
+    glideRaf = 0;
+    if (!moveTarget) return;
+    const k = reduceMotion ? 1 : GLIDE;
+    const next = { x: offset.x + (moveTarget.x - offset.x) * k, y: offset.y + (moveTarget.y - offset.y) * k };
+    const arrived = Math.abs(moveTarget.x - next.x) < 0.3 && Math.abs(moveTarget.y - next.y) < 0.3;
+    drawOffset(arrived ? { ...moveTarget } : next);
+    if (arrived && !grab) {
+      moveTarget = null;
+      try { chrome.storage?.local.set({ [OFFSET_KEY]: offset }); } catch { /* storage off */ }
+      return;
+    }
+    if (!arrived) glideRaf = requestAnimationFrame(glide);
+  }
+  try {
+    chrome.storage?.local.get(OFFSET_KEY, (v) => {
+      const o = v?.[OFFSET_KEY];
+      if (o && Number.isFinite(o.x) && Number.isFinite(o.y)) requestAnimationFrame(() => applyOffset(o));
+    });
+  } catch { /* storage off: the card opens in its corner */ }
+
+  function onMoveMessage(d) {
+    if (d.move === "start") {
+      grab = { ...offset };
+      card.classList.add("moving");
+    } else if (d.move === "to" && grab && Number.isFinite(d.dx) && Number.isFinite(d.dy)) {
+      // where the mouse has gone since the grab, kept inside the window
+      moveTarget = clampOffset({ x: grab.x + d.dx, y: grab.y + d.dy });
+      if (!glideRaf) glideRaf = requestAnimationFrame(glide);
+    } else if (d.move === "end") {
+      grab = null;
+      card.classList.remove("moving");
+      // let it finish gliding, then remember the spot (see glide)
+      if (moveTarget) { if (!glideRaf) glideRaf = requestAnimationFrame(glide); }
+      else { try { chrome.storage?.local.set({ [OFFSET_KEY]: offset }); } catch { /* storage off */ } }
+    }
+  }
+  const onResize = () => applyOffset(offset);
+  window.addEventListener("resize", onResize);
+
+  // A click on the page, outside the wallet, closes the card (clicks in the
+  // wallet go to its frame, never here). Not while Lyra is working on a
+  // transaction, and not on the release that ends a move.
+  let walletBusy = false;
+  function onPageDown(e) {
+    if (e.button !== 0 || walletBusy || grab) return;
+    close();
+  }
+  window.addEventListener("pointerdown", onPageDown, true);
+
   channel.port1.onmessage = (e) => {
     const d = e.data || {};
+    if ("busy" in d) {
+      walletBusy = !!d.busy;
+      return;
+    }
+    if (d.move) {
+      onMoveMessage(d);
+      return;
+    }
     // The wallet's close shortcut (hold C), see src/cardBridge.js.
     if (d.close) {
       close();
@@ -263,6 +378,9 @@
     if (!window.__lyraCard) return;
     delete window.__lyraCard;
     window.removeEventListener("mousemove", pointerBackOnPage);
+    window.removeEventListener("resize", onResize);
+    cancelAnimationFrame(glideRaf);
+    window.removeEventListener("pointerdown", onPageDown, true);
     window.removeEventListener("keydown", onKeyDown, true);
     window.removeEventListener("keyup", onKeyUp, true);
     clearTimeout(holdTimer);

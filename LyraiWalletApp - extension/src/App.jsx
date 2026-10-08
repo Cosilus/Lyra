@@ -62,6 +62,8 @@ import { CircleMenu } from "./CircleMenu";
 import { RewardsPanel } from "./Rewards.jsx";
 import { createPortal } from "react-dom";
 import { AskLyra } from "./AskLyra.jsx";
+import { StatusBadge } from "./StatusBadge.jsx";
+import { FillButton } from "./FillButton.jsx";
 import { buildIdeas } from "./askLyraIdeas.js";
 import { loadLyraLanguage, saveLyraLanguage } from "./lyraLanguages.js";
 import { PlanCard, RequestBox } from "./PlanCard.jsx";
@@ -73,7 +75,7 @@ import { InterfaceChooser } from "./three-d/InterfaceChooser.jsx";
 import { ActivityBlock } from "./three-d/ActivityBlock.jsx";
 import { HelpFaq } from "./three-d/HelpFaq.jsx";
 import { TokenLogo } from "./tokenLogo.jsx";
-import { IS_CARD } from "./cardBridge.js";
+import { IS_CARD, reportCardBusy } from "./cardBridge.js";
 import { TiltActivation, isTouchOnly, needsMotionPermission, rememberTilt, tiltRemembered } from "./three-d/TiltActivation.jsx";
 
 // In the 3D interface the wallet frame lives inside a perspective +
@@ -836,16 +838,24 @@ export default function App() {
 
   const effectiveRpcUrl = customRpcUrls[activeNetworkKey] || activeNetwork.rpcUrl;
   const RPC = useMemo(() => new ethers.JsonRpcProvider(effectiveRpcUrl, activeNetwork.chainId), [effectiveRpcUrl, activeNetwork.chainId]);
-  const [wallet, setWallet] = useState(null);
+  // A saved wallet opens straight on the lock screen: read it before the
+  // first paint, so the wallet never shows for a split second before locking.
+  const [hasSavedWallet] = useState(() => {
+    const s = loadSavedWallet();
+    return !!(s?.address && s?.ciphertext);
+  });
+  const [wallet, setWallet] = useState(() => (hasSavedWallet ? { address: loadSavedWallet().address } : null));
   const [unlockedPrivateKey, setUnlockedPrivateKey] = useState(null);
-  const [locked, setLocked] = useState(false);
-  const [showUnlock, setShowUnlock] = useState(false);
+  const [locked, setLocked] = useState(hasSavedWallet);
+  const [showUnlock, setShowUnlock] = useState(hasSavedWallet);
   const [unlockPassword, setUnlockPassword] = useState("");
   const [showUnlockPasswordText, setShowUnlockPasswordText] = useState(false);
   const [unlockError, setUnlockError] = useState("");
   const [balance, setBalance] = useState(0n);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  // floating card: a click outside closes it, except while Lyra is working
+  useEffect(() => { if (IS_CARD) reportCardBusy(busy); }, [busy]);
   const [status, setStatus] = useState("Ready");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
@@ -870,7 +880,7 @@ export default function App() {
   const [showWallet, setShowWallet] = useState(false);
   // First-visit welcome screen ("Get started"), shown before the
   // create/import panel when no wallet is saved on this device.
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(!hasSavedWallet);
   const [walletPanelMode, setWalletPanelMode] = useState("create");
   const [showSend, setShowSend] = useState(false);
   const [sendTo, setSendTo] = useState("");
@@ -5731,7 +5741,7 @@ const signer = new ethers.Wallet(
   // While the AI reads the request, the wallet does its own real checks, one
   // phase at a time on the single activity line: balance, then the recipient.
   // Each phase stays on screen long enough to be read.
-  async function activityPreflight(text, readingStarted, isAiDone) {
+  async function activityPreflight(text, readingStarted, isAiDone, progressId) {
     const MIN_PHASE_MS = 700;
     const hold = async (since) => {
       const left = MIN_PHASE_MS - (Date.now() - since);
@@ -5770,7 +5780,53 @@ const signer = new ethers.Wallet(
       }
     }
 
-    if (!isAiDone()) activityStep("Thinking it through");
+    await activityFollowServer(progressId, isAiDone);
+  }
+
+  // Replaces the running step (the "Thinking it through" placeholder) with a
+  // real one, so the log doesn't show the placeholder as a finished step.
+  function activityReplaceRunning(label, detail = "") {
+    const id = activityRef.current.id;
+    if (!id) return;
+    patchRun(id, r => {
+      const last = r.steps[r.steps.length - 1];
+      if (last && last.state === "run" && last.placeholder) {
+        return { ...r, steps: [...r.steps.slice(0, -1), { label, detail, state: "run" }] };
+      }
+      return { ...r, steps: [...r.steps.map(st => (st.state === "run" ? { ...st, state: "done" } : st)), { label, detail, state: "run" }] };
+    });
+  }
+
+  // What the server is really doing while the AI request runs (understanding
+  // the request, a quote for each step, a rate lookup...), read from
+  // /api/ai/progress as it happens. An older server without that route keeps
+  // the single "Thinking it through" line.
+  async function activityFollowServer(progressId, isAiDone) {
+    if (isAiDone()) return;
+    const id = activityRef.current.id;
+    if (id) {
+      patchRun(id, r => ({
+        ...r,
+        steps: [...r.steps.map(st => (st.state === "run" ? { ...st, state: "done" } : st)), { label: "Thinking it through", detail: "", state: "run", placeholder: true }]
+      }));
+    }
+    if (!progressId) return;
+    let shown = 0;
+    const pull = async () => {
+      const r = await fetch(`${API_BASE_URL}/api/ai/progress/${progressId}`, { cache: "no-store" });
+      if (!r.ok) return false;
+      const { steps = [] } = await r.json();
+      for (; shown < steps.length; shown++) activityReplaceRunning(steps[shown].label, steps[shown].detail);
+      return true;
+    };
+    while (!isAiDone()) {
+      try {
+        if (!(await pull())) return; // no progress route on this server
+      } catch { /* a missed poll is fine, the next one catches up */ }
+      await activitySleep(600);
+    }
+    // the steps that happened between the last poll and the answer
+    try { await pull(); } catch { /* optional */ }
   }
 
   async function askAI(text) {
@@ -5812,6 +5868,8 @@ const signer = new ethers.Wallet(
     // The AI call starts at once; the wallet's own checks play out on the
     // activity line while it works.
     let aiDone = false;
+    // lets the server report what it is doing, see activityFollowServer
+    const progressId = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const aiRequest = fetch(`${API_BASE_URL}/api/ai`, {
       method: "POST",
       headers: {
@@ -5826,7 +5884,8 @@ const signer = new ethers.Wallet(
       pendingTransaction,
       contacts: loadContacts(),
       network: activeNetworkKey,
-      language: lyraLanguage
+      language: lyraLanguage,
+      progressId
     })
     })
       .catch(() => {
@@ -5837,7 +5896,7 @@ const signer = new ethers.Wallet(
       .finally(() => { aiDone = true; });
     aiRequest.catch(() => { /* handled where it is awaited below */ });
 
-    await activityPreflight(text, readingStarted, () => aiDone);
+    await activityPreflight(text, readingStarted, () => aiDone, progressId);
 
     const { ok: aiOk, data } = await aiRequest;
 
@@ -7228,13 +7287,27 @@ function handleHoldEnd() {
   const fmtAmt = x => Number(x).toLocaleString("en-US", { maximumFractionDigits: 4 });
 
   // One row per step, from a send / defi ticket / multi-step plan.
+  // The protocol that really holds or moves the funds for a step: the same
+  // choice the executors make (executeSwapTicketCore, executeBridgeTicketCore,
+  // executeStakeTicketCore, executeUnstakeTicket), not the AI's guess.
+  function protocolFor(kind, { asset, network } = {}) {
+    if (kind === "swap") return activeNetworkKey === "arc" ? "Circle Swap Kit" : IS_TESTNET ? null : "KyberSwap";
+    if (kind === "bridge") return IS_TESTNET || activeNetworkKey === "arc" || network === "arc" ? "Circle CCTP" : "LI.FI";
+    if (kind === "stake" || kind === "unstake") return aaveV4Reserve(asset) ? "Aave V4" : "Aave V3";
+    return null;
+  }
+  function protocolLabel(kind, row) {
+    return protocolFor(kind, row);
+  }
+
   function planStepFrom(kind, { amount, asset, estimate, toAsset, receive, recipient, contactName, network, platform, sub }) {
     const from = amount ? `${estimate ? "≈ " : ""}${fmtAmt(amount)} ${asset || ""}`.trim() : asset || null;
+    const via = protocolLabel(kind, { asset, network });
     if (kind === "send") return { kind, label: "Send", sub, from, to: recipient || contactName ? personLabel(recipient, contactName) : null, avatar: true };
-    if (kind === "swap") return { kind, label: "Swap", sub: sub || platform, from, to: receive || toAsset || null };
-    if (kind === "bridge") return { kind, label: "Bridge", sub, from, to: network ? networkLabel(network) : null };
-    if (kind === "unstake") return { kind, label: "Withdraw", sub: sub || platform, from, to: "Wallet" };
-    if (kind === "stake") return { kind, label: "Stake", sub: sub || platform, from, to: "Staking" };
+    if (kind === "swap") return { kind, label: "Swap", sub, via, from, to: receive || toAsset || null };
+    if (kind === "bridge") return { kind, label: "Bridge", sub, via, from, to: network ? networkLabel(network) : null };
+    if (kind === "unstake") return { kind, label: "Withdraw", sub, via, from, to: "Wallet" };
+    if (kind === "stake") return { kind, label: "Stake", sub, via, from, to: "Staking" };
     return { kind, label: kind, sub, from, to: null };
   }
 
@@ -7249,7 +7322,7 @@ function handleHoldEnd() {
         else spent[r.asset] = (spent[r.asset] || 0) + amt;
       }
       if (r.kind === "send" && r.amount) after.push({ label: `${personLabel(r.recipient, r.contactName)} gets`, value: `${r.estimate ? "≈ " : ""}${fmtAmt(r.amount)} ${r.asset}` });
-      if (r.kind === "stake" && r.amount) after.push({ label: "Staking", value: `+ ${r.estimate ? "≈ " : ""}${fmtAmt(r.amount)} ${r.asset}` });
+      if (r.kind === "stake" && r.amount) after.push({ label: `Staked on ${protocolFor("stake", r)}`, value: `+ ${r.estimate ? "≈ " : ""}${fmtAmt(r.amount)} ${r.asset}` });
       if (r.kind === "unstake" && r.amount) after.push({ label: "Back in your wallet", value: `+ ${fmtAmt(r.amount)} ${r.asset}` });
       if (r.kind === "swap" && r.receive) after.push({ label: "You get", value: `≈ ${r.receive}` });
       if (r.kind === "bridge" && r.amount) after.push({ label: `On ${networkLabel(r.network)}`, value: `+ ${r.estimate ? "≈ " : ""}${fmtAmt(r.amount)} ${r.asset}` });
@@ -7641,9 +7714,9 @@ function handleHoldEnd() {
               <RefreshCw size={14} />
             </button>
             {portfolioChangePercent !== null && (
-              <div className={`balance-change ${portfolioChangePercent >= 0 ? "positive" : "negative"}`}>
+              <StatusBadge status={portfolioChangePercent >= 0 ? "up" : "down"} className="balance-change-badge">
                 {portfolioChangePercent >= 0 ? "+" : ""}{portfolioChangePercent.toFixed(2)}%
-              </div>
+              </StatusBadge>
             )}
           </div>
           {(xplPriceUSD || wallet?.address) && (
@@ -7716,6 +7789,7 @@ function handleHoldEnd() {
                 contacts={contacts}
                 networks={NETWORKS}
                 suggestions={askLyraSuggestions}
+                protocolLabel={protocolLabel}
                 language={lyraLanguage}
                 onLanguageChange={changeLyraLanguage}
               />
@@ -8766,7 +8840,7 @@ function handleHoldEnd() {
           >
             <span className="multi-step-num">{i + 1}</span>
             <span className="multi-step-summary">{stepSummaryLine(step)}</span>
-            {step.auto && <span className="multi-step-auto-badge" title={step.reason || "Required for your request"}>Required</span>}
+            {step.auto && <StatusBadge status="pending" title={step.reason || "Required for your request"}>Required</StatusBadge>}
             <span className="multi-step-toggle" aria-label={expanded ? "Hide details" : "Show details"}>
               <svg
                 className={expanded ? "chevron open" : "chevron"}
@@ -9018,18 +9092,17 @@ function handleHoldEnd() {
       <div className="entry-tagline">Your AI-powered wallet. Just ask.</div>
 
       <div className="unlock-actions entry-actions">
-        <button
-          type="button"
+        <FillButton
           className="unlock-btn-gradient"
+          icon={ArrowRight}
           onClick={() => {
             setWalletPanelMode("create");
             setShowWelcome(false);
             setShowWallet(true);
           }}
         >
-          <span>Get started</span>
-          <ArrowRight size={17} />
-        </button>
+          Get started
+        </FillButton>
       </div>
 
       <button
@@ -9047,8 +9120,17 @@ function handleHoldEnd() {
   </div>
 )}
 
+        {/* The lock screen is opaque from its first frame (only its content
+            fades in), and on unlock it fades away to reveal the wallet. */}
+        <AnimatePresence>
         {showUnlock && (
-  <div className="entry-screen">
+  <motion.div
+    key="unlock-screen"
+    className="entry-screen"
+    initial={false}
+    exit={{ opacity: 0, scale: 1.015 }}
+    transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+  >
     <div className="entry-panel">
       <Logo3D className="entry-logo" />
       <div className="entry-wordmark">Lyra</div>
@@ -9087,27 +9169,23 @@ function handleHoldEnd() {
       )}
 
       <div className="unlock-actions">
-        <button
-          type="button"
-          className="unlock-btn-gradient"
-          onClick={unlockWallet}
-        >
-          <span>Unlock Wallet</span>
-          <ArrowRight size={17} />
-        </button>
+        <FillButton className="unlock-btn-gradient" icon={ArrowRight} onClick={unlockWallet}>
+          Unlock Wallet
+        </FillButton>
 
         {biometricEnabled && (
           <>
             <div className="biometric-divider">or</div>
-            <button
-              type="button"
+            <FillButton
               className="biometric-outline-btn"
+              icon={biometricBusy ? Loader2 : Fingerprint}
+              iconSide="left"
+              iconSpin={biometricBusy}
               onClick={unlockWithBiometric}
               disabled={biometricBusy}
             >
-              {biometricBusy ? <Loader2 className="spin" size={16} /> : <Fingerprint size={16} />}
               Use Biometrics
-            </button>
+            </FillButton>
             {biometricError && <div className="seed-error">{biometricError}</div>}
           </>
         )}
@@ -9122,8 +9200,9 @@ function handleHoldEnd() {
       </button>
 
     </div>
-  </div>
+  </motion.div>
 )}
+        </AnimatePresence>
 
         {showForgotPassword && (
   <div className="backup-overlay">
@@ -9302,7 +9381,7 @@ function handleHoldEnd() {
 
       {passwordSetupMode !== "reset" && (
         <div className={`mpc-option-card${IS_TESTNET ? " is-soon" : ""}`}>
-          <span className="mpc-badge">{IS_TESTNET ? "Soon" : "Early access"}</span>
+          <StatusBadge status={IS_TESTNET ? "submitted" : "progress"} className="mpc-status-badge">{IS_TESTNET ? "Soon" : "Early access"}</StatusBadge>
           <label className="mpc-option-header">
             <input
               type="checkbox"
@@ -10332,13 +10411,14 @@ function handleHoldEnd() {
         )}
         {auditLogEntries.map(entry => {
           const date = new Date(entry.timestamp);
-          const statusColor = { success: "#4ade80", blocked: "#facc15", failed: "#f87171" }[entry.status] || "#c9c9d9";
           return (
             <div className="tx-item" key={entry.id} style={{ width: "100%" }}>
               <div className="tx-item-main">
                 <div className="tx-item-direction">
                   {entry.category} · {entry.action}
-                  <span style={{ color: statusColor, marginLeft: 6, fontSize: 11 }}>{entry.status}</span>
+                  <StatusBadge status={{ success: "success", blocked: "pending", failed: "failed" }[entry.status] || "expired"} className="audit-status-badge">
+                    {{ success: "Success", blocked: "Blocked", failed: "Failed" }[entry.status] || entry.status}
+                  </StatusBadge>
                 </div>
                 <div className="tx-item-date">
                   {date.toLocaleDateString("en-US")} · {date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}

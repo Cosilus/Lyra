@@ -4,8 +4,10 @@ import App from "./App";
 import "./styles.css";
 import { startCardBridge, startCloseShortcut } from "./cardBridge.js";
 import { syncNetworks } from "./providerSync.js";
+import { startTooltips } from "./tooltips.js";
 
 startCardBridge();
+startTooltips();
 startCloseShortcut();
 syncNetworks();
 

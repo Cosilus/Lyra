@@ -209,6 +209,8 @@
 .plan-step-body { flex: 1; min-width: 0; }
 .plan-step-label { font-size: 11px; color: var(--muted-dim); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plan-chain { margin-right: 3px; }
+/* The protocol a step runs on ("Stake · Aave V4"), right after the step name */
+.step-via { color: rgba(var(--beige-rgb), 0.82); font-weight: 600; }
 .plan-step-line { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13.5px; font-weight: 600; color: var(--beige); }
 .plan-arrow { color: var(--muted-dim); font-weight: 400; }
 .plan-step-spin { color: var(--accent); flex: 0 0 auto; }
@@ -362,7 +364,7 @@
   overflow: hidden;
   transition: transform 0.15s ease, opacity 0.2s ease;
 }
-.plan-confirm:hover:not(:disabled) { transform: translateY(-1px); }
+/* .plan-confirm hover: pearl rise at the end of styles.css */
 .plan-confirm:disabled { opacity: 0.8; cursor: default; }
 .plan-secondary { background: var(--panel); color: var(--beige); border: 1px solid var(--line); box-shadow: none; }
 .plan-cancel {
@@ -434,7 +436,7 @@
 .request-steps { display: flex; flex-direction: column; gap: 6px; }
 .request-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--beige); }
 .request-step-icon { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: var(--accent-strong); background: var(--accent-soft); flex: 0 0 auto; }
-.request-step-label { color: var(--muted); width: 54px; flex: 0 0 auto; }
+.request-step-label { color: var(--muted); min-width: 54px; flex: 0 0 auto; white-space: nowrap; }
 .request-step-line { display: inline-flex; align-items: center; gap: 4px; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; }
 .request-step-ok { color: #3DDC84; margin-left: auto; flex: 0 0 auto; }
 .request-error { font-size: 11.5px; color: var(--danger); line-height: 1.45; }

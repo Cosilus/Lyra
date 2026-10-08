@@ -1,0 +1,31 @@
+/* Status badges (StatusBadge.jsx): pastel background, colored label, bold icon */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 8px;
+  font: 600 11px/1 var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+.status-badge-icon { width: 12px; height: 12px; flex: 0 0 auto; }
+
+.status-badge.is-success,
+.status-badge.is-up        { background: #ECFDF5; color: #57BC6C; }
+.status-badge.is-failed,
+.status-badge.is-down      { background: #FFF1F2; color: #D57463; }
+.status-badge.is-pending   { background: #FFF7ED; color: #EAA65D; }
+.status-badge.is-progress  { background: #E0F2FE; color: #008AF5; }
+.status-badge.is-review    { background: #FEFCE8; color: #F0B13D; }
+.status-badge.is-expired   { background: #F4F4F5; color: #777777; }
+.status-badge.is-submitted { background: #F5F3FF; color: #6C3CF0; }
+
+/* where the badges sit */
+.balance-change-badge { font-family: var(--mono); font-variant-numeric: tabular-nums; animation: balance-change-in 0.25s ease-out both; }
+.audit-status-badge { margin-left: 8px; vertical-align: middle; }
+.mpc-status-badge { align-self: flex-start; }

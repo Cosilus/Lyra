@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeftRight, ArrowUpFromDot, ArrowDownToDot, Vault, MoveHorizontal, Wallet, Zap, ListOrdered, MessageCircle, Check, Fingerprint, Loader2, ExternalLink, X, ChevronDown } from "lucide-react";
 import { TokenLogo, tokenLogoUrl } from "./tokenLogo.jsx";
+import { StatusBadge } from "./StatusBadge.jsx";
+import { FillButton } from "./FillButton.jsx";
 import "./plan-card.css";
 
 // The plan, in the sheet that covers the wallet:
@@ -94,6 +96,8 @@ function StepRow({ step, index, checked, active }) {
         <div className="plan-step-label">
           {index > 0 && <span className="plan-chain">↳</span>}
           {step.label}
+          {/* where the funds go: the protocol that runs this step */}
+          {step.via && <span className="step-via"> · {step.via}</span>}
           {step.sub && <span className="plan-step-sub"> · {step.sub}</span>}
         </div>
         <div className="plan-step-line">
@@ -121,7 +125,7 @@ export function RequestBox({ entry }) {
         <span className="request-n">Request {entry.n}</span>
         <span className="request-sep">›</span>
         <span className="request-text">{entry.text}</span>
-        <span className={`request-badge is-${entry.status}`}>{badge}</span>
+        <StatusBadge status={entry.status === "done" ? "success" : entry.status === "failed" ? "failed" : "expired"}>{badge}</StatusBadge>
         <ChevronDown size={14} className="request-chev" />
       </button>
       <AnimatePresence initial={false}>
@@ -138,7 +142,7 @@ export function RequestBox({ entry }) {
               {(entry.steps || []).map((s, i) => (
                 <div className="request-step" key={i}>
                   <span className="request-step-icon"><StepIcon kind={s.kind} size={13} /></span>
-                  <span className="request-step-label">{s.label}</span>
+                  <span className="request-step-label">{s.label}{s.via && <span className="step-via"> · {s.via}</span>}</span>
                   <span className="request-step-line">
                     {s.from ? withTokenLogos(s.from) : "…"}
                     {s.to ? <> <span className="plan-arrow">→</span> {withTokenLogos(s.to)}</> : null}
@@ -381,9 +385,9 @@ export function PlanCard({
           {!executable ? (
             <button type="button" className="plan-confirm plan-secondary" onClick={onCancel}>Close</button>
           ) : biometric ? (
-            <button type="button" className="plan-confirm" onClick={() => confirm(true)} disabled={scanning}>
-              <Fingerprint size={16} strokeWidth={2} /> Confirm with {biometric.label}
-            </button>
+            <FillButton className="plan-confirm" icon={Fingerprint} iconSide="left" onClick={() => confirm(true)} disabled={scanning}>
+              Confirm with biometrics
+            </FillButton>
           ) : (
             <HoldButton onDone={() => confirm(false)} disabled={scanning}>Hold to confirm</HoldButton>
           )}

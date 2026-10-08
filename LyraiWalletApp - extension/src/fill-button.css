@@ -1,0 +1,54 @@
+/* FillButton.jsx: the icon's pearl circle grows to fill the button on hover */
+.fill-btn {
+  --fb-circle: 16px;
+  --fb-fill: #F3EEFA;
+  --fb-fill-text: #1A1028;
+  --fb-icon: var(--accent-deep, #6B4FD8);
+  --fb-ease: cubic-bezier(0.785, 0.135, 0.15, 0.86);
+  --fb-time: 0.5s;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fill-btn-row { display: inline-flex; align-items: center; gap: 8px; }
+.fill-btn-label { transition: color var(--fb-time) var(--fb-ease); }
+
+.fill-btn-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--fb-circle);
+  height: var(--fb-circle);
+  /* no circle behind the icon: white at rest, violet on hover */
+  color: #FFFFFF;
+  transition: color var(--fb-time) var(--fb-ease);
+}
+/* the circle that grows from the icon: under the label, above the button's own color */
+.fill-btn-fill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 50%;
+  background: var(--fb-fill);
+  transform: scale(0);
+  transition: transform calc(var(--fb-time) + 0.1s) var(--fb-ease);
+  pointer-events: none;
+}
+.fill-btn-glyphs { position: absolute; inset: 0; display: grid; place-items: center; }
+
+.fill-btn:is(:hover, :focus-visible, :active):not(:disabled) .fill-btn-fill { transform: scale(48); }
+.fill-btn:is(:hover, :focus-visible, :active):not(:disabled) .fill-btn-label { color: var(--fb-fill-text); }
+.fill-btn:is(:hover, :focus-visible, :active):not(:disabled) .fill-btn-icon { color: var(--fb-icon); }
+.fill-btn:active:not(:disabled) { transform: scale(0.98); }
+
+/* the darker side of the gradient goes where the icon is, so the white icon
+   stands out: on the right for Unlock Wallet, on the left for biometrics */
+.fill-btn--right.unlock-btn-gradient,
+.fill-btn--right.plan-confirm { background: linear-gradient(315deg, var(--accent-deep), var(--accent-strong)); }
+.fill-btn--left.unlock-btn-gradient,
+.fill-btn--left.plan-confirm { background: linear-gradient(135deg, var(--accent-deep), var(--accent-strong)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fill-btn-fill, .fill-btn-label, .fill-btn-icon { transition: none; }
+}

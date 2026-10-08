@@ -11,6 +11,7 @@ import { isDefiFeatureEnabled, getDefiFeatureInfo } from "./tools/defiProtocols.
 import { isOnramperConfigured, buildOnramperBuyUrl, buildOnramperSellUrl } from "./tools/onramper.js";
 import { searchPolymarketMarkets, getClobPrice, getPolymarketMarketByConditionId, getPolymarketPositions, getPolymarketActivity } from "./tools/polymarketTools.js";
 import crypto from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { registerSafeRoutes } from "./routes/safe.js";
 import { registerDappRoutes } from "./routes/dapp.js";
 
@@ -198,8 +199,19 @@ setInterval(() => {
   for (const [k, b] of rateBuckets) if (now - b.start > 10 * 60 * 1000) rateBuckets.delete(k);
 }, 60 * 1000).unref();
 // Chat / research: the expensive ones. Everything else under /api: generous.
-app.use("/api/ai", rateLimit("ai", 60 * 1000, Number(process.env.RATE_LIMIT_AI_PER_MIN) || 20));
-app.use("/api", rateLimit("api", 60 * 1000, Number(process.env.RATE_LIMIT_API_PER_MIN) || 240));
+// The live progress poll (/api/ai/progress, a few reads a second while a
+// request runs) has its own bucket: it must never use up the AI requests.
+const fullPath = (req) => (req.baseUrl || "") + req.path;
+const isProgressPoll = (req) => req.method === "GET" && fullPath(req).startsWith("/api/ai/progress/");
+const progressLimit = rateLimit("progress", 60 * 1000, 400);
+const aiLimit = rateLimit("ai", 60 * 1000, Number(process.env.RATE_LIMIT_AI_PER_MIN) || 20);
+const apiLimit = rateLimit("api", 60 * 1000, Number(process.env.RATE_LIMIT_API_PER_MIN) || 240);
+app.use("/api", (req, res, next) => {
+  if (isProgressPoll(req)) return progressLimit(req, res, next);
+  const p = fullPath(req);
+  if (p === "/api/ai" || p.startsWith("/api/ai/")) return aiLimit(req, res, (err) => (err ? next(err) : apiLimit(req, res, next)));
+  return apiLimit(req, res, next);
+});
 
 // Extra protection (2-of-2 key split) is off on the testnet build ("Soon" in the app), so its routes
 // and its storage are not even loaded there: no endpoint to abuse, and no MPC_MASTER_KEY / database
@@ -1134,7 +1146,7 @@ Response:
   "amountUSD": null,
   "recipient": "0x1234...",
   "asset": "XPL",
-  "message": "I'm ready to prepare the transfer of 0.001 XPL to this address. Check the details, then hold the button to confirm.",
+  "message": "I'm ready to prepare the transfer of 0.001 XPL to this address. Check the details, then confirm.",
   "requires_confirmation": true
 }
 
@@ -2677,7 +2689,7 @@ Response:
   "amountUSD": null,
   "recipient": null,
   "asset": "XPL",
-  "message": "I'll swap 0.1 USDT to XPL, then send it to this address. Check the details, then hold the button to confirm.",
+  "message": "I'll swap 0.1 USDT to XPL, then send it to this address. Check the details, then confirm.",
   "requires_confirmation": false,
   "steps": [
     { "kind": "swap", "amount": "0.1", "asset": "USDT", "tokenOutSymbol": "XPL", "recipient": null, "contactName": null, "destinationChainKey": null, "auto": false, "reason": null },
@@ -2849,7 +2861,7 @@ If that address isn't in contacts:
     "address": "0x40b1224e9d1e4c9f2a8f3b7e6c5d9a8b7c6d5e4f"
   },
   "asset": "XPL",
-  "message": "I'm ready to prepare the transfer of 50 XPL to this address. Check the details, then hold the button to confirm.",
+  "message": "I'm ready to prepare the transfer of 50 XPL to this address. Check the details, then confirm.",
   "requires_confirmation": true
 }
 
@@ -4793,6 +4805,7 @@ User's original request:
       const toolResults = await Promise.all(
         dataCalls.map(async (block) => {
           let result;
+          aiProgress(TOOL_PROGRESS[block.name] || "Looking it up");
           switch (block.name) {
             case "get_swap_quote":
               result = await getRealSwapQuote(network, block.input?.assetIn, block.input?.assetOut, block.input?.amount);
@@ -4980,6 +4993,7 @@ if (dataCalls.length > 0) {
     const args = JSON.parse(call.function.arguments || "{}");
     let result;
 
+    aiProgress(TOOL_PROGRESS[call.function.name] || "Looking it up");
     switch (call.function.name) {
       case "explorer_lookup":
         result = await explorerLookup(network, args.address);
@@ -5206,6 +5220,7 @@ ${walletContext}
 
       const toolResults = await Promise.all(
         dataCalls.map(async (block) => {
+          aiProgress(TOOL_PROGRESS[block.name] || "Looking it up");
           const result = block.name === "search_market"
             ? await searchPolymarketMarkets(block.input?.query)
             : await getClobPrice(block.input?.tokenId);
@@ -5349,6 +5364,7 @@ ${walletContext}
 
       for (const call of dataCalls) {
         const args = JSON.parse(call.function.arguments || "{}");
+        aiProgress(TOOL_PROGRESS[call.function.name] || "Looking it up");
         const result = call.function.name === "search_market"
           ? await searchPolymarketMarkets(args.query)
           : await getClobPrice(args.tokenId);
@@ -6110,6 +6126,68 @@ async function translateReply(text, targetDescription) {
   return null;
 }
 
+// ========================================
+// LIVE PROGRESS (/api/ai/progress/:id)
+// ========================================
+// What Lyra is really doing while /api/ai works (understanding the request,
+// a quote per step, a rate lookup...), so the wallet can show it as it
+// happens instead of one "Thinking it through" for the whole wait. The
+// wallet sends a random progressId with its request and polls this route.
+// aiProgress() can be called from anywhere inside the request (tools
+// included): AsyncLocalStorage carries the id.
+const aiProgressStore = new AsyncLocalStorage();
+const AI_PROGRESS = new Map();
+const PROGRESS_ID = /^[a-zA-Z0-9-]{8,64}$/;
+
+function aiProgress(label, detail = "") {
+  const id = aiProgressStore.getStore()?.id;
+  if (!id || !label) return;
+  const entry = AI_PROGRESS.get(id) || { steps: [], at: Date.now() };
+  const last = entry.steps[entry.steps.length - 1];
+  if (last && last.label === label && last.detail === detail) return;
+  entry.steps.push({ label: String(label).slice(0, 80), detail: String(detail || "").slice(0, 80) });
+  entry.at = Date.now();
+  AI_PROGRESS.set(id, entry);
+}
+
+setInterval(() => {
+  const old = Date.now() - 3 * 60 * 1000;
+  for (const [id, entry] of AI_PROGRESS) if (entry.at < old) AI_PROGRESS.delete(id);
+}, 60 * 1000).unref?.();
+
+// The friendly name of each research tool the AI can call.
+const TOOL_PROGRESS = {
+  get_swap_quote: "Fetching a live swap quote",
+  get_bridge_quote: "Fetching a bridge quote",
+  get_aave_apy: "Reading the current staking rate",
+  explorer_lookup: "Looking up the contract on the explorer",
+  search_market: "Searching Polymarket",
+  get_market_price: "Reading the market price",
+};
+
+// "base" / "bas" / "arc" -> "Base Sepolia" / "Arc Testnet" for the progress line
+function progressNetworkName(key) {
+  if (!key) return "";
+  const k = String(key).toLowerCase();
+  const hit = NETWORKS.find(n => n.key === k || n.key.startsWith(k) || n.name.toLowerCase().startsWith(k));
+  return hit ? hit.name : String(key);
+}
+
+app.get("/api/ai/progress/:id", (req, res) => {
+  const id = String(req.params.id || "");
+  if (!PROGRESS_ID.test(id)) return res.status(400).json({ steps: [] });
+  res.set("Cache-Control", "no-store");
+  return res.json({ steps: AI_PROGRESS.get(id)?.steps || [] });
+});
+
+app.use("/api/ai", (req, res, next) => {
+  const id = req.method === "POST" ? String(req.body?.progressId || "") : "";
+  if (!PROGRESS_ID.test(id)) return next();
+  AI_PROGRESS.set(id, { steps: [], at: Date.now() });
+  res.on("finish", () => setTimeout(() => AI_PROGRESS.delete(id), 30 * 1000));
+  aiProgressStore.run({ id }, next);
+});
+
 app.use("/api/ai", (req, res, next) => {
   const originalJson = res.json.bind(res);
   const lang = replyLanguageOf(req.body);
@@ -6123,6 +6201,7 @@ app.use("/api/ai", (req, res, next) => {
         ? (!looksEnglish(userText) ? "the language of this user message: \"" + userText.slice(0, 300) + "\"" : null)
         : REPLY_LANGUAGES[lang];
       if (target && looksEnglish(body.message)) {
+        aiProgress("Writing the answer in your language");
         translateReply(body.message, target)
           .then(out => { if (out) body.message = stripMarkdown(out); })
           .catch(() => {})
@@ -6531,8 +6610,10 @@ you must use the GET_BALANCE intent.
     // A provider hiccup (rate limit, 5xx, a half-written JSON) is usually gone a
     // second later: if every provider failed, go through the list once more
     // before telling the user anything went wrong.
+    aiProgress("Understanding your request");
     for (let round = 0; round < 2 && !action && !proseFallback; round++) {
     if (round > 0) {
+      aiProgress("Asking again, the first answer was unclear");
       console.warn("All AI providers failed, retrying the whole list once.");
       await new Promise(resolve => setTimeout(resolve, 700));
     }
@@ -6979,6 +7060,10 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
       // (Gemini only steps in as a fallback if Claude fails), even
       // when it's not executable yet, we show the user a real ticket
       // based on real data, not a generic text.
+      aiProgress(
+        feature === "swap" ? "Preparing the swap" : feature === "bridge" ? "Preparing the bridge" : action.intent === "UNSTAKE_XPL" ? "Preparing the withdrawal" : "Preparing the deposit",
+        [action.amount, assetSymbol].filter(Boolean).join(" ")
+      );
       const ticket = await prepareDefiTicket(
         network,
         feature,
@@ -7083,6 +7168,7 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
       const predictionWalletContext = walletAddress
         ? `Connected wallet address: ${walletAddress}.`
         : "No wallet connected yet.";
+      aiProgress("Preparing the prediction", action.amountUSD ? "$" + action.amountUSD : "");
       const ticket = await preparePredictionTicket(action.amountUSD, message, predictionWalletContext);
       const executable = !looksLikePredictionTicketFailure(ticket);
       if (executable) {
@@ -7160,8 +7246,18 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
       let previousOutputSymbol = null;
       const resolvedSteps = [];
 
-      for (const step of action.steps) {
+      aiProgress(`Planning ${action.steps.length} steps`);
+      for (const [stepIndex, step] of action.steps.entries()) {
         const kind = step.kind;
+        {
+          const verb = { send: "Send", swap: "Swap", bridge: "Bridge", stake: "Stake", unstake: "Withdraw", predict: "Prediction" }[kind] || "Step";
+          const what = [step.amount, step.asset].filter(Boolean).join(" ") || (stepIndex > 0 ? "from the previous step" : "");
+          const to = kind === "send" ? (step.contactName || (step.recipient ? step.recipient.slice(0, 6) + "…" + step.recipient.slice(-4) : ""))
+            : kind === "swap" ? (step.tokenOutSymbol || step.assetOut || "")
+            : kind === "bridge" ? progressNetworkName(step.destinationChainKey || step.destinationChain || step.toNetwork)
+            : "";
+          aiProgress(`Step ${stepIndex + 1} of ${action.steps.length} · ${verb}`, [what, to].filter(Boolean).join(" → "));
+        }
         const dependsOnPrevious = !step.amount && previousOutputEstimate !== null;
         const effectiveAmount = step.amount || (dependsOnPrevious ? String(previousOutputEstimate) : null);
         // When this step depends on the previous one's output, the asset
@@ -7299,7 +7395,7 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
         recipient: null,
         asset: network.nativeSymbol,
         requires_confirmation: false,
-        message: action.message || "Here's the plan, check each step, then hold the button to confirm.",
+        message: action.message || "Here's the plan, check each step, then confirm.",
         steps: resolvedSteps
       });
     }
@@ -7359,7 +7455,7 @@ if (
       action.amountUSD = usdAmount.toString();
       if (action.recipient) action.requires_confirmation = true;
       action.message = action.recipient
-        ? `$${usdAmount.toFixed(2)} is ${usdAmount.toFixed(2)} ${sendSymbol}. Check the details, then hold the button to confirm.`
+        ? `$${usdAmount.toFixed(2)} is ${usdAmount.toFixed(2)} ${sendSymbol}. Check the details, then confirm.`
         : `$${usdAmount.toFixed(2)} is ${usdAmount.toFixed(2)} ${sendSymbol}. Which address would you like to send it to?`;
     } else {
       // No reliable USD price for this token here: ask for a token
@@ -7388,7 +7484,7 @@ if (
   action.message =
     `$${usdAmount.toFixed(2)} is worth about ` +
     `${nativeAmount.toFixed(6)} ${network.nativeSymbol} at the current rate. ` +
-    `Check the details, then hold the button to confirm.`;
+    `Check the details, then confirm.`;
 } else {
   action.message =
     `$${usdAmount.toFixed(2)} is worth about ` +
@@ -7411,6 +7507,16 @@ if (
      * ========================================
      */
 
+    if (action?.intent) {
+      const verb = {
+        SEND_XPL: "send", SWAP_XPL: "swap", BRIDGE_XPL: "bridge", STAKE_XPL: "stake", UNSTAKE_XPL: "withdraw",
+        PREDICT_MARKET: "bet", PAY_X402: "pay", GET_BALANCE: "check your balance", GET_TRANSACTIONS: "show your transactions",
+      }[action.intent];
+      if (verb && action.intent !== "MULTI_ACTION") {
+        const what = [action.amount, action.asset].filter(Boolean).join(" ");
+        aiProgress(`Understood: ${verb}${what ? " " + what : ""}`);
+      }
+    }
     let toolResult = null;
 
     if (action.intent === "GET_BALANCE") {
