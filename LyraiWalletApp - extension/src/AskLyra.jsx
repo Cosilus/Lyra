@@ -1,0 +1,236 @@
+import { useMemo, useRef, useState } from "react";
+import { MousePointer2, Mic, Globe, Check } from "lucide-react";
+import { motion } from "framer-motion";
+import { drawIdeas } from "./askLyraIdeas.js";
+import { LYRA_LANGUAGES, speechLangFor } from "./lyraLanguages.js";
+import { useVoiceInput } from "./useVoiceInput.js";
+import { LyraStar, StepIcon, withTokenLogos } from "./PlanCard.jsx";
+import { parseAskLyra } from "./askLyraParse.js";
+import "./ask-lyra.css";
+
+// "Ask Lyra": the message box, right under the balance. While the user types,
+// the steps the sentence describes appear underneath, one box per step, so the
+// plan is visible before anything is sent. Sending goes through the same
+// handleIntent as before.
+
+const STEP_LABELS = { swap: "Swap", send: "Send", stake: "Stake", unstake: "Withdraw", bridge: "Bridge" };
+
+function StepPreview({ step, index, previous }) {
+  const label = STEP_LABELS[step.kind] || "Send";
+  const chained = index > 0;
+  const subtitle =
+    step.amount === "the rest" ? "The rest of your " + (step.asset || previous?.asset || "funds")
+    : chained && previous?.kind === "swap" && !step.asset ? "From the swap"
+    : null;
+
+  const QUANT = { half: "Half your", all: "All your", max: "All your", quarter: "A quarter of your", third: "A third of your" };
+  const amountText =
+    step.amount === "the rest" ? "The rest"
+    : QUANT[step.amount] ? `${QUANT[step.amount]} ${step.asset || "funds"}`
+    : step.amount ? [step.amount, step.asset].filter(Boolean).join(" ")
+    : step.asset || null;
+  const target =
+    step.kind === "swap" ? step.toAsset
+    : step.kind === "send" ? step.recipient
+    : step.kind === "bridge" ? step.network
+    : step.kind === "stake" ? "Staking"
+    : step.kind === "unstake" ? "Wallet"
+    : null;
+
+  return (
+    <div className="ask-step" style={{ "--i": index }}>
+      <span className="ask-step-icon"><StepIcon kind={step.kind} /></span>
+      <div className="ask-step-body">
+        <div className="ask-step-label">
+          {chained && <span className="ask-step-chain">↳</span>}
+          {label}
+          {subtitle && <span className="ask-step-sub"> · {subtitle}</span>}
+        </div>
+        <div className="ask-step-line">
+          {amountText ? <span className="ask-step-value">{withTokenLogos(amountText)}</span> : <span className="ask-skel" />}
+          <span className="ask-step-arrow">→</span>
+          {target ? (
+            <span className="ask-step-value">{withTokenLogos(target)}</span>
+          ) : <span className="ask-skel ask-skel--short" />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols, contacts, networks, suggestions = [], language = "auto", onLanguageChange }) {
+  const [focused, setFocused] = useState(false);
+  // three ideas from the deck, drawn again each time the box gets focus
+  const [ideas, setIdeas] = useState({ id: 0, list: [] });
+  const inputRef = useRef(null);
+  const blurTimer = useRef(null);
+  const [langOpen, setLangOpen] = useState(false);
+  const currentLang = LYRA_LANGUAGES.find(l => l.code === language) || LYRA_LANGUAGES[0];
+  // talk instead of typing: the words fill the box live, then are sent
+  const voice = useVoiceInput({
+    lang: speechLangFor(language),
+    onText: text => onChange(text),
+    onDone: text => { if (!busy) onSubmit(text); },
+  });
+
+  const { steps } = useMemo(
+    () => parseAskLyra(value, { tokenSymbols, contacts, networks }),
+    [value, tokenSymbols, contacts, networks]
+  );
+
+  function submit() {
+    const text = value.trim();
+    if (!text || busy) return;
+    inputRef.current?.blur();
+    onSubmit(text);
+  }
+
+  function pick(text) {
+    onChange(text);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (el) { el.focus(); el.setSelectionRange(text.length, text.length); }
+    });
+  }
+
+  const showTry = focused && !value.trim() && ideas.list.length > 0;
+  const showSteps = value.trim() && steps.length > 0;
+
+  return (
+    <div className={`ask-lyra${focused ? " is-focused" : ""}${busy ? " is-busy" : ""}${voice.listening ? " is-listening" : ""}`}>
+      {/* thin pearl line between the balance above and Lyra below */}
+      <div className="ask-divider" aria-hidden="true" />
+
+      <div className="ask-box">
+        <div className="ask-field">
+          {!value && (
+            <div className="ask-placeholder" aria-hidden="true">
+              <LyraStar />
+              <span>Ask Lyra</span>
+            </div>
+          )}
+        <textarea
+          ref={inputRef}
+          className="ask-input"
+          rows={2}
+          value={value}
+          aria-label="Ask Lyra"
+          onChange={e => onChange(e.target.value)}
+          onFocus={() => {
+            clearTimeout(blurTimer.current);
+            setIdeas(d => ({ id: d.id + 1, list: drawIdeas(suggestions, 3) }));
+            setFocused(true);
+          }}
+          onBlur={() => { blurTimer.current = setTimeout(() => setFocused(false), 150); }}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
+          }}
+        />
+        </div>
+        <div className="ask-foot">
+          {/* the language Lyra answers in and listens to */}
+          <div className="ask-lang">
+            <button
+              type="button"
+              className="ask-lang-chip"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => setLangOpen(o => !o)}
+              aria-haspopup="listbox"
+              aria-expanded={langOpen}
+              aria-label={`Lyra's language: ${currentLang.label}`}
+              title="Lyra's language"
+            >
+              <Globe size={13} strokeWidth={1.9} />
+              <span>{currentLang.short}</span>
+            </button>
+            {langOpen && (
+              <>
+                <div className="ask-lang-backdrop" onClick={() => setLangOpen(false)} />
+                <motion.ul
+                  className="ask-lang-menu"
+                  role="listbox"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  {LYRA_LANGUAGES.map(l => (
+                    <li key={l.code}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={l.code === language}
+                        className={l.code === language ? "is-on" : ""}
+                        onClick={() => { onLanguageChange?.(l.code); setLangOpen(false); }}
+                      >
+                        <span>{l.label}</span>
+                        {l.code === language && <Check size={13} strokeWidth={2.4} />}
+                      </button>
+                    </li>
+                  ))}
+                </motion.ul>
+              </>
+            )}
+          </div>
+          <span className={`ask-hint${voice.listening ? " is-live" : ""}`}>
+            {voice.listening ? "Listening… tap the mic to stop" : voice.voiceNote}
+          </span>
+          {voice.supported && (
+            <button
+              type="button"
+              className={`ask-mic${voice.listening ? " is-on" : ""}`}
+              onMouseDown={e => e.preventDefault()}
+              onClick={voice.toggle}
+              disabled={busy}
+              aria-pressed={voice.listening}
+              aria-label={voice.listening ? "Stop listening" : "Talk to Lyra"}
+              title={voice.listening ? "Stop listening" : "Talk to Lyra"}
+            >
+              <Mic size={16} strokeWidth={2} />
+            </button>
+          )}
+          {/* the same pearl send button as the old message bar */}
+          <button
+            type="button"
+            className="send ask-send"
+            onClick={submit}
+            disabled={!value.trim() || busy}
+            aria-label="Send to Lyra"
+          >
+            <MousePointer2 size={15} fill="currentColor" strokeWidth={0} style={{ transform: "rotate(135deg)" }} />
+          </button>
+        </div>
+      </div>
+
+      {showTry && (
+        <div className="ask-try" key={ideas.id}>
+          <div className="ask-try-title">You can try something like this :</div>
+          {ideas.list.map((s, i) => (
+            <motion.button
+              key={s.text}
+              type="button"
+              className="ask-try-item"
+              initial={{ x: -28, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.08 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => pick(s.text)}
+            >
+              <span className="ask-try-icon"><StepIcon kind={s.kind} size={14} /></span>
+              {s.text}
+            </motion.button>
+          ))}
+        </div>
+      )}
+
+      {showSteps && (
+        <div className="ask-steps">
+          <div className="ask-section-title">
+            <LyraStar className="is-moving ask-star" />
+            {steps.length > 1 ? `Understanding… ${steps.length} steps` : "Understanding…"}
+          </div>
+          {steps.map((s, i) => <StepPreview key={i} step={s} index={i} previous={steps[i - 1]} />)}
+        </div>
+      )}
+    </div>
+  );
+}

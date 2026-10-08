@@ -6056,9 +6056,81 @@ async function translateToEnglish(text) {
   return null;
 }
 
+// The wallet can ask Lyra to answer in another language: "language" in the
+// request body is "en" (default, English as before), "auto" (the language
+// the user wrote in) or one of the codes below. The model is told so, and
+// replies that still come out in English (fixed wallet sentences, or the
+// model ignoring the rule) are translated before they are sent.
+const REPLY_LANGUAGES = {
+  en: "English", zh: "Simplified Chinese", es: "Spanish", pt: "Portuguese (Brazilian)",
+  fr: "French", ru: "Russian", tr: "Turkish", ko: "Korean", ja: "Japanese",
+  vi: "Vietnamese", id: "Indonesian", de: "German", ar: "Arabic", hi: "Hindi",
+};
+
+function replyLanguageOf(body) {
+  const code = String(body?.language || "en").toLowerCase();
+  if (code === "auto") return "auto";
+  return REPLY_LANGUAGES[code] ? code : "en";
+}
+
+function replyLanguageRule(code) {
+  if (code === "en") return "";
+  const target = code === "auto"
+    ? "the same language the user wrote their last message in (English if unsure)"
+    : REPLY_LANGUAGES[code];
+  return `REPLY LANGUAGE (this overrides every "always reply in English" rule above): write every "message" you return in ${target}. Keep intents, JSON keys, token symbols, amounts, addresses, network names and product names (Lyra, x402, Aave, USDC...) exactly as they are, untranslated.`;
+}
+
+const ENGLISH_WORDS = new Set("the you your is are to of and for with this that it can will would do want how much what which here there please".split(" "));
+const NON_LATIN = /[Ѐ-ӿ؀-ۿऀ-ॿ぀-ヿ㐀-鿿가-힯]/;
+
+function looksEnglish(text) {
+  if (NON_LATIN.test(text)) return false;
+  const words = String(text).toLowerCase().match(/[a-z']+/g) || [];
+  if (words.length < 4) return false;
+  const hits = words.filter(w => ENGLISH_WORDS.has(w)).length;
+  return hits >= 2 && hits / words.length > 0.12 && !looksNonEnglish(text);
+}
+
+async function translateReply(text, targetDescription) {
+  const providers = getConfiguredAIProviders();
+  const messages = [
+    { role: "system", content: "Translate the text into " + targetDescription + ". Natural and simple. Keep numbers, addresses, token symbols, network names, quoted phrases and product names (Lyra, x402, A2A, ACP, Polymarket, Aave) exactly. Plain text, no Markdown. Reply ONLY with JSON: {\"message\": \"...\"}" },
+    { role: "user", content: String(text).slice(0, 1500) }
+  ];
+  for (const provider of providers) {
+    try {
+      const raw = await callChatCompletionJSON(provider, messages);
+      const out = JSON.parse(raw)?.message;
+      if (typeof out === "string" && out.trim()) return out.trim();
+    } catch (e) {
+      console.error("[translate] " + provider.name + " failed:", e.message);
+    }
+  }
+  return null;
+}
+
 app.use("/api/ai", (req, res, next) => {
   const originalJson = res.json.bind(res);
+  const lang = replyLanguageOf(req.body);
+  const userText = String(req.body?.message || "");
   res.json = (body) => {
+    if (body && typeof body === "object" && typeof body.message === "string" && lang !== "en") {
+      body.message = stripMarkdown(body.message);
+      // "auto": unless the user clearly wrote in English, the translator
+      // matches the language of the user's own message
+      const target = lang === "auto"
+        ? (!looksEnglish(userText) ? "the language of this user message: \"" + userText.slice(0, 300) + "\"" : null)
+        : REPLY_LANGUAGES[lang];
+      if (target && looksEnglish(body.message)) {
+        translateReply(body.message, target)
+          .then(out => { if (out) body.message = stripMarkdown(out); })
+          .catch(() => {})
+          .finally(() => originalJson(body));
+        return res;
+      }
+      return originalJson(body);
+    }
     if (body && typeof body === "object" && typeof body.message === "string") {
       body.message = stripMarkdown(body.message);
       if (looksNonEnglish(body.message)) {
@@ -6276,6 +6348,7 @@ app.post("/api/ai", async (req, res) => {
       contacts = [],
       network: networkKey
     } = req.body;
+    const languageRule = replyLanguageRule(replyLanguageOf(req.body));
 
     if (!message) {
       return res.status(400).json({
@@ -6419,6 +6492,8 @@ you must use the GET_BALANCE intent.
         content: context
       },
 
+      ...(languageRule ? [{ role: "system", content: languageRule }] : []),
+
       ...history.slice(-10).map((m) => ({
         role: m.role === "ai"
           ? "assistant"
@@ -6431,7 +6506,7 @@ you must use the GET_BALANCE intent.
         // The scope rule is repeated right after the user's text: models
         // follow the most recent instruction best, and a long system prompt
         // alone let off-topic requests (recipes, code, trivia) slip through.
-        content: `${message}\n\n[Internal reminder, not written by the user: if the message above is clearly NOT about operating this wallet and NOT about web3, crypto, or blockchain (prices of crypto assets, protocols, tokens, DeFi and how this wallet works are all in scope), reply with intent "CHAT" and exactly this message and nothing else: "${OUT_OF_SCOPE_REPLY}" Never answer it, even partly. A plain greeting or thanks is fine: answer it in one friendly sentence and offer help with the wallet.]`
+        content: `${message}\n\n[Internal reminder, not written by the user: if the message above is clearly NOT about operating this wallet and NOT about web3, crypto, or blockchain (prices of crypto assets, protocols, tokens, DeFi and how this wallet works are all in scope), reply with intent "CHAT" and exactly this message and nothing else: "${OUT_OF_SCOPE_REPLY}" Never answer it, even partly. A plain greeting or thanks is fine: answer it in one friendly sentence and offer help with the wallet.${languageRule ? " " + languageRule : ""}]`
       }
     ];
 
