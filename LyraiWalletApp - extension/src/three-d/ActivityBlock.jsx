@@ -1,16 +1,24 @@
 import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
-// "Lyra is working": ONE line. While a request runs the line shows the phase
-// Lyra is in right now ("Reading your request…", "Checking your balance…") and
-// changes in place when she moves on, with the elapsed seconds next to it.
-// Nothing stacks. When done it reads "Worked for 4s · 5 steps", and opening it
-// shows the recap of every phase with its result.
+// "Lyra is working": while a request runs, the head line shows the phase Lyra
+// is in right now ("Checking your balance…") with the elapsed seconds, and the
+// steps list underneath grows live, each step checked as it ends. A moment
+// after the work is done the list folds into "Worked for 4s · 5 steps", and
+// opening it shows the recap of every phase with its result.
 // `run` = { id, t0, t1 (null while running), steps: [{ label, detail, state }] }
 export function ActivityBlock({ run }) {
   const working = run.t1 == null;
   const [open, setOpen] = useState(false); // the recap is only shown on demand
   const [now, setNow] = useState(() => Date.now());
+  // the live list stays a moment after the end, so the last steps can be read
+  const [lingering, setLingering] = useState(false);
+  useEffect(() => {
+    if (working) { setLingering(true); return; }
+    const t = setTimeout(() => setLingering(false), 1800);
+    return () => clearTimeout(t);
+  }, [working]);
+  const showSteps = open || working || lingering;
 
   useEffect(() => {
     if (!working) return;
@@ -35,7 +43,7 @@ export function ActivityBlock({ run }) {
         {working && <span className="act-time">{secs}s</span>}
         <ChevronDown size={14} className="act-chev" />
       </button>
-      {open && (
+      {showSteps && (
         <ul className="act-steps">
           {run.steps.map((st, i) => (
             <li key={i} className={working && i === run.steps.length - 1 ? "run" : "done"}>

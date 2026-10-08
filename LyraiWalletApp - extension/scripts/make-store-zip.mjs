@@ -31,7 +31,7 @@ const hosts = [
   "https://ethereum-sepolia-rpc.publicnode.com",
   "https://sepolia.base.org",
   "https://polygon-amoy-bor-rpc.publicnode.com",
-  "https://rpc.testnet.arc.network",
+  "https://rpc.blockdaemon.testnet.arc.network",
   "https://rpc.hyperliquid-testnet.xyz",
   "https://*.circle.com",
   "https://api.safe.global",
