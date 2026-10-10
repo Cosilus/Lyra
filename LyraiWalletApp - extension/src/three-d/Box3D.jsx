@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { BOX, CARD_DOCK, DOCK } from "./config3d.js";
 import { useParallax3d } from "./useParallax3d.js";
-import { Tour3D, TOUR_STEPS } from "./Tour3D.jsx";
+import { Tour3D, tourStepsHere } from "./Tour3D.jsx";
 import { TokenLogo } from "../tokenLogo.jsx";
 import { IS_CARD, reportCardDock } from "../cardBridge.js";
 import "./three-d.css";
@@ -153,7 +153,8 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
   useEffect(() => {
     if (tourActive) setTourStep(0);
   }, [tourActive]);
-  const step = tourActive ? TOUR_STEPS[tourStep] : null;
+  const tourSteps = useMemo(tourStepsHere, [tourActive]);
+  const step = tourActive ? tourSteps[tourStep] : null;
   const forcedDock = step ? step.dock : null;
   const assetsMenuHoveredRef = useRef(false);
   const isAssetsMenuHovered = useCallback(() => assetsMenuHoveredRef.current, []);
@@ -216,8 +217,9 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
       {tourActive && (
         <Tour3D
           step={tourStep}
-          total={TOUR_STEPS.length}
-          onNext={() => (tourStep >= TOUR_STEPS.length - 1 ? onTourDone?.() : setTourStep((n) => n + 1))}
+          steps={tourSteps}
+          total={tourSteps.length}
+          onNext={() => (tourStep >= tourSteps.length - 1 ? onTourDone?.() : setTourStep((n) => n + 1))}
           onBack={() => setTourStep((n) => Math.max(0, n - 1))}
           onSkip={() => onTourDone?.()}
         />

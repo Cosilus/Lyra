@@ -184,7 +184,7 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
               disabled={busy}
               aria-pressed={voice.listening}
               aria-label={voice.listening ? "Stop listening" : "Talk to Lyra"}
-              title={voice.listening ? "Stop listening" : "Talk to Lyra"}
+              data-tip={voice.listening ? "Stop listening" : "Talk to Lyra"}
             >
               <Mic size={16} strokeWidth={2} />
             </button>

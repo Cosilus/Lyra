@@ -4284,3 +4284,184 @@ html.lyra-card .ic-panel { gap: 14px; }
 .frame--ask > .header { flex: 1 1 auto; }
 .frame--ask > .chat { flex: 0 0 auto; min-height: 0; padding-top: 0; padding-bottom: 0; }
 .lyra-reply-wait { color: var(--muted); letter-spacing: 0.2em; animation: ask-pulse 1.1s ease-in-out infinite; }
+
+/* Floating card: Settings, Contacts, Backup... take the whole wallet instead
+   of a smaller box over it */
+html.lyra-card .contacts-overlay,
+html.lyra-card .backup-overlay { padding: 0; background: rgba(12, 7, 20, 0.85); }
+html.lyra-card .contacts-panel,
+html.lyra-card .backup-panel {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: var(--card-radius);
+  box-shadow: none;
+  padding: 30px 22px 20px;
+}
+/* title a little lower, tighter around the line under it */
+.contacts-header { margin-bottom: 10px; padding-bottom: 10px; }
+
+/* ---- The wallet's addresses (AccountSwitcher.jsx), under the address ---- */
+.address-open-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.address-open-btn:hover { color: var(--beige); }
+.address-chevron-btn {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-left: -1px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.address-chevron-btn svg { transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+.address-chevron-btn:hover { color: var(--beige); background: rgba(var(--beige-rgb), 0.08); }
+.address-chevron-btn.is-open { color: var(--beige); }
+.address-chevron-btn.is-open svg { transform: rotate(180deg); }
+
+.acct-wrap { overflow: hidden; }
+.acct { padding-top: 12px; margin-top: 10px; border-top: 1px solid var(--line); }
+.acct-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 176px; overflow-y: auto; }
+.acct-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--beige);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.acct-row:hover:not(:disabled) { background: rgba(var(--beige-rgb), 0.06); }
+.acct-row.is-active { background: rgba(var(--beige-rgb), 0.05); cursor: default; }
+.acct-mark { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); }
+.acct-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.acct-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acct-address { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.acct-state { flex: 0 0 auto; color: var(--muted); }
+.acct-state.is-on { color: var(--beige); }
+
+.acct-actions { display: flex; gap: 6px; margin-top: 8px; }
+.acct-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(var(--beige-rgb), 0.03);
+  color: var(--muted);
+  font: 600 12px var(--sans);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.acct-action:hover { color: var(--beige); background: rgba(var(--beige-rgb), 0.08); border-color: rgba(var(--beige-rgb), 0.22); }
+
+.acct-form { display: flex; flex-direction: column; gap: 8px; }
+.acct-form-head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--beige); }
+.acct-back {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.acct-back:hover { color: var(--beige); background: rgba(var(--beige-rgb), 0.08); }
+.acct-hint { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.acct-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--beige);
+  font: 500 13px var(--sans);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.acct-input:focus { border-color: rgba(var(--beige-rgb), 0.35); }
+.acct-secret { font-family: var(--mono); font-size: 12px; resize: none; }
+.acct-error { font-size: 11.5px; color: #E08A7A; margin-top: 2px; }
+.acct-submit {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #FBF8FF, #E9E3F2 60%, #D6CEE6);
+  color: #1A1028;
+  font: 700 12.5px var(--sans);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.acct-submit:hover:not(:disabled) { filter: brightness(1.05); }
+.acct-submit:disabled { opacity: 0.7; cursor: default; }
+.acct-spin { animation: acct-spin 0.9s linear infinite; }
+@keyframes acct-spin { to { transform: rotate(360deg); } }
+
+/* rename: a pen on each address, shown on hover (always on touch screens) */
+.acct-item { position: relative; }
+.acct-item .acct-row { padding-right: 58px; }
+.acct-item .acct-state { position: absolute; right: 12px; top: 50%; translate: 0 -50%; pointer-events: none; }
+.acct-edit {
+  position: absolute;
+  right: 32px;
+  top: 50%;
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.acct-item:hover .acct-edit,
+.acct-edit:focus-visible { opacity: 1; }
+.acct-edit:hover { color: var(--beige); background: rgba(var(--beige-rgb), 0.08); }
+@media (hover: none) { .acct-edit { opacity: 1; } }
+.acct-row.is-editing { cursor: default; background: rgba(var(--beige-rgb), 0.05); }
+.acct-row.is-editing .acct-edit { position: static; translate: none; opacity: 1; color: var(--beige); flex: 0 0 auto; }
+.acct-rename {
+  width: 100%;
+  box-sizing: border-box;
+  margin: -2px 0 0 -5px;
+  padding: 1px 5px;
+  border: 1px solid rgba(var(--beige-rgb), 0.3);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--beige);
+  font: 600 13px var(--sans);
+  outline: none;
+}

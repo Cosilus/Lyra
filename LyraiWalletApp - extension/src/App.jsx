@@ -13,6 +13,8 @@ import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiom
 import { splitPrivateKey, combineFragments, registerMpcWallet, getMpcStatus, setMpcDailyLimit, releaseFragment2, recoverFragment2 } from "./mpc";
 import { loadSavedWallet, encryptPrivateKey, decryptPrivateKey, reconstructPrivateKey } from "./walletVault.js";
 import { syncAddress } from "./providerSync.js";
+import { loadAccounts, findAccount, activateAccount, addAccount, clearAccounts, nextDerivedIndex, defaultAccountName, renameAccount } from "./walletAccounts.js";
+import { AccountSwitcher } from "./AccountSwitcher.jsx";
 import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodePaymentResponseHeader, decodePaymentRequiredHeader, findEip3009SettlementTx, selectGatewayOptions, signGatewayPayment, fetchGatewayBalances, GATEWAY_NETWORKS, GATEWAY_WALLET_MAINNET, GATEWAY_WALLET_ABI } from "./x402";
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
 import { DEMO_A2A_AGENT_URL, sendA2ATask, fetchAgentCard } from "./a2a";
@@ -1005,6 +1007,19 @@ export default function App() {
   const [forgotWords, setForgotWords] = useState({});
   const [forgotError, setForgotError] = useState("");
   const [addressCopied, setAddressCopied] = useState(false);
+  // The wallet's other addresses (walletAccounts.js), opened from the
+  // chevron next to the address. Their keys stay in memory only while the
+  // wallet is unlocked, like the main one.
+  const [showAccounts, setShowAccounts] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const accountKeysRef = useRef(new Map()); // lowercased address -> { privateKey, localSecret }
+  const [, setAccountKeysVersion] = useState(0);
+  const rememberAccountKey = (address, privateKey, localSecret = privateKey) => {
+    if (!address || !privateKey) return;
+    accountKeysRef.current.set(address.toLowerCase(), { privateKey, localSecret });
+    setAccountKeysVersion(v => v + 1);
+  };
+  const accountKeyReady = (address) => accountKeysRef.current.has(String(address).toLowerCase());
   const [waveActive, setWaveActive] = useState(false);
   const holdIntervalRef = useRef(null);
   const inactivityTimerRef = useRef(null);
@@ -2165,6 +2180,8 @@ useEffect(() => {
 
 
 function lockWallet() {
+  accountKeysRef.current.clear();
+  setShowAccounts(false);
   setUnlockedPrivateKey(null);
   setLocked(true);
   setShowUnlock(true);
@@ -2225,6 +2242,8 @@ async function unlockWallet() {
     setUnlockedPrivateKey(privateKey);
 
     sessionKeyCacheRef.current = privateKey;
+    rememberAccountKey(saved.address, privateKey, localSecret);
+    unlockOtherAccounts(unlockPassword);
 
     setMpcEnabled(!!saved.mpcEnabled);
 
@@ -2245,6 +2264,122 @@ async function unlockWallet() {
       "Incorrect password."
     );
   }
+}
+
+// Opens the wallet's other addresses with the password just used to unlock,
+// in the background, so switching to them needs no password this session.
+function unlockOtherAccounts(password) {
+  if (!password) return;
+  for (const a of loadAccounts()) {
+    if (accountKeyReady(a.address) || a.record?.mpcEnabled || !a.record?.ciphertext) continue;
+    decryptPrivateKey(a.record, password)
+      .then(pk => {
+        if (new ethers.Wallet(pk).address.toLowerCase() === a.address.toLowerCase()) rememberAccountKey(a.address, pk);
+      })
+      .catch(() => { /* another password (e.g. after a reset): asked when switching */ });
+  }
+}
+
+async function verifyWalletPassword(password) {
+  try {
+    await decryptPrivateKey(loadSavedWallet(), password);
+  } catch {
+    throw new Error("Incorrect password.");
+  }
+}
+
+async function switchAccount(address, password) {
+  const entry = findAccount(address);
+  if (!entry) throw new Error("This address isn't in your wallet.");
+  let k = accountKeysRef.current.get(address.toLowerCase());
+  if (!k) {
+    let localSecret;
+    try {
+      localSecret = await decryptPrivateKey(entry.record, password);
+    } catch {
+      throw new Error("Incorrect password.");
+    }
+    const privateKey = await reconstructPrivateKey(localSecret, entry.address, entry.record.mpcEnabled);
+    if (new ethers.Wallet(privateKey).address.toLowerCase() !== address.toLowerCase()) throw new Error("Incorrect password.");
+    rememberAccountKey(address, privateKey, localSecret);
+    k = { privateKey, localSecret };
+  }
+  const record = activateAccount(address);
+  localSecretRef.current = k.localSecret;
+  sessionKeyCacheRef.current = k.privateKey;
+  setUnlockedPrivateKey(k.privateKey);
+  setMpcEnabled(!!record.mpcEnabled);
+  setWallet({ address: record.address });
+  setAccounts(loadAccounts());
+  setShowAccounts(false);
+  setToast(`Switched to ${entry.name}.`);
+  refreshBalance(record.address);
+}
+
+// A new address: the next one on the main recovery phrase (so the same
+// phrase backs it up), or a fresh one when the wallet has no phrase.
+async function createAccount(password) {
+  const list = loadAccounts();
+  const main = list.find(a => a.kind === "main" && a.record?.mnemonicEnc);
+  let w, mnemonicEnc, kind, index;
+  if (main) {
+    let phrase;
+    try {
+      phrase = await decryptPrivateKey(main.record.mnemonicEnc, password);
+    } catch {
+      throw new Error("Incorrect password.");
+    }
+    index = nextDerivedIndex(list);
+    w = ethers.HDNodeWallet.fromPhrase(phrase, undefined, `m/44'/60'/0'/0/${index}`);
+    mnemonicEnc = main.record.mnemonicEnc;
+    kind = "derived";
+  } else {
+    await verifyWalletPassword(password);
+    w = ethers.Wallet.createRandom();
+    mnemonicEnc = await encryptPrivateKey(w.mnemonic.phrase, password);
+    kind = "created";
+  }
+  const enc = await encryptPrivateKey(w.privateKey, password);
+  addAccount({
+    address: w.address,
+    name: defaultAccountName(list, kind),
+    kind,
+    ...(index != null ? { index } : {}),
+    record: { address: w.address, ...enc, mnemonicEnc, mpcEnabled: false }
+  });
+  rememberAccountKey(w.address, w.privateKey);
+  await switchAccount(w.address);
+}
+
+// An address from elsewhere: a private key or a recovery phrase
+async function importAccount(secret, password) {
+  await verifyWalletPassword(password);
+  const s = secret.trim();
+  let w;
+  let mnemonicEnc = null;
+  if (/^(0x)?[0-9a-fA-F]{64}$/.test(s)) {
+    w = new ethers.Wallet(s.startsWith("0x") ? s : `0x${s}`);
+  } else {
+    const words = s.toLowerCase().split(/\s+/).filter(Boolean);
+    if (![12, 15, 18, 21, 24].includes(words.length)) throw new Error("That's not a private key or a 12 or 24-word recovery phrase.");
+    try {
+      w = ethers.Wallet.fromPhrase(words.join(" "));
+    } catch {
+      throw new Error("This recovery phrase isn't valid.");
+    }
+    mnemonicEnc = await encryptPrivateKey(words.join(" "), password);
+  }
+  if (findAccount(w.address)) throw new Error("This address is already in your wallet.");
+  const list = loadAccounts();
+  const enc = await encryptPrivateKey(w.privateKey, password);
+  addAccount({
+    address: w.address,
+    name: defaultAccountName(list, "imported"),
+    kind: "imported",
+    record: { address: w.address, ...enc, ...(mnemonicEnc ? { mnemonicEnc } : {}), mpcEnabled: false }
+  });
+  rememberAccountKey(w.address, w.privateKey);
+  await switchAccount(w.address);
 }
 
 async function handleRevealPrivateKey() {
@@ -2322,6 +2457,9 @@ function closeExportKey() {
 
 function resetWallet() {
   localStorage.removeItem("plasma_wallet_v2");
+  clearAccounts();
+  accountKeysRef.current.clear();
+  setShowAccounts(false);
   setWallet(null);
   setUnlockedPrivateKey(null);
   setLocked(false);
@@ -2423,9 +2561,15 @@ async function unlockWithBiometric() {
     }
 
     const w = new ethers.Wallet(privateKey);
+    // biometrics were set up on one address; if another one is in use now, go back to it
+    let mpcFlag = !!saved?.mpcEnabled;
+    if (saved?.address && w.address.toLowerCase() !== saved.address.toLowerCase() && findAccount(w.address)) {
+      mpcFlag = !!activateAccount(w.address).mpcEnabled;
+    }
     sessionKeyCacheRef.current = privateKey;
+    rememberAccountKey(w.address, privateKey, localSecretRef.current || privateKey);
     setUnlockedPrivateKey(privateKey);
-    setMpcEnabled(!!saved?.mpcEnabled);
+    setMpcEnabled(mpcFlag);
     setWallet({ address: w.address });
     setLocked(false);
     setShowUnlock(false);
@@ -5773,7 +5917,8 @@ const signer = new ethers.Wallet(
 
     const address = text.match(/0x[a-fA-F0-9]{40}/)?.[0] || null;
     const moneyLike = !!address ||
-      /\b(send|swap|bridge|stake|unstake|withdraw|deposit|pay|transfer|cash ?out|top ?up|bet|envoie\w*|echange\w*)\b/i.test(text);
+      /\b(send|swap|bridge|stake|unstake|withdraw|deposit|pay|transfer|cash ?out|top ?up|bet)\b/i.test(text) ||
+      parseAskLyra(text, { tokenSymbols: [activeNetwork.nativeSymbol, ...Object.keys(tokens)], contacts, networks: NETWORKS }).steps.length > 0;
 
     if (moneyLike && wallet?.address && !isAiDone()) {
       const since = Date.now();
@@ -7839,7 +7984,15 @@ function handleHoldEnd() {
 
     {wallet?.address && (
       <span className="wallet-address-inline">
-        {shortAddress(wallet.address)}
+        <button
+          type="button"
+          className="address-open-btn"
+          onClick={() => { setAccounts(loadAccounts()); setShowAccounts(v => !v); }}
+          aria-expanded={showAccounts}
+          data-tip="Your addresses"
+        >
+          {shortAddress(wallet.address)}
+        </button>
         <button
   type="button"
   className="address-copy-btn"
@@ -7866,10 +8019,42 @@ function handleHoldEnd() {
     <Copy size={11} strokeWidth={2} />
   )}
 </button>
+        <button
+          type="button"
+          className={`address-chevron-btn${showAccounts ? " is-open" : ""}`}
+          onClick={() => { setAccounts(loadAccounts()); setShowAccounts(v => !v); }}
+          aria-expanded={showAccounts}
+          aria-label="Your addresses"
+          data-tip="Your addresses"
+        >
+          <ChevronDown size={13} strokeWidth={2.2} />
+        </button>
       </span>
     )}
   </div>
 )}
+            <AnimatePresence initial={false}>
+              {showAccounts && wallet && !locked && (
+                <motion.div
+                  key="accounts"
+                  className="acct-wrap"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <AccountSwitcher
+                    accounts={accounts}
+                    activeAddress={wallet.address}
+                    keyReady={accountKeyReady}
+                    onSwitch={switchAccount}
+                    onCreate={createAccount}
+                    onImport={importAccount}
+                    onRename={(address, name) => setAccounts(renameAccount(address, name))}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
             </div>
 
             {wallet && (
@@ -9656,6 +9841,7 @@ function handleHoldEnd() {
             setUnlockedPrivateKey(pendingPrivateKey);
             localSecretRef.current = localSecret;
             sessionKeyCacheRef.current = pendingPrivateKey;
+            rememberAccountKey(address, pendingPrivateKey, localSecret);
             setMpcEnabled(mpcFlag);
 
             setLocked(false);
