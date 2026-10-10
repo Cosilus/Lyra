@@ -4465,3 +4465,7 @@ html.lyra-card .backup-panel {
   font: 600 13px var(--sans);
   outline: none;
 }
+
+/* Receive: QR and address centered in the panel, close button in the corner */
+.receive-panel { position: relative; justify-content: center; }
+.receive-close { position: absolute; top: 18px; right: 18px; }

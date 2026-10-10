@@ -297,7 +297,6 @@ export function PlanCard({
               >
                 <Fingerprint size={34} strokeWidth={1.6} />
                 <span className="plan-scan-line" />
-                <span>{biometric?.label || "Biometrics"}</span>
               </motion.div>
             </motion.div>
           )}

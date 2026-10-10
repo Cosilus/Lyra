@@ -8266,13 +8266,13 @@ function handleHoldEnd() {
     className="backup-overlay"
     onMouseDown={(e) => { if (e.target === e.currentTarget) setShowReceiveQr(false); }}
   >
-    <div className="backup-panel" style={{ alignItems: "center", textAlign: "center" }}>
-      <div className="backup-header" style={{ width: "100%", position: "relative", justifyContent: "center", textAlign: "center" }}>
+    <div className="backup-panel receive-panel" style={{ alignItems: "center", textAlign: "center" }}>
+      <div className="backup-header" style={{ width: "100%", justifyContent: "center", textAlign: "center" }}>
         <div>
           <div className="backup-title">Receive</div>
           <div className="backup-subtitle">Scan or copy your address</div>
         </div>
-        <button type="button" className="contacts-close" style={{ position: "absolute", right: 0, top: 0 }} onClick={() => setShowReceiveQr(false)}>
+        <button type="button" className="contacts-close receive-close" onClick={() => setShowReceiveQr(false)}>
           <X size={18} />
         </button>
       </div>
