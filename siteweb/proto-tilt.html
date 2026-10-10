@@ -396,7 +396,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0; text-wrap: balance; letter-s
         <dt>Tilt top toward you · swipe down</dt><dd>Assets</dd>
         <dt>Tap the wallet · swipe or tilt back</dt><dd>Close</dd>
       </dl>
-      <p class="status">A tilt has to pass about 25° for 0.3 s. Once open, a menu stays open when you hold the phone straight again, so you can tap it comfortably.</p>
+      <p class="status">A tilt has to pass about 15° for a quarter of a second. Once open, a menu stays open when you hold the phone straight again, so you can tap it comfortably.</p>
     </div>
 
     <div class="box">
@@ -435,10 +435,10 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0; text-wrap: balance; letter-s
   const statusEl = document.getElementById("sensorStatus");
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  const THRESHOLD = 25;     // degrees away from the resting pose
-  const THRESHOLD_TOP = 18; // tilting the top toward you is a smaller movement
-  const HOLD_MS = 300;
-  const NEUTRAL = 10;
+  const THRESHOLD = 15;     // degrees away from the resting pose
+  const THRESHOLD_TOP = 12; // tilting the top toward you is a smaller movement
+  const HOLD_MS = 250;
+  const NEUTRAL = 7;
 
   let open = null;
   let tiltEnabled = true;
@@ -502,11 +502,7 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0; text-wrap: balance; letter-s
     document.getElementById("rg").textContent = Math.round(dg) + "°";
     document.getElementById("rb").textContent = Math.round(db) + "°";
 
-    // the card leans with the phone, a little, before anything opens
-    if (!reduce) {
-      tilt.style.setProperty("--ry", Math.max(-12, Math.min(12, dg * 0.35)).toFixed(2) + "deg");
-      tilt.style.setProperty("--rx", Math.max(-10, Math.min(10, -db * 0.3)).toFixed(2) + "deg");
-    }
+    // the wallet itself stays still, like the app: only opening a menu moves it
     if (!tiltEnabled) { holdBar.style.width = "0%"; return; }
 
     const neutral = Math.abs(dg) < NEUTRAL && Math.abs(db) < NEUTRAL;
