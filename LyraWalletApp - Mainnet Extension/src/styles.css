@@ -149,6 +149,7 @@ button { cursor: pointer; }
 }
 
 .balance-card {
+  position: relative;
   margin-top: 0;
   padding: 14px 26px 12px;
   border-radius: 24px;
@@ -4064,6 +4065,15 @@ html.lyra-card .frame {
   max-height: none;
   border-radius: var(--card-radius);
 }
+/* Round corners that always hold: overflow + border-radius alone stops
+   clipping a child Chrome moves to its own layer (an animation, a transform,
+   a hover effect), and the wallet then flashes square corners. A rounded
+   clip-path clips every layer. */
+html.lyra-card .frame,
+html.lyra-card .d3-face--front,
+html.lyra-card #card-overlays {
+  clip-path: inset(0 round var(--card-radius));
+}
 html.lyra-card .d3-scene { height: 100%; }
 html.lyra-card .d3-face--front,
 html.lyra-card .d3-face--back,
@@ -4203,3 +4213,74 @@ html.lyra-card .d3-assets-menu:not(.d3-assets-menu--show) {
 
 /* Moving the floating card (src/cardBridge.js): grab cursor, no selection */
 html.lyra-moving, html.lyra-moving * { cursor: grabbing !important; user-select: none !important; }
+
+/* Receive QR code button, top-right corner of the balance card */
+.balance-qr {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: rgba(var(--beige-rgb), 0.05);
+  color: var(--beige);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.balance-qr:hover { background: rgba(var(--beige-rgb), 0.12); transform: scale(1.05); }
+.balance-qr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Floating card: the 2D/3D chooser and the tilt screen sit inside the wallet,
+   so they get a little less room around them */
+html.lyra-card .ic-overlay,
+html.lyra-card .tilt-overlay { position: absolute; padding: 18px 14px; }
+html.lyra-card .ic-title { font-size: 20px; }
+html.lyra-card .ic-panel { gap: 14px; }
+
+/* Lyra's latest answer, right under Ask Lyra */
+.lyra-reply {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 12px 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(var(--beige-rgb), 0.04);
+  color: var(--beige);
+  font-size: 13.5px;
+  line-height: 1.45;
+  animation: lyra-reply-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.lyra-reply-icon { flex: 0 0 auto; display: grid; place-items: center; width: 18px; height: 20px; color: var(--beige); }
+.lyra-reply-icon svg { width: 13px; height: 13px; }
+.lyra-reply-text { flex: 1; min-width: 0; overflow-wrap: anywhere; max-height: 9.5em; overflow-y: auto; }
+.lyra-reply-close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: -2px -2px 0 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.lyra-reply-close:hover { background: rgba(var(--beige-rgb), 0.08); color: var(--beige); }
+/* an error: same place, soft red */
+.lyra-reply.is-error { border-color: rgba(213, 116, 99, 0.35); background: rgba(213, 116, 99, 0.09); }
+.lyra-reply.is-error .lyra-reply-icon { color: #E08A7A; }
+.lyra-reply.is-error .lyra-reply-icon svg { width: 15px; height: 15px; }
+@keyframes lyra-reply-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lyra-reply { animation: none; } }
+
+/* No conversation at the bottom any more: the header (balance, Ask Lyra,
+   Lyra's answer) takes the whole height, so its glow has no visible edge */
+.frame--ask > .header { flex: 1 1 auto; }
+.frame--ask > .chat { flex: 0 0 auto; min-height: 0; padding-top: 0; padding-bottom: 0; }
+.lyra-reply-wait { color: var(--muted); letter-spacing: 0.2em; animation: ask-pulse 1.1s ease-in-out infinite; }

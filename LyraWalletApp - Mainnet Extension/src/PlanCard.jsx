@@ -410,7 +410,7 @@ export function PlanCard({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.2 }}
         >
-          <button type="button" className="plan-confirm" onClick={onDone}>Done</button>
+          <button type="button" className="plan-confirm plan-confirm--done" onClick={onDone}><Check size={16} strokeWidth={2.6} /> Done</button>
         </motion.div>
       )}
     </motion.div>

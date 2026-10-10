@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { overlayRoot } from "../cardBridge.js";
 
 export const TILT_KEY = "lyra_tilt_v1";
 
@@ -72,6 +73,6 @@ export function TiltActivation({ onEnabled, onStay2d }) {
         <small>Motion sensors are optional.</small>
       </div>
     </div>,
-    document.body
+    overlayRoot()
   );
 }

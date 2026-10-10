@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, LayoutGroup } from "framer-motion";
 import { ethers } from "ethers";
 import { gsap } from "gsap";
 import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUpFromDot, ArrowDownToDot, ArrowLeftRight, MoveHorizontal, Vault, ChevronDown, QrCode, Sparkles, HelpCircle, Gift } from "lucide-react";
@@ -69,7 +69,8 @@ import { StatusBadge } from "./StatusBadge.jsx";
 import { FillButton } from "./FillButton.jsx";
 import { buildIdeas } from "./askLyraIdeas.js";
 import { loadLyraLanguage, saveLyraLanguage } from "./lyraLanguages.js";
-import { PlanCard, RequestBox } from "./PlanCard.jsx";
+import { looksEnglishText, offlineText, autoLanguage } from "./replyLanguage.js";
+import { PlanCard, RequestBox, LyraStar } from "./PlanCard.jsx";
 import { parseAskLyra } from "./askLyraParse.js";
 import { Box3D } from "./three-d/Box3D.jsx";
 import Logo3D from "./three-d/Logo3D.jsx";
@@ -1242,6 +1243,11 @@ export default function App() {
 
   // The language Lyra answers in (and listens to, for voice), "auto" by default.
   const [lyraLanguage, setLyraLanguage] = useState(loadLyraLanguage);
+  // the latest Lyra answer the user closed (see lyraReply)
+  const [dismissedReplyAt, setDismissedReplyAt] = useState(-1);
+  // Lyra's answer in the chosen language (see the effect next to lyraReply)
+  const [translatedReply, setTranslatedReply] = useState(null); // { key, text }
+  const replyTranslationsRef = useRef(new Map());
   function changeLyraLanguage(code) { setLyraLanguage(code); saveLyraLanguage(code); }
 
   // Spending cap specifically for x402 payments and ACP checkouts
@@ -1273,6 +1279,22 @@ export default function App() {
   const planStartedAtRef = useRef(0);                   // when that request was sent: picks its own work log
   const planMsgStartRef = useRef(0);                    // chat length before that request: what the request box replaces
   const [planError, setPlanError] = useState(null);     // why a confirmed plan stopped (never sends it back to "confirm")
+  // A request that just finished: shown as a confirmation under Ask Lyra for
+  // a moment, then it becomes the first line of the requests history.
+  const [celebratingRequest, setCelebratingRequest] = useState(null); // its n
+  const [showAllRequests, setShowAllRequests] = useState(false);
+  const lastRequestCountRef = useRef(0);
+  useEffect(() => {
+    const reqs = messages.filter(m => m.role === "request");
+    const before = lastRequestCountRef.current;
+    lastRequestCountRef.current = reqs.length;
+    if (reqs.length <= before) return;
+    const latest = reqs[reqs.length - 1];
+    if (latest.status === "cancelled") return;
+    setCelebratingRequest(latest.n);
+    const t = setTimeout(() => setCelebratingRequest(null), 2200);
+    return () => clearTimeout(t);
+  }, [messages]);
   const [planBanner, setPlanBanner] = useState(null);   // { title, detail } on the home screen after a plan finished
   const biometricPassedAtRef = useRef(0);               // the plan's own biometric confirm covers the large-amount check
   // the home banner fades away on its own
@@ -7522,6 +7544,71 @@ function handleHoldEnd() {
   }
 
   // "Try" examples under Ask Lyra, built from what this network really has.
+  // Lyra's answer to the latest request (a question back, an error, a plain
+  // answer), shown right under Ask Lyra. The conversation list at the bottom of
+  // the wallet is gone; plans have their own sheet. Closed with ×, replaced by
+  // the next answer.
+  const lyraReply = (() => {
+    let lastUser = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") { lastUser = i; break; }
+    }
+    for (let i = messages.length - 1; i > lastUser; i--) {
+      const m = messages[i];
+      if (m.role !== "ai" || m.variant === "onboarding" || !m.text) continue;
+      if (i <= dismissedReplyAt) return null;
+      const error = /^\s*(❌|⚠️)/.test(m.text) || m.variant === "warning";
+      return { index: i, error, text: m.text.replace(/^\s*(❌|⚠️)\s*/, "") };
+    }
+    return null;
+  })();
+
+  // The wallet's own messages are English: show them in the chosen language.
+  // The server translates (it already answers in that language itself); a
+  // connection error, when the server can't be reached, uses the built-in table.
+  const lastUserText = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "user") return messages[i].text;
+    return "";
+  })();
+  useEffect(() => {
+    if (!lyraReply || lyraLanguage === "en") return;
+    const key = lyraLanguage + "|" + lyraReply.text;
+    const cache = replyTranslationsRef.current;
+    if (cache.has(key)) { setTranslatedReply({ key, text: cache.get(key) }); return; }
+    const offline = offlineText(lyraReply.text, lyraLanguage === "auto" ? autoLanguage() : lyraLanguage);
+    if (offline) { cache.set(key, offline); setTranslatedReply({ key, text: offline }); return; }
+    if (!looksEnglishText(lyraReply.text)) return;
+    // "auto" and an English request: nothing to translate
+    if (lyraLanguage === "auto" && looksEnglishText(lastUserText)) return;
+    let alive = true;
+    // nothing in English first: the box waits (5 s at most) for the translation
+    setTranslatedReply({ key, text: null });
+    const fallback = setTimeout(() => { if (alive) setTranslatedReply({ key, text: lyraReply.text }); }, 5000);
+    fetch(`${API_BASE_URL}/api/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: lyraReply.text, language: lyraLanguage, userText: lastUserText }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive) return;
+        clearTimeout(fallback);
+        const text = d?.text || lyraReply.text;
+        if (d?.text) cache.set(key, d.text);
+        setTranslatedReply({ key, text });
+      })
+      .catch(() => { if (alive) { clearTimeout(fallback); setTranslatedReply({ key, text: lyraReply.text }); } });
+    return () => { alive = false; clearTimeout(fallback); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lyraReply?.text, lyraLanguage]);
+  // null while its translation is on the way
+  const replyNeedsTranslation = !!lyraReply && lyraLanguage !== "en" && looksEnglishText(lyraReply.text) &&
+    !(lyraLanguage === "auto" && looksEnglishText(lastUserText) && !offlineText(lyraReply.text, autoLanguage()));
+  const lyraReplyText = !lyraReply ? ""
+    : translatedReply?.key === lyraLanguage + "|" + lyraReply.text ? translatedReply.text
+    : replyNeedsTranslation ? null
+    : lyraReply.text;
+
   const askLyraSuggestions = (() => {
     const native = activeNetwork.nativeSymbol;
     const syms = Object.keys(tokens);
@@ -7681,7 +7768,7 @@ function handleHoldEnd() {
 )}
 </OverlayPortal>
 
-            {planBanner && (
+            {false && planBanner && (
               <motion.div
                 className="plan-banner"
                 initial={{ opacity: 0, y: -8 }}
@@ -7700,6 +7787,12 @@ function handleHoldEnd() {
             <div className="balance-label-row">
             <div className="balance-label">Available balance</div>
           </div>
+            {/* receive: the address as a QR code, in the card's corner */}
+            {wallet && (
+              <button type="button" className="balance-qr" onClick={() => setShowReceiveQr(true)} aria-label="Receive: show my QR code" title="Receive">
+                <QrCode size={18} strokeWidth={1.7} />
+              </button>
+            )}
           <div className="balance-row">
             <div className="balance"><AnimatedBalance value={Number(ethers.formatEther(balance || 0n))} decimals={2} /></div>
             <div className="balance-usd">{activeNetwork.nativeSymbol}</div>
@@ -7795,31 +7888,77 @@ function handleHoldEnd() {
               />
             )}
 
-            {input.trim() || planView ? null : showAddFunds ? (
-              <div className="add-funds-card">
-                <div className="add-funds-title">Add funds to get started</div>
-                <div className="add-funds-row">
-                  <button
-                    type="button"
-                    className="add-funds-copy"
-                    onClick={() => { copy(wallet.address); setToast("Address copied."); }}
-                  >
-                    <Copy size={15} strokeWidth={2} /> Copy address
-                  </button>
-                  <button type="button" className="add-funds-qr" onClick={() => setShowReceiveQr(true)} aria-label="Show QR code" title="Show QR code">
-                    <QrCode size={44} strokeWidth={1.5} />
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="add-funds-ask"
-                  onClick={() => setInput("Top up my wallet with $50")}
-                >
-                  <Sparkles size={14} strokeWidth={1.8} />
-                  <span>Or just ask Lyra to top up your wallet for you</span>
+            {wallet && lyraReply && !input.trim() && !planView && (
+              <div className={`lyra-reply${lyraReply.error ? " is-error" : ""}`} role="status" key={lyraReply.index}>
+                <span className="lyra-reply-icon" aria-hidden="true">
+                  {lyraReply.error ? <Info size={15} strokeWidth={2} /> : <LyraStar />}
+                </span>
+                <div className="lyra-reply-text">{lyraReplyText === null ? <span className="lyra-reply-wait">…</span> : <TypewriterText key={lyraReplyText} text={lyraReplyText} />}</div>
+                <button type="button" className="lyra-reply-close" onClick={() => setDismissedReplyAt(lyraReply.index)} aria-label="Close" title="Close">
+                  <X size={14} />
                 </button>
               </div>
-            ) : uiMode !== "3d" && <PortfolioChart
+            )}
+
+            {wallet && !input.trim() && !planView && (() => {
+              const reqs = messages.filter(m => m.role === "request").slice().reverse();
+              if (!reqs.length) return null;
+              const fresh = celebratingRequest != null ? reqs.find(r => r.n === celebratingRequest) : null;
+              const rest = reqs.filter(r => r !== fresh);
+              const shown = showAllRequests ? rest : rest.slice(0, 3);
+              const summary = (e) => (e.steps || []).map(st => `${st.label} ${st.from || ""}${st.to ? ` → ${st.to}` : ""}`.replace(/\s+/g, " ").trim()).join(" · ") || e.text;
+              return (
+                <LayoutGroup>
+                  <div className="requests">
+                    <AnimatePresence>
+                      {fresh && (
+                        <motion.div
+                          key={`fresh-${fresh.n}`}
+                          layoutId={`request-${fresh.n}`}
+                          className={`request-fresh is-${fresh.status}`}
+                          initial={{ opacity: 0, scale: 0.92, y: -6 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                        >
+                          <motion.span
+                            className="request-fresh-icon"
+                            initial={{ scale: 0, rotate: -30 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 18, delay: 0.08 }}
+                          >
+                            {fresh.status === "done" ? <Check size={18} strokeWidth={3} /> : <X size={18} strokeWidth={3} />}
+                          </motion.span>
+                          <span className="request-fresh-text">
+                            <strong>{fresh.status === "done" ? ((fresh.steps || []).length > 1 ? `Done, ${fresh.steps.length} steps` : "Done") : "Stopped"}</strong>
+                            <span>{summary(fresh)}</span>
+                          </span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    {rest.length > 0 && (
+                      <div className="requests-head">
+                        <span>Requests</span>
+                        {rest.length > 3 && (
+                          <button type="button" className="requests-more" onClick={() => setShowAllRequests(v => !v)}>
+                            {showAllRequests ? "Show less" : `See all ${rest.length}`}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <div className={`requests-list${showAllRequests ? " is-all" : ""}`}>
+                      {shown.map(e => (
+                        <motion.div key={e.n} layoutId={`request-${e.n}`} transition={{ type: "spring", stiffness: 300, damping: 30 }}>
+                          <RequestBox entry={e} />
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </LayoutGroup>
+              );
+            })()}
+
+            {input.trim() || planView || showAddFunds ? null : uiMode !== "3d" && <PortfolioChart
   history={networkPortfolioHistory}
   range={chartRange}
   onRangeChange={setChartRange}
@@ -7854,7 +7993,7 @@ function handleHoldEnd() {
         )}
 
         <section className="chat" ref={chatScrollRef}>
-          {messages.length === 0 && !showSend && !defiTicket && !multiTicket && (
+          {false && (
   <div className="chat-empty-card" ref={chatEmptyPathRef}>
     <span className="border-light" />
     <span className="border-light-mask" />
@@ -7868,7 +8007,9 @@ function handleHoldEnd() {
   </div>
 )}
 
-          {messages.map((m, i) => m.role === "request" ? (
+          {/* the conversation is no longer listed here: Lyra's latest answer sits
+              under Ask Lyra (lyraReply), plans have their own sheet */}
+          {false && messages.map((m, i) => m.role === "request" ? (
             <RequestBox key={i} entry={m} />
           ) : (
             <React.Fragment key={i}>
