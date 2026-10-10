@@ -366,6 +366,8 @@
 }
 /* .plan-confirm hover: pearl rise at the end of styles.css */
 .plan-confirm:disabled { opacity: 0.8; cursor: default; }
+/* the plan is done: pearl white with a check, like the website */
+.plan-confirm--done { color: #150E20; background: linear-gradient(135deg, #F3EBFF, #D9D2E8); box-shadow: 0 10px 30px -14px rgba(243, 235, 255, 0.55); }
 .plan-secondary { background: var(--panel); color: var(--beige); border: 1px solid var(--line); box-shadow: none; }
 .plan-cancel {
   align-self: center;
@@ -471,3 +473,51 @@
 @media (prefers-reduced-motion: reduce) {
   .plan-skel, .plan-flash, .plan-scan-line, .plan-spin, .lyra-star.is-moving { animation: none; }
 }
+
+/* ---- under Ask Lyra: a finished request, then the requests history ---- */
+.requests { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.request-fresh {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(87, 188, 108, 0.35);
+  background: rgba(87, 188, 108, 0.1);
+}
+.request-fresh.is-failed { border-color: rgba(213, 116, 99, 0.35); background: rgba(213, 116, 99, 0.1); }
+.request-fresh-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #3DBE63;
+}
+.request-fresh.is-failed .request-fresh-icon { background: #D57463; }
+/* a ring that spreads once from the check */
+.request-fresh-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  color: #3DBE63;
+  animation: request-ring 0.9s ease-out 0.15s both;
+}
+.request-fresh.is-failed .request-fresh-icon::after { color: #D57463; }
+@keyframes request-ring { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.9); opacity: 0; } }
+.request-fresh-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.request-fresh-text strong { font-size: 14px; color: var(--beige); }
+.request-fresh-text span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.requests-head { display: flex; justify-content: space-between; align-items: center; padding: 0 4px; }
+.requests-head > span { font-size: 10.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.requests-more { border: 0; background: none; padding: 0; color: var(--accent-strong); font: 600 11.5px var(--sans); cursor: pointer; }
+.requests-more:hover { color: var(--beige); }
+.requests-list { display: flex; flex-direction: column; gap: 6px; }
+.requests-list.is-all { max-height: 260px; overflow-y: auto; }
+@media (prefers-reduced-motion: reduce) { .request-fresh-icon::after { animation: none; } }

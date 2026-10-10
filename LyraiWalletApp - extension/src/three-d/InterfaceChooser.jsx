@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { overlayRoot } from "../cardBridge.js";
 import { motion } from "framer-motion";
 import "./interface-chooser.css";
 
@@ -164,6 +165,6 @@ export function InterfaceChooser({ onChoose }) {
         <div className="ic-footer">You can switch at any time in <strong>Settings → Interface</strong>.</div>
       </div>
     </div>,
-    document.body
+    overlayRoot()
   );
 }

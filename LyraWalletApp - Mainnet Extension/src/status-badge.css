@@ -29,3 +29,23 @@
 .balance-change-badge { font-family: var(--mono); font-variant-numeric: tabular-nums; animation: balance-change-in 0.25s ease-out both; }
 .audit-status-badge { margin-left: 8px; vertical-align: middle; }
 .mpc-status-badge { align-self: flex-start; }
+
+/* The balance change: no pill, just the colored number and arrow, on the
+   same baseline as the currency next to it */
+.status-badge.balance-change-badge {
+  display: inline-block;
+  height: auto;
+  padding: 0;
+  background: none;
+  font: 600 14px/1 var(--mono);
+  white-space: nowrap;
+}
+.status-badge.balance-change-badge .status-badge-icon {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.status-badge.balance-change-badge.is-up { color: #57BC6C; }
+.status-badge.balance-change-badge.is-down { color: #D57463; }

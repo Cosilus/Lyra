@@ -16,6 +16,13 @@ const cardKey = new URLSearchParams(window.location.search).get("card");
 
 export const IS_CARD = !!cardKey && window.parent !== window;
 
+// Where full-screen overlays go: in the floating card, over the wallet only
+// (rounded, clipped, scrolling inside it), not over the whole frame with its
+// transparent menu margins; elsewhere, the page.
+export function overlayRoot() {
+  return (IS_CARD && document.getElementById("card-overlays")) || document.body;
+}
+
 let port = null;
 let lastDock = null;
 let lastBusy = false;

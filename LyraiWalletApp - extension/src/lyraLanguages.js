@@ -16,6 +16,7 @@ export const LYRA_LANGUAGES = [
   { code: "vi", short: "VI", label: "Tiếng Việt", speech: "vi-VN" },
   { code: "id", short: "ID", label: "Bahasa Indonesia", speech: "id-ID" },
   { code: "de", short: "DE", label: "Deutsch", speech: "de-DE" },
+  { code: "it", short: "IT", label: "Italiano", speech: "it-IT" },
   { code: "ar", short: "AR", label: "العربية", speech: "ar-SA" },
   { code: "hi", short: "HI", label: "हिन्दी", speech: "hi-IN" },
 ];
