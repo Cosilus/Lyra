@@ -121,6 +121,18 @@ body {
 .screen[data-open] .card { filter: brightness(0.8); box-shadow: 0 40px 70px -20px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(167, 139, 250, 0.3); cursor: pointer; }
 .screen[data-open] .card * { pointer-events: none; }
 
+.card-head { display: flex; justify-content: space-between; align-items: center; }
+/* the sensor switch, inside the wallet so it is reachable on a phone */
+.tilt-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: rgba(167, 139, 250, 0.16);
+  color: var(--ink);
+  font: 600 12.5px var(--sans);
+  cursor: pointer;
+}
+.tilt-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .star { width: 40px; height: 40px; color: var(--ink); filter: drop-shadow(0 0 10px rgba(196, 176, 255, 0.7)); }
 .balance {
   border-radius: 20px;
@@ -346,7 +358,10 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0; text-wrap: balance; letter-s
 
       <div class="tilt" id="tilt">
         <div class="card" id="card">
-          <svg class="star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.5c.6 4.9 2.6 7.4 7.5 8.1v.8c-4.9.7-6.9 3.2-7.5 8.1-.6-4.9-2.6-7.4-7.5-8.1v-.8c4.9-.7 6.9-3.2 7.5-8.1z"/></svg>
+          <div class="card-head">
+            <svg class="star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.5c.6 4.9 2.6 7.4 7.5 8.1v.8c-4.9.7-6.9 3.2-7.5 8.1-.6-4.9-2.6-7.4-7.5-8.1v-.8c4.9-.7 6.9-3.2 7.5-8.1z"/></svg>
+            <button class="tilt-pill" id="enableIn" type="button">Enable tilt</button>
+          </div>
           <div class="balance">
             <div class="label">Available balance</div>
             <div class="amount"><b>120.00</b><span>USDC</span><em class="badge">+4.21%</em></div>
@@ -536,25 +551,34 @@ h1 { font-size: 30px; line-height: 1.15; margin: 0; text-wrap: balance; letter-s
   function startSensor() {
     window.addEventListener("deviceorientation", (e) => {
       if (e.gamma == null || e.beta == null) return;
-      if (!gotEvent) { gotEvent = true; statusEl.innerHTML = "<b>Sensor live.</b> Tilt the phone to open the menus."; base = null; }
+      if (!gotEvent) { gotEvent = true; statusEl.innerHTML = "<b>Sensor live.</b> Tilt the phone to open the menus."; base = null; toast("Tilt on: lean the phone"); }
       feed(e.gamma, e.beta);
     });
     setTimeout(() => {
-      if (!gotEvent) statusEl.textContent = "No tilt data. This page blocks motion sensors here, or the device has none. Use the simulator, or open the hosted copy on your phone over HTTPS.";
+      if (!gotEvent) { statusEl.textContent = "No tilt data. This page blocks motion sensors here, or the device has none. Use the simulator, or open the hosted copy on your phone over HTTPS."; toast("No tilt data on this device"); }
     }, 1500);
   }
-  document.getElementById("enable").addEventListener("click", async () => {
+  const pill = document.getElementById("enableIn");
+  let sensorStarted = false;
+  async function enableTilt() {
+    if (sensorStarted) { base = null; armed = true; toast("Re-centered"); return; }
     try {
       if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
         const r = await DeviceOrientationEvent.requestPermission();
-        if (r !== "granted") { statusEl.textContent = "Motion access was refused. Swipes and tabs still work."; return; }
+        if (r !== "granted") { statusEl.textContent = "Motion access was refused. Swipes still work."; toast("Motion access refused"); return; }
       }
+      sensorStarted = true;
+      pill.textContent = "Re-center";
       statusEl.textContent = "Waiting for the sensor…";
       startSensor();
     } catch (e) {
       statusEl.textContent = "Motion sensors are blocked on this page. Use the simulator, or the hosted copy over HTTPS.";
+      toast("Sensors blocked here");
     }
-  });
+  }
+  document.getElementById("enable").addEventListener("click", enableTilt);
+  pill.addEventListener("click", (e) => { e.stopPropagation(); enableTilt(); });
+  pill.addEventListener("pointerdown", (e) => e.stopPropagation());
   document.getElementById("recenter").addEventListener("click", () => { base = null; armed = true; toast("Re-centered"); });
   document.getElementById("tiltOn").addEventListener("change", (e) => { tiltEnabled = e.target.checked; });
 
