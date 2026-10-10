@@ -1,24 +1,27 @@
 import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
-// "Lyra is working": while a request runs, the head line shows the phase Lyra
-// is in right now ("Checking your balance…") with the elapsed seconds, and the
-// steps list underneath grows live, each step checked as it ends. A moment
-// after the work is done the list folds into "Worked for 4s · 5 steps", and
-// opening it shows the recap of every phase with its result.
+// "Lyra is working": ONE line. While a request runs it shows what Lyra is
+// doing right now, with its detail ("Checking your balance… 10.9 USDC
+// available") and the elapsed seconds, and changes in place as she moves on.
+// Each step stays at least STEP_MS on screen, so fast steps can still be read.
+// Nothing stacks. When done it reads "Worked for 4s · 5 steps", and opening it
+// shows the recap of every phase with its result.
+const STEP_MS = 650;
 // `run` = { id, t0, t1 (null while running), steps: [{ label, detail, state }] }
 export function ActivityBlock({ run }) {
   const working = run.t1 == null;
   const [open, setOpen] = useState(false); // the recap is only shown on demand
   const [now, setNow] = useState(() => Date.now());
-  // the live list stays a moment after the end, so the last steps can be read
-  const [lingering, setLingering] = useState(false);
+  // which step the head line shows: it catches up with the latest one, one
+  // step at a time
+  const [shown, setShown] = useState(0);
+  const last = run.steps.length - 1;
   useEffect(() => {
-    if (working) { setLingering(true); return; }
-    const t = setTimeout(() => setLingering(false), 1800);
+    if (!working || shown >= last) return;
+    const t = setTimeout(() => setShown(i => Math.min(i + 1, last)), STEP_MS);
     return () => clearTimeout(t);
-  }, [working]);
-  const showSteps = open || working || lingering;
+  }, [working, shown, last]);
 
   useEffect(() => {
     if (!working) return;
@@ -27,7 +30,7 @@ export function ActivityBlock({ run }) {
   }, [working]);
 
   const secs = Math.max(1, Math.round(((working ? now : run.t1) - run.t0) / 1000));
-  const current = run.steps[run.steps.length - 1];
+  const current = run.steps[Math.min(shown, last)];
   const title = working
     ? `${current ? current.label : "Lyra is working"}…`
     : `Worked for ${secs}s · ${run.steps.length} ${run.steps.length === 1 ? "step" : "steps"}`;
@@ -39,11 +42,14 @@ export function ActivityBlock({ run }) {
           <path d="M12 1.5c.6 4.9 2.6 7.4 7.5 8.1v.8c-4.9.7-6.9 3.2-7.5 8.1-.6-4.9-2.6-7.4-7.5-8.1v-.8c4.9-.7 6.9-3.2 7.5-8.1z" />
         </svg>
         {/* key = the phase text, so a new phase fades in over the old one */}
-        <span className="act-title act-phase" key={title}>{title}</span>
+        <span className="act-title act-phase" key={`${shown}-${title}`}>
+          {title}
+          {working && current?.detail ? <small className="act-detail">{current.detail}</small> : null}
+        </span>
         {working && <span className="act-time">{secs}s</span>}
         <ChevronDown size={14} className="act-chev" />
       </button>
-      {showSteps && (
+      {open && (
         <ul className="act-steps">
           {run.steps.map((st, i) => (
             <li key={i} className={working && i === run.steps.length - 1 ? "run" : "done"}>

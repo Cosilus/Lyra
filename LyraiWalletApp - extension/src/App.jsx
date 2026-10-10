@@ -36,8 +36,11 @@ const ARC_SWAP_TOKENS = ["USDC", "EURC"];
 // confirmed straight from @circle-fin/swap-kit's bundled chain
 // definitions (Arc: chainId 5042, usdcAddress 0x3600...0000, matching
 // everything else already verified for Arc elsewhere in this file).
-// Testnet build: Circle's own testnet chain names (confirmed in @circle-fin/bridge-kit's Blockchain enum).
-const NETWORK_KEY_TO_CIRCLE_CHAIN = { arc: "Arc_Testnet", ethereum: "Ethereum_Sepolia", base: "Base_Sepolia", polygon: "Polygon_Amoy_Testnet", plasma: "Plasma_Testnet", hyperliquid: "HyperEVM_Testnet" };
+// Circle's chain names (@circle-fin/bridge-kit's Blockchain enum): the testnet
+// build uses the testnet ones, the mainnet build the real ones.
+const NETWORK_KEY_TO_CIRCLE_CHAIN = IS_TESTNET
+  ? { arc: "Arc_Testnet", ethereum: "Ethereum_Sepolia", base: "Base_Sepolia", polygon: "Polygon_Amoy_Testnet", plasma: "Plasma_Testnet", hyperliquid: "HyperEVM_Testnet" }
+  : { arc: "Arc", ethereum: "Ethereum", base: "Base", polygon: "Polygon", plasma: "Plasma" };
 // The AI may still answer a bridge destination with LI.FI's short code; map it to Lyra's own network key.
 const LIFI_KEY_TO_NETWORK_KEY = { pla: "plasma", eth: "ethereum", bas: "base", pol: "polygon", hyp: "hyperliquid" };
 
@@ -364,12 +367,9 @@ const LIFI_CHAIN_DISPLAY_NAMES = {
   lna: "Linea",
   sca: "Scroll",
   hyp: "Hyperliquid",
-  plasma: "Plasma Testnet",
-  ethereum: "Ethereum Sepolia",
-  base: "Base Sepolia",
-  polygon: "Polygon Amoy",
-  arc: "Arc Testnet",
-  hyperliquid: "Hyperliquid Testnet",
+  ...(IS_TESTNET
+    ? { plasma: "Plasma Testnet", ethereum: "Ethereum Sepolia", base: "Base Sepolia", polygon: "Polygon Amoy", arc: "Arc Testnet", hyperliquid: "Hyperliquid Testnet" }
+    : { plasma: "Plasma", ethereum: "Ethereum", base: "Base", polygon: "Polygon", arc: "Arc", hyperliquid: "Hyperliquid" }),
 };
 function lifiChainDisplayName(key) {
   if (!key) return null;
@@ -2960,17 +2960,17 @@ useEffect(() => {
   let result;
   try {
     result = await kit.swap({
-      from: { adapter, chain: "Arc_Testnet" },
+      from: { adapter, chain: NETWORK_KEY_TO_CIRCLE_CHAIN.arc },
       tokenIn: assetInSymbol,
       tokenOut: assetOutSymbol,
       amountIn: String(ticket.amount),
       config: { slippageBps },
     });
   } catch (e) {
-    // Arc Testnet's swap pools are thin: Circle returns "No route
-    // available" when it can't fill this amount right now.
+    // Circle returns "No route available" when it can't fill this amount
+    // on Arc right now (thin pools, especially on testnet).
     if (/UNSUPPORTED_ROUTE|No route/i.test(String(e?.code || "") + " " + String(e?.message || ""))) {
-      throw new Error(`Circle found no route for ${ticket.amount} ${assetInSymbol} -> ${assetOutSymbol} on Arc Testnet right now (testnet liquidity is thin). Try a smaller amount or retry in a few minutes.`);
+      throw new Error(`Circle found no route for ${ticket.amount} ${assetInSymbol} -> ${assetOutSymbol} on ${activeNetwork.name} right now${IS_TESTNET ? " (testnet liquidity is thin)" : ""}. Try a smaller amount or retry in a few minutes.`);
     }
     throw e;
   }
@@ -3231,7 +3231,7 @@ async function executeUnstakeTicket(signer, ticket) {
     }
     const assetSymbol = ticket.asset === activeNetwork.nativeSymbol ? "USDC" : ticket.asset;
     if (assetSymbol !== "USDC" && assetSymbol !== "EURC") {
-      throw new Error("Only USDC and EURC can be bridged on testnet, via Circle's own Bridge Kit.");
+      throw new Error(IS_TESTNET ? "Only USDC and EURC can be bridged on testnet, via Circle's own Bridge Kit." : "Only USDC and EURC can be bridged to/from Arc today, via Circle's own Bridge Kit.");
     }
     const amount = Number(ticket.amount);
     if (!(amount > 0)) {
@@ -7365,7 +7365,7 @@ function handleHoldEnd() {
       } else if (st.kind === "bridge") {
         if (IS_TESTNET || activeNetworkKey === "arc" || st.destinationChainKey === "arc") {
           const sym = isNative ? "USDC" : asset;
-          if (sym !== "USDC" && sym !== "EURC") return `${n}only USDC and EURC can be bridged on testnet.`;
+          if (sym !== "USDC" && sym !== "EURC") return `${n}only USDC and EURC can be bridged ${IS_TESTNET ? "on testnet" : "to/from Arc"}.`;
           const toKey = LIFI_KEY_TO_NETWORK_KEY[String(st.destinationChainKey || "").toLowerCase()] || String(st.destinationChainKey || "").toLowerCase();
           if (!NETWORK_KEY_TO_CIRCLE_CHAIN[activeNetworkKey] || !NETWORK_KEY_TO_CIRCLE_CHAIN[toKey]) return `${n}that bridge route isn't supported yet.`;
         } else if (!known || !defi.lifi?.diamond) return `${n}bridging ${asset} isn't available on ${net} yet.`;
