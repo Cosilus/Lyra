@@ -125,7 +125,7 @@ export function RequestBox({ entry }) {
         <span className="request-n">Request {entry.n}</span>
         <span className="request-sep">›</span>
         <span className="request-text">{entry.text}</span>
-        <StatusBadge status={entry.status === "done" ? "success" : entry.status === "failed" ? "failed" : "expired"}>{badge}</StatusBadge>
+        {entry.status !== "done" && <StatusBadge status={entry.status === "failed" ? "failed" : "expired"}>{badge}</StatusBadge>}
         <ChevronDown size={14} className="request-chev" />
       </button>
       <AnimatePresence initial={false}>

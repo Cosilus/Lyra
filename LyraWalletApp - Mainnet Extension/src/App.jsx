@@ -7903,58 +7903,70 @@ function handleHoldEnd() {
             {wallet && !input.trim() && !planView && (() => {
               const reqs = messages.filter(m => m.role === "request").slice().reverse();
               if (!reqs.length) return null;
-              const fresh = celebratingRequest != null ? reqs.find(r => r.n === celebratingRequest) : null;
-              const rest = reqs.filter(r => r !== fresh);
-              const shown = showAllRequests ? rest : rest.slice(0, 3);
+              const shown = showAllRequests ? reqs : reqs.slice(0, 3);
               const summary = (e) => (e.steps || []).map(st => `${st.label} ${st.from || ""}${st.to ? ` → ${st.to}` : ""}`.replace(/\s+/g, " ").trim()).join(" · ") || e.text;
               return (
-                <LayoutGroup>
-                  <div className="requests">
-                    <AnimatePresence>
-                      {fresh && (
-                        <motion.div
-                          key={`fresh-${fresh.n}`}
-                          layoutId={`request-${fresh.n}`}
-                          className={`request-fresh is-${fresh.status}`}
-                          initial={{ opacity: 0, scale: 0.92, y: -6 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                        >
-                          <motion.span
-                            className="request-fresh-icon"
-                            initial={{ scale: 0, rotate: -30 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            transition={{ type: "spring", stiffness: 500, damping: 18, delay: 0.08 }}
-                          >
-                            {fresh.status === "done" ? <Check size={18} strokeWidth={3} /> : <X size={18} strokeWidth={3} />}
-                          </motion.span>
-                          <span className="request-fresh-text">
-                            <strong>{fresh.status === "done" ? ((fresh.steps || []).length > 1 ? `Done, ${fresh.steps.length} steps` : "Done") : "Stopped"}</strong>
-                            <span>{summary(fresh)}</span>
-                          </span>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                    {rest.length > 0 && (
-                      <div className="requests-head">
-                        <span>Requests</span>
-                        {rest.length > 3 && (
-                          <button type="button" className="requests-more" onClick={() => setShowAllRequests(v => !v)}>
-                            {showAllRequests ? "Show less" : `See all ${rest.length}`}
-                          </button>
-                        )}
-                      </div>
+                <div className="requests">
+                  <div className="requests-head">
+                    <span>Requests</span>
+                    {reqs.length > 3 && (
+                      <button type="button" className="requests-more" onClick={() => setShowAllRequests(v => !v)}>
+                        {showAllRequests ? "Show less" : `See all ${reqs.length}`}
+                      </button>
                     )}
-                    <div className={`requests-list${showAllRequests ? " is-all" : ""}`}>
-                      {shown.map(e => (
-                        <motion.div key={e.n} layoutId={`request-${e.n}`} transition={{ type: "spring", stiffness: 300, damping: 30 }}>
-                          <RequestBox entry={e} />
-                        </motion.div>
-                      ))}
-                    </div>
                   </div>
-                </LayoutGroup>
+                  <div className={`requests-list${showAllRequests ? " is-all" : ""}`}>
+                    {shown.map(e => {
+                      const fresh = e.n === celebratingRequest;
+                      return (
+                        <motion.div
+                          key={e.n}
+                          layout
+                          className="request-slot"
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] }, duration: 0.3 }}
+                        >
+                          <AnimatePresence mode="wait" initial={false}>
+                            {fresh ? (
+                              <motion.div
+                                key="fresh"
+                                className={`request-fresh is-${e.status}`}
+                                initial={{ opacity: 0, scale: 0.96 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.98 }}
+                                transition={{ duration: 0.25 }}
+                              >
+                                <motion.span
+                                  className="request-fresh-icon"
+                                  initial={{ scale: 0, rotate: -30 }}
+                                  animate={{ scale: 1, rotate: 0 }}
+                                  transition={{ type: "spring", stiffness: 500, damping: 18, delay: 0.08 }}
+                                >
+                                  {e.status === "done" ? <Check size={18} strokeWidth={3} /> : <X size={18} strokeWidth={3} />}
+                                </motion.span>
+                                <span className="request-fresh-text">
+                                  <strong>{e.status === "done" ? ((e.steps || []).length > 1 ? `Done, ${e.steps.length} steps` : "Done") : "Stopped"}</strong>
+                                  <span>{summary(e)}</span>
+                                </span>
+                              </motion.div>
+                            ) : (
+                              <motion.div
+                                key="line"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.25 }}
+                              >
+                                <RequestBox entry={e} />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })()}
 
