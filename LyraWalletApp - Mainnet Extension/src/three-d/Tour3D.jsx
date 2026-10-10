@@ -25,6 +25,15 @@ export const TOUR_STEPS = [
 
   { dock: "top", title: "Assets", body: "Push the mouse to the top edge to pull up every asset you hold with its USD value. Hover the icon for the name, or the value for the exact amount." },
 
+  // only in the floating card on a website (cardBridge.js): the side panel doesn't move
+  {
+    dock: null,
+    cardOnly: true,
+    preview: "move",
+    title: "Move mode",
+    body: "Press and hold the wallet anywhere that isn't a button. After a short moment it follows your mouse: drag it wherever you like on the page and let go to drop it.",
+  },
+
   {
     dock: null,
     title: "You're all set",
@@ -32,24 +41,59 @@ export const TOUR_STEPS = [
   },
 ];
 
+// The steps for where the wallet runs now (the move step only in the floating card)
+export function tourStepsHere() {
+  const card = typeof document !== "undefined" && document.documentElement.classList.contains("lyra-card");
+  return TOUR_STEPS.filter(s => !s.cardOnly || card);
+}
+
+// A looping preview of move mode: the pointer presses the wallet, the ring
+// fills while it is held, then the wallet follows the pointer and is dropped.
+function MovePreview() {
+  return (
+    <div className="d3-tour-move" aria-hidden="true">
+      <div className="mv-page">
+        <span className="mv-line" /><span className="mv-line short" /><span className="mv-line" />
+      </div>
+      <div className="mv-group">
+        <div className="mv-card">
+          <span className="mv-chip">Moving</span>
+          <span className="mv-bal" />
+          <span className="mv-bal short" />
+          <span className="mv-ask" />
+        </div>
+        <div className="mv-pointer">
+          <svg className="mv-ring" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" />
+          </svg>
+          <svg className="mv-cursor" viewBox="0 0 24 24" width="18" height="18">
+            <path d="M5 3l14 7.5-6.2 1.6L10 18.5z" fill="#FBF8FF" stroke="#1A1028" strokeWidth="1.4" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Floating coach-mark. Rendered in <body> (not inside the 3D scene) so
 // it is a true fixed overlay; its transparent backdrop keeps stray
 // clicks off the wallet while the tour is running.
-export function Tour3D({ step, total, onNext, onBack, onSkip }) {
-  const s = TOUR_STEPS[step];
+export function Tour3D({ step, total, steps = TOUR_STEPS, onNext, onBack, onSkip }) {
+  const s = steps[step];
   const first = step === 0;
   const last = step === total - 1;
   return createPortal(
     <div className="d3-tour-backdrop" role="dialog" aria-modal="true" aria-label="3D wallet tour">
       <div className="d3-tour-card" key={step}>
         <div className="d3-tour-meta">
-          <span>{s.dock === "left" ? "Left menu" : s.dock === "right" ? "Right menu" : s.dock === "top" ? "Top edge" : "Tour"}</span>
+          <span>{s.dock === "left" ? "Left menu" : s.dock === "right" ? "Right menu" : s.dock === "top" ? "Top edge" : s.preview === "move" ? "On any website" : "Tour"}</span>
           <span>{step + 1} / {total}</span>
         </div>
         <div className="d3-tour-title">{s.title}</div>
+        {s.preview === "move" && <MovePreview />}
         <p className="d3-tour-body">{s.body}</p>
         <div className="d3-tour-dots" aria-hidden="true">
-          {TOUR_STEPS.map((_, i) => (
+          {steps.map((_, i) => (
             <span key={i} className={i === step ? "on" : i < step ? "done" : ""} />
           ))}
         </div>

@@ -131,10 +131,17 @@
   background: rgba(var(--beige-rgb), 0.05);
   color: var(--beige);
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
-.ask-mic:hover { background: rgba(var(--beige-rgb), 0.1); transform: scale(1.05); }
-.ask-mic:disabled { opacity: 0.45; cursor: default; transform: none; }
+.ask-mic svg { display: block; transition: transform 0.2s ease; }
+.ask-mic:hover:not(:disabled) {
+  background: rgba(var(--beige-rgb), 0.12);
+  border-color: rgba(var(--beige-rgb), 0.28);
+  box-shadow: 0 0 0 3px rgba(var(--beige-rgb), 0.05);
+}
+.ask-mic:hover:not(:disabled) svg { transform: translateY(-1px); }
+.ask-mic:active:not(:disabled) { background: rgba(var(--beige-rgb), 0.18); }
+.ask-mic:disabled { opacity: 0.45; cursor: default; }
 .ask-mic.is-on { background: rgba(var(--beige-rgb), 0.16); }
 .ask-mic.is-on::after {
   content: ""; position: absolute; inset: -4px; border-radius: 50%;
