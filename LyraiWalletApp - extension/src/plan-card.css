@@ -548,3 +548,19 @@
 .plan-sheet-request.is-flying { position: relative; background: none; will-change: transform; }
 .plan-sheet-request-bg { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(135deg, var(--beige), var(--beige-dim)); }
 .plan-sheet-request-text { position: relative; color: var(--void); }
+
+/* The sheet growing out of Ask Lyra: its background is a layer scaled from
+   the box to the whole wallet (transform only, see App.jsx) */
+.plan-sheet.is-growing { background: transparent; }
+.plan-sheet-grow {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(var(--accent-rgb), 0.22) 0%, transparent 55%),
+    var(--void);
+  will-change: transform;
+}
+.plan-sheet.is-growing .plan-sheet-body { position: relative; }
+.plan-sheet-content { display: flex; flex-direction: column; gap: 14px; }

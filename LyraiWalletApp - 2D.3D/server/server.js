@@ -6050,6 +6050,22 @@ function looksEnglish(text) {
   return hits >= 2 && hits / words.length > 0.12 && !looksNonEnglish(text);
 }
 
+// "auto": translate only when the user's message is clearly not English. A
+// short request ("send 5 xpl to p1") has too few words to tell, and guessing
+// had the translator send the request itself back as Lyra's answer.
+function autoNeedsTranslation(userText) {
+  const t = String(userText || "");
+  if (!t.trim()) return false;
+  if (NON_LATIN.test(t)) return true;
+  if (looksEnglish(t)) return false;
+  if (looksNonEnglish(t)) return true;
+  const lower = t.toLowerCase();
+  const words = lower.match(/[a-zà-öø-ÿ'-]+/g) || [];
+  const en = words.filter(w => ENGLISH_WORDS.has(w)).length;
+  const other = words.filter(w => NON_ENGLISH_WORDS.has(w)).length + (/[à-öø-ÿ]/.test(lower) ? 1 : 0);
+  return other > en;
+}
+
 async function translateReply(text, targetDescription) {
   const providers = getConfiguredAIProviders();
   const messages = [
@@ -6124,7 +6140,7 @@ app.post("/api/translate", async (req, res) => {
   const userText = String(req.body?.userText || "").slice(0, 300);
   if (!text.trim() || lang === "en") return res.json({ text });
   const target = lang === "auto"
-    ? (!looksEnglish(userText) && userText.trim() ? "the language of this user message: \"" + userText + "\"" : null)
+    ? (autoNeedsTranslation(userText) ? "the language of this user message: \"" + userText + "\"" : null)
     : REPLY_LANGUAGES[lang];
   if (!target) return res.json({ text });
   try {
@@ -6161,12 +6177,13 @@ app.use("/api/ai", (req, res, next) => {
       // "auto": unless the user clearly wrote in English, the translator
       // matches the language of the user's own message
       const target = lang === "auto"
-        ? (!looksEnglish(userText) ? "the language of this user message: \"" + userText.slice(0, 300) + "\"" : null)
+        ? (autoNeedsTranslation(userText) ? "the language of this user message: \"" + userText.slice(0, 300) + "\"" : null)
         : REPLY_LANGUAGES[lang];
       if (target && looksEnglish(body.message)) {
         aiProgress("Writing the answer in your language");
         translateReply(body.message, target)
-          .then(out => { if (out) body.message = stripMarkdown(out); })
+          // a "translation" that is just the user's own request is not one
+          .then(out => { if (out && out.trim().toLowerCase() !== userText.trim().toLowerCase()) body.message = stripMarkdown(out); })
           .catch(() => {})
           .finally(() => originalJson(body));
         return res;

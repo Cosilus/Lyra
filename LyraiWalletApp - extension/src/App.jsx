@@ -7412,6 +7412,8 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
         frameRadius: getComputedStyle(frameEl).borderTopLeftRadius || "0px",
         text: t ? { x: t.left + (parseFloat(inputStyle.paddingLeft) || 0) / k, y: t.top + (parseFloat(inputStyle.paddingTop) || 0) / k } : null,
         fontScale: inputStyle ? (parseFloat(inputStyle.fontSize) || 15) / 13.5 : 1,
+        width: frameEl.offsetWidth,
+        height: frameEl.offsetHeight,
       };
     }
   } catch { askOriginRef.current = null; }
@@ -8004,15 +8006,35 @@ function handleHoldEnd() {
             const o = askOriginRef.current && Date.now() - askOriginRef.current.at < 5000 ? askOriginRef.current : null;
             return (
             <motion.div
-              className="plan-sheet"
-              initial={o ? { clipPath: `inset(${o.clip.map(v => `${v}px`).join(" ")} round ${o.radius})` } : { y: "100%" }}
-              animate={o ? { clipPath: `inset(0px 0px 0px 0px round ${o.frameRadius})` } : { y: 0 }}
+              className={`plan-sheet${o ? " is-growing" : ""}`}
+              initial={o ? false : { y: "100%" }}
+              animate={o ? undefined : { y: 0 }}
               exit={{ opacity: 0, transition: { duration: 0.25, ease: "easeOut" } }}
-              transition={o ? { duration: 0.62, ease: [0.65, 0, 0.25, 1] } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
             >
+              {o && (() => {
+                const [top, right, bottom, left] = o.clip;
+                const sx = Math.max(0.05, (o.width - left - right) / (o.width || 1));
+                const sy = Math.max(0.05, (o.height - top - bottom) / (o.height || 1));
+                return (
+                  <motion.div
+                    className="plan-sheet-grow"
+                    aria-hidden="true"
+                    initial={{ transform: `translate(${left}px, ${top}px) scale(${sx}, ${sy})`, opacity: 0.6 }}
+                    animate={{ transform: "translate(0px, 0px) scale(1, 1)", opacity: 1 }}
+                    transition={{ duration: 0.62, ease: [0.65, 0, 0.25, 1] }}
+                  />
+                );
+              })()}
               <div className="plan-sheet-body">
                 {planRequest && <FlyingRequest text={planRequest} origin={o} />}
                 {/* Lyra's work log for this request: live phase + seconds, then "Worked for…" */}
+                <motion.div
+                  className="plan-sheet-content"
+                  initial={o ? { opacity: 0 } : false}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3, delay: o ? 0.45 : 0 }}
+                >
                 {(() => {
                   const run = activityRuns[activityRuns.length - 1];
                   return run && run.t0 >= planStartedAtRef.current - 1000 ? <ActivityBlock key={run.id} run={run} /> : null;
@@ -8025,6 +8047,7 @@ function handleHoldEnd() {
                   onCancel={closePlan}
                   onDone={finishPlan}
                 />
+                </motion.div>
               </div>
             </motion.div>
             );
