@@ -7789,10 +7789,43 @@ function handleHoldEnd() {
   // Estimates for swaps without a quote (Circle's Swap Kit on Arc), from the kit itself
   const [swapEstimates, setSwapEstimates] = useState({});
   const swapEstimatesAsked = useRef(new Set());
+  // Last resort when a protocol gives no quote: USD prices (stablecoins at $1,
+  // the network coin at its live price), so a step never shows "…"
+  function priceEstimate(asset, toAsset, amount) {
+    const STABLES = ["USDC", "USDC.e", "USDT", "USDT0", "DAI"];
+    const usd = (sym) => (sym === activeNetwork.nativeSymbol ? xplPriceUSD || null : STABLES.includes(sym) ? 1 : null);
+    const a = usd(asset), b = usd(toAsset);
+    return a && b ? (Number(amount) * a) / b : null;
+  }
   async function estimateArcSwap(asset, toAsset, amount) {
     const key = `${asset}>${toAsset}:${amount}`;
     if (swapEstimatesAsked.current.has(key)) return;
     swapEstimatesAsked.current.add(key);
+    const fallback = () => {
+      const p = priceEstimate(asset, toAsset, amount);
+      if (p > 0) setSwapEstimates(m => (m[key] ? m : { ...m, [key]: p }));
+    };
+    // KyberSwap networks: the same route the swap will use, read ahead
+    if (activeNetworkKey !== "arc") {
+      try {
+        const native = activeNetwork.nativeSymbol;
+        const tIn = asset === native ? { address: NATIVE_PSEUDO_ADDRESS, decimals: 18 } : tokens[asset];
+        const tOut = toAsset === native ? { address: NATIVE_PSEUDO_ADDRESS, decimals: 18 } : tokens[toAsset];
+        if (!tIn?.address || !tOut?.address || !activeNetwork.kyberSlug) { fallback(); return; }
+        const url = new URL(`${KYBERSWAP_API_BASE(activeNetwork.kyberSlug)}/routes`);
+        url.searchParams.set("tokenIn", tIn.address);
+        url.searchParams.set("tokenOut", tOut.address);
+        url.searchParams.set("amountIn", ethers.parseUnits(Number(amount).toFixed(Math.min(tIn.decimals, 8)), tIn.decimals).toString());
+        const route = await (await fetch(url, { headers: { "X-Client-Id": KYBERSWAP_CLIENT_ID } })).json();
+        const out = route?.data?.routeSummary?.amountOut;
+        if (out) setSwapEstimates(m => ({ ...m, [key]: Number(ethers.formatUnits(out, tOut.decimals)) }));
+        else fallback();
+      } catch (e) {
+        console.error("Swap estimate unavailable:", e);
+        fallback();
+      }
+      return;
+    }
     try {
       // only a quote: any key will do, nothing is signed
       const adapter = createEthersAdapterFromPrivateKey({ privateKey: unlockedPrivateKey || ethers.Wallet.createRandom().privateKey });
@@ -7805,22 +7838,41 @@ function handleHoldEnd() {
       });
       const out = Number(q?.estimatedOutput?.amount);
       if (out > 0) setSwapEstimates(m => ({ ...m, [key]: out }));
+      else fallback();
     } catch (e) {
       console.error("Swap estimate unavailable:", e);
+      fallback();
     }
   }
 
   const planRows = (() => {
     if (multiTicket) {
-      return multiTicket.steps.map((st, i) => ({
+      // what the previous step hands over: a swap's quote or estimate, a withdrawal's amount
+      let handed = null;
+      return multiTicket.steps.map((st, i) => {
+        let amount = st.amount;
+        if (st.amountIsEstimate && handed && handed.symbol === st.asset && handed.amount > 0 && !(Number(amount) > 0)) {
+          amount = String(Number(handed.amount.toFixed(6)));
+        }
+        if (st.kind === "swap") {
+          const quoted = Number(String(st.ticket?.estimatedReceive || "").replace(/[^d.]/g, ""));
+          const est = swapEstimates[`${st.asset}>${st.tokenOutSymbol}:${amount}`];
+          handed = { symbol: st.tokenOutSymbol, amount: quoted > 0 ? quoted : est || 0 };
+        } else if (st.kind === "unstake") {
+          handed = { symbol: st.asset, amount: Number(st.amount) || 0 };
+        } else {
+          handed = null;
+        }
+        return {
         kind: st.kind === "predict" ? "send" : st.kind,
-        amount: st.amount, asset: st.asset, estimate: !!st.amountIsEstimate,
+        amount, asset: st.asset, estimate: !!st.amountIsEstimate,
         toAsset: st.tokenOutSymbol, receive: st.ticket?.estimatedReceive,
         recipient: st.recipient, contactName: st.contactName,
         network: st.destinationChainKey, platform: st.ticket?.platform,
         sub: st.amountIsEstimate && i > 0 ? "From the previous step" : st.auto ? "Required" : null,
         fees: st.ticket?.fees,
-      }));
+        };
+      });
     }
     if (defiTicket && planEligible) {
       const kind = defiTicket.feature === "swap" ? "swap"
@@ -7907,8 +7959,9 @@ function handleHoldEnd() {
   }, [planSimKey]);
 
   useEffect(() => {
-    if (activeNetworkKey !== "arc" || !planRows) return;
-    for (const r of planRows) {
+    // the plan's rows, or while Lyra reads the request, the steps read from the sentence
+    const rows = planRows || (pendingPlan?.steps || []).map(st => ({ kind: st.kind, asset: st.asset, toAsset: st.toAsset, amount: /^d/.test(st.amount || "") ? st.amount : null }));
+    for (const r of rows) {
       if (r.kind === "swap" && r.asset && r.toAsset && Number(r.amount) > 0 && !(r.receive && /d/.test(String(r.receive)))) {
         estimateArcSwap(r.asset, r.toAsset, r.amount);
       }
