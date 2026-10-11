@@ -2929,30 +2929,48 @@ useEffect(() => {
     const amount = Number(ethers.formatUnits(r.raw, r.decimals));
     if (!(amount > 0)) return;
     const id = `${key}:${Date.now()}`;
-    setIncoming({ id, amount, symbol: r.symbol, from: null });
-    // who sent it: the latest incoming transfer of that token, once indexed
+    // The pill shows once, with the sender: a token's sender is read on-chain
+    // right away (its Transfer log); the native coin's comes from the history,
+    // checked every 4 s for up to 2 minutes until the explorer has indexed it.
     const address = wallet.address;
+    const show = (from) => {
+      const contact = loadContacts().find(c => c.address?.toLowerCase() === String(from).toLowerCase());
+      setIncoming({ id, amount, symbol: r.symbol, from: contact?.name || shortAddress(from) });
+    };
+    const fromLogs = async () => {
+      const token = tokens[r.symbol];
+      if (!token?.address) return null;
+      const latest = await RPC.getBlockNumber();
+      const logs = await RPC.getLogs({
+        address: token.address,
+        topics: [ethers.id("Transfer(address,address,uint256)"), null, ethers.zeroPadValue(address, 32)],
+        fromBlock: Math.max(0, latest - 1000),
+        toBlock: latest,
+      });
+      const last = logs[logs.length - 1];
+      return last ? ethers.getAddress("0x" + last.topics[1].slice(26)) : null;
+    };
+    const fromHistory = async () => {
+      const res = await fetch(`${API_BASE_URL}/api/transactions/${address}?network=${activeNetworkKey}`);
+      const { transactions = [] } = res.ok ? await res.json() : {};
+      const row = buildTxRows(transactions, address, defi)
+        .filter(x => x.category === "send" && !x.isSent && (x.display?.symbol || activeNetwork.nativeSymbol) === r.symbol)
+        .sort((x, y) => y.timestamp - x.timestamp)[0];
+      return row && Date.now() / 1000 - row.timestamp < 1800 ? row.counterparty : null;
+    };
     const findSender = async (tries) => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/transactions/${address}?network=${activeNetworkKey}`);
-        const { transactions = [] } = res.ok ? await res.json() : {};
-        const row = buildTxRows(transactions, address, defi)
-          .filter(x => x.category === "send" && !x.isSent && (x.display?.symbol || activeNetwork.nativeSymbol) === r.symbol)
-          .sort((x, y) => y.timestamp - x.timestamp)[0];
-        if (row && Date.now() / 1000 - row.timestamp < 1800) {
-          const contact = loadContacts().find(c => c.address?.toLowerCase() === String(row.counterparty).toLowerCase());
-          setIncoming(cur => (cur && cur.id === id ? { ...cur, from: contact?.name || shortAddress(row.counterparty) } : cur));
-          return;
-        }
+        const from = (await fromLogs().catch(() => null)) || (await fromHistory().catch(() => null));
+        if (from) { show(from); return; }
       } catch { /* try again below */ }
-      if (tries > 0) setTimeout(() => findSender(tries - 1), 2500);
+      if (tries > 0) setTimeout(() => findSender(tries - 1), 4000);
     };
-    findSender(2);
+    findSender(30);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [balance, tokenBalances]);
   useEffect(() => {
     if (!incoming) return;
-    // 3 s on screen; naming the sender later does not restart it
+    // 3 s on screen
     const t = setTimeout(() => setIncoming(null), 3000);
     return () => clearTimeout(t);
   }, [incoming?.id]);
