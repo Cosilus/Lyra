@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallba
 import { AnimatePresence, motion, LayoutGroup } from "framer-motion";
 import { ethers } from "ethers";
 import { gsap } from "gsap";
-import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUpFromDot, ArrowDownToDot, ArrowLeftRight, MoveHorizontal, Vault, ChevronDown, QrCode, Sparkles, HelpCircle, Gift } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUpFromDot, ArrowDownToDot, ArrowLeftRight, MoveHorizontal, Vault, ChevronDown, QrCode, Sparkles, HelpCircle, Gift , ArrowDownLeft } from "lucide-react";
 import { IS_TESTNET, API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx, KYBERSWAP_API_BASE, NATIVE_PSEUDO_ADDRESS, KYBERSWAP_CLIENT_ID, POLYMARKET_ORDER_DOMAIN_NAME, POLYMARKET_ORDER_DOMAIN_VERSION, POLYMARKET_ORDER_TYPES, POLYMARKET_ORDER_SIDE_BUY, POLYMARKET_ORDER_SIDE_SELL, POLYMARKET_BYTES32_ZERO, POLYMARKET_SIGNATURE_TYPE_EOA, POLYMARKET_SIGNATURE_TYPE_GNOSIS_SAFE, POLYMARKET_SIGNATURE_TYPE_POLY_1271, POLYMARKET_DEPOSIT_WALLET_DOMAIN_NAME, POLYMARKET_DEPOSIT_WALLET_DOMAIN_VERSION, POLYMARKET_PUSD_COLLATERAL, AAVE_V4_SPOKE_ABI } from "./config";
 import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
@@ -15,6 +15,10 @@ import { loadSavedWallet, encryptPrivateKey, decryptPrivateKey, reconstructPriva
 import { syncAddress } from "./providerSync.js";
 import { loadAccounts, findAccount, activateAccount, addAccount, clearAccounts, nextDerivedIndex, defaultAccountName, renameAccount } from "./walletAccounts.js";
 import { AccountSwitcher } from "./AccountSwitcher.jsx";
+import { TxHistoryList, StakeHistory, stakeAssetOf } from "./TxHistoryList.jsx";
+import { Approvals } from "./Approvals.jsx";
+import { buildPlanCalls } from "./planSimulation.js";
+import { FlyingRequest } from "./FlyingRequest.jsx";
 import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodePaymentResponseHeader, decodePaymentRequiredHeader, findEip3009SettlementTx, selectGatewayOptions, signGatewayPayment, fetchGatewayBalances, GATEWAY_NETWORKS, GATEWAY_WALLET_MAINNET, GATEWAY_WALLET_ABI } from "./x402";
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
 import { DEMO_A2A_AGENT_URL, sendA2ATask, fetchAgentCard } from "./a2a";
@@ -324,7 +328,16 @@ function buildTxRows(list, walletAddress, defi) {
     const incomingToken = legs.find(t => t.type === "token" && t.to.toLowerCase() === addr);
     const internalLeg = legs.find(t => t.type === "internal");
 
-    const display = outgoingToken || incomingToken || internalLeg || native || legs[0];
+    // Aave: a withdrawal burns the receipt token (aUSDT0... out) and sends the
+    // asset back (in); a deposit sends the asset out and mints the receipt in.
+    const isReceipt = (t) => /^a[A-Z]/.test(t.symbol || "");
+    const incomingAsset = legs.find(t => t.type === "token" && t.to.toLowerCase() === addr && !isReceipt(t));
+    const outgoingAsset = legs.find(t => t.type === "token" && t.from.toLowerCase() === addr && !isReceipt(t));
+    const stakeAction = category === "stake" ? (incomingAsset && !outgoingAsset ? "withdraw" : "deposit") : null;
+
+    const display = stakeAction === "withdraw" ? incomingAsset
+      : stakeAction === "deposit" ? (outgoingAsset || outgoingToken || native || legs[0])
+      : outgoingToken || incomingToken || internalLeg || native || legs[0];
     const isSent = display.from.toLowerCase() === addr;
 
     return {
@@ -333,6 +346,9 @@ function buildTxRows(list, walletAddress, defi) {
       category,
       display,
       isSent,
+      stakeAction,
+      outgoing: outgoingToken || (native && Number(native.valueXPL) > 0 && native.from.toLowerCase() === addr ? native : null),
+      incoming: incomingToken || internalLeg || null,
       counterparty: isSent ? display.to : display.from
     };
   }).sort((a, b) => b.timestamp - a.timestamp);
@@ -1010,6 +1026,36 @@ export default function App() {
   // The wallet's other addresses (walletAccounts.js), opened from the
   // chevron next to the address. Their keys stay in memory only while the
   // wallet is unlocked, like the main one.
+  // Money that just arrived: a pill at the top right of the wallet
+  const [incoming, setIncoming] = useState(null);
+  // Settings -> Security -> Token approvals (open inline), and the contracts
+  // this wallet called before (from its history), checked too
+  const [showApprovals, setShowApprovals] = useState(false);
+  const [calledContracts, setCalledContracts] = useState([]);
+  // Contracts that could hold an approval: the ones Lyra uses on this network
+  // (named), plus the ones this wallet called before (unknown unless named)
+  const approvalSpenders = useMemo(() => {
+    const NAMES = { oku: "Oku", uniswap: "Uniswap", aave: "Aave", aaveV4: "Aave V4", lifi: "LI.FI", cctp: "Circle CCTP", polymarket: "Polymarket" };
+    const out = new Map();
+    const add = (address, label, known = true) => {
+      if (!/^0x[0-9a-fA-F]{40}$/.test(address || "")) return;
+      const k = address.toLowerCase();
+      if (out.has(k)) return;
+      out.set(k, { address: ethers.getAddress(k), label, known });
+    };
+    const skip = /factory|quoter|dataprovider|addressesprovider|oracle/i;
+    const walk = (obj, top) => {
+      for (const [k, v] of Object.entries(obj || {})) {
+        if (typeof v === "string") { if (!skip.test(k)) add(v, `${NAMES[top] || top || "Lyra"}${top ? ` ${k}` : ""}`); }
+        else if (v && typeof v === "object") walk(v, top || k);
+      }
+    };
+    walk(defi, null);
+    add(KYBERSWAP_ROUTER_V2, "KyberSwap router");
+    add("0x000000000022D473030F116dDEE9F6B43aC78BA3", "Uniswap Permit2");
+    for (const a of calledContracts) add(a, "Contract", false);
+    return [...out.values()];
+  }, [defi, calledContracts]);
   const [showAccounts, setShowAccounts] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const accountKeysRef = useRef(new Map()); // lowercased address -> { privateKey, localSecret }
@@ -1293,6 +1339,12 @@ export default function App() {
   const [planRequest, setPlanRequest] = useState("");   // the sentence the plan answers, shown at the top of the plan sheet
   const planStartedAtRef = useRef(0);                   // when that request was sent: picks its own work log
   const planMsgStartRef = useRef(0);                    // chat length before that request: what the request box replaces
+  // The plan simulated before confirming (planSimulation.js + the server's
+  // /api/simulate/plan): { state: "loading" | "ok" | "fail" | "off", ... }
+  const [planSim, setPlanSim] = useState(null);
+  // Where the Ask Lyra box and its text were when the request was sent: the
+  // plan sheet grows out of that box and the request glides from there.
+  const askOriginRef = useRef(null);
   const [planError, setPlanError] = useState(null);     // why a confirmed plan stopped (never sends it back to "confirm")
   // A request that just finished: shown as a confirmation under Ask Lyra for
   // a moment, then it becomes the first line of the requests history.
@@ -2382,6 +2434,16 @@ async function importAccount(secret, password) {
   await switchAccount(w.address);
 }
 
+// Sets one token's allowance for one contract back to zero
+async function revokeApproval(tokenAddress, spender) {
+  if (!unlockedPrivateKey) throw new Error("Unlock your wallet first.");
+  const signer = new ethers.Wallet(unlockedPrivateKey, RPC);
+  const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+  const tx = await token.approve(spender, 0n);
+  await tx.wait();
+  setToast("Approval revoked.");
+}
+
 async function handleRevealPrivateKey() {
   if (!exportPassword) {
     setExportError("Enter your password.");
@@ -2835,6 +2897,59 @@ useEffect(() => {
   return () => clearInterval(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [wallet?.address, locked, activeNetworkKey]);
+
+  // Incoming transfers: the history is checked every 30 s while the wallet is
+  // open and visible; anything newer than the last one seen shows the pill.
+  // The first check only remembers where we are, so old transfers never pop.
+  useEffect(() => {
+    if (!wallet?.address || locked) return;
+    const key = `lyra_seen_incoming_v1:${activeNetworkKey}:${wallet.address.toLowerCase()}`;
+    let stopped = false;
+    const check = async () => {
+      if (document.hidden || stopped) return;
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/transactions/${wallet.address}?network=${activeNetworkKey}`);
+        if (!r.ok) return;
+        const { transactions = [] } = await r.json();
+        const rows = buildTxRows(transactions, wallet.address, defi)
+          .filter(x => x.category === "send" && !x.isSent && Number(x.display?.valueXPL) > 0);
+        const latest = rows.reduce((m, x) => Math.max(m, x.timestamp), 0);
+        let seen = 0;
+        try { seen = Number(localStorage.getItem(key)) || 0; } catch { /* storage off */ }
+        if (!seen) {
+          try { localStorage.setItem(key, String(latest || Math.floor(Date.now() / 1000))); } catch { /* storage off */ }
+          return;
+        }
+        // a look-alike of a contact sending dust is address poisoning, not news
+        const fresh = rows
+          .filter(x => x.timestamp > seen && !findLookalikeMatch(x.counterparty, loadContacts(), wallet.address))
+          .sort((a, b) => a.timestamp - b.timestamp);
+        if (latest > seen) {
+          try { localStorage.setItem(key, String(latest)); } catch { /* storage off */ }
+        }
+        if (!fresh.length || stopped) return;
+        const last = fresh[fresh.length - 1];
+        const contact = loadContacts().find(c => c.address?.toLowerCase() === String(last.counterparty).toLowerCase());
+        setIncoming({
+          id: last.hash,
+          amount: Number(last.display.valueXPL),
+          symbol: last.display.symbol || activeNetwork.nativeSymbol,
+          from: contact?.name || shortAddress(last.counterparty),
+          more: fresh.length - 1,
+        });
+        refreshBalance(wallet.address, { silent: true });
+      } catch { /* the next check catches up */ }
+    };
+    check();
+    const t = setInterval(check, 30000);
+    return () => { stopped = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wallet?.address, locked, activeNetworkKey]);
+  useEffect(() => {
+    if (!incoming) return;
+    const t = setTimeout(() => setIncoming(null), 7000);
+    return () => clearTimeout(t);
+  }, [incoming]);
 
   async function createWallet() {
   const w = ethers.Wallet.createRandom();
@@ -7256,6 +7371,26 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
 
   async function handleIntent(text) {
   if (!text.trim()) return;
+  try {
+    const box = document.querySelector(".frame .ask-box");
+    const frameEl = box?.closest(".frame");
+    const input = box?.querySelector(".ask-input");
+    if (box && frameEl) {
+      const f = frameEl.getBoundingClientRect();
+      const b = box.getBoundingClientRect();
+      const k = frameEl.offsetWidth / (f.width || 1); // 3D view: screen -> wallet pixels
+      const t = input?.getBoundingClientRect();
+      const inputStyle = input ? getComputedStyle(input) : null;
+      askOriginRef.current = {
+        at: Date.now(),
+        clip: [b.top - f.top, f.right - b.right, f.bottom - b.bottom, b.left - f.left].map(v => Math.max(0, Math.round(v * k))),
+        radius: getComputedStyle(box).borderTopLeftRadius || "18px",
+        frameRadius: getComputedStyle(frameEl).borderTopLeftRadius || "0px",
+        text: t ? { x: t.left + (parseFloat(inputStyle.paddingLeft) || 0) / k, y: t.top + (parseFloat(inputStyle.paddingTop) || 0) / k } : null,
+        fontScale: inputStyle ? (parseFloat(inputStyle.fontSize) || 15) / 13.5 : 1,
+      };
+    }
+  } catch { askOriginRef.current = null; }
 
   const { steps } = parseAskLyra(text, {
     tokenSymbols: [activeNetwork.nativeSymbol, ...Object.keys(tokens)],
@@ -7586,6 +7721,73 @@ function handleHoldEnd() {
     return null;
   })();
 
+  // The steps as the executors see them, for the simulation
+  const planSimSteps = multiTicket ? multiTicket.steps
+    : defiTicket && planEligible ? [{
+        kind: defiTicket.feature === "swap" ? "swap" : defiTicket.feature === "bridge" ? "bridge" : defiTicket.intent === "UNSTAKE_XPL" ? "unstake" : "stake",
+        amount: defiTicket.amount, asset: defiTicket.asset || activeNetwork.nativeSymbol,
+        tokenOutSymbol: defiTicket.tokenOutSymbol, destinationChainKey: defiTicket.destinationChainKey, ticket: defiTicket,
+      }]
+    : showSend ? [{ kind: "send", amount: sendAmount, asset: sendAssetSymbol, recipient: sendTo }]
+    : null;
+  const planSimKey = planSimSteps && !busy && executionSteps.length === 0 && !planError && wallet?.address
+    ? JSON.stringify([activeNetworkKey, wallet.address, planSimSteps.map(s => [s.kind, s.amount, s.asset, s.recipient, s.tokenOutSymbol, s.destinationChainKey, !!s.amountIsEstimate])])
+    : null;
+  useEffect(() => {
+    if (!planSimKey) { setPlanSim(null); return; }
+    let cancelled = false;
+    setPlanSim({ state: "loading" });
+    const t = setTimeout(async () => {
+      try {
+        const { calls, skipped } = await buildPlanCalls(planSimSteps, {
+          from: wallet.address, network: activeNetwork, networkKey: activeNetworkKey, isTestnet: IS_TESTNET,
+          tokens, defi, nativeSymbol: activeNetwork.nativeSymbol, nativePseudo: NATIVE_PSEUDO_ADDRESS,
+          slippage: DEFAULT_SLIPPAGE, kyberBase: KYBERSWAP_API_BASE, kyberClientId: KYBERSWAP_CLIENT_ID,
+          lifiQuoteUrl: LIFI_QUOTE_API_URL, aaveV4Reserve,
+          suppliedV4: (v4) => new ethers.Contract(defi.aaveV4.spoke, AAVE_V4_SPOKE_ABI, RPC).getUserSuppliedAssets(v4.id, wallet.address),
+        });
+        if (!calls.length) { if (!cancelled) setPlanSim({ state: "off", reason: "skipped" }); return; }
+        const r = await fetch(`${API_BASE_URL}/api/simulate/plan`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ network: activeNetworkKey, from: wallet.address, calls }),
+        });
+        const sim = await r.json();
+        if (cancelled) return;
+        if (!r.ok || !sim.available) { setPlanSim({ state: "off", reason: sim.reason || sim.error }); return; }
+        if (sim.reverted) { setPlanSim({ state: "fail", step: sim.step, error: sim.error, multi: planSimSteps.length > 1 }); return; }
+        // receipt tokens (aUSDT0...) read as "staked USDT0"
+        const known = [activeNetwork.nativeSymbol, ...Object.keys(tokens)];
+        const rows = [];
+        for (const c of sim.changes || []) {
+          const sym = c.symbol || "?";
+          const base = /^a[A-Z]/.test(sym) ? known.find(k => sym.endsWith(k)) : null;
+          const amount = Number(c.amount).toLocaleString("en-US", { maximumFractionDigits: 6 });
+          if (base) {
+            // the receipt minted also counts interest already earned: show what the plan stakes
+            const stakes = planSimSteps.filter(st => st.kind === "stake" && st.asset === base);
+            const exact = stakes.length > 0 && stakes.every(st => !st.amountIsEstimate && Number(st.amount) > 0);
+            const staked = exact ? stakes.reduce((sum, st) => sum + Number(st.amount), 0).toLocaleString("en-US", { maximumFractionDigits: 6 }) : `≈ ${amount}`;
+            if (c.direction === "in") rows.push({ kind: "stake", text: `${staked} ${base} staked` });
+            continue;
+          }
+          rows.push({ kind: c.direction, text: `${c.direction === "in" ? "+" : "−"} ${amount} ${sym}` });
+        }
+        rows.sort((a, b) => ({ out: 0, in: 1, stake: 2 }[a.kind] - { out: 0, in: 1, stake: 2 }[b.kind]));
+        setPlanSim({
+          state: "ok",
+          rows,
+          fee: sim.fee ? `${Number(sim.fee).toLocaleString("en-US", { maximumSignificantDigits: 2 })} ${sim.feeSymbol}` : null,
+          skipped: skipped.map(i => planStepFrom(planSimSteps[i].kind, {}).label),
+        });
+      } catch (e) {
+        if (!cancelled) setPlanSim({ state: "off", reason: e.message });
+      }
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planSimKey]);
+
   const planView = (() => {
     if (planRows) {
       const single = !multiTicket;
@@ -7606,7 +7808,8 @@ function handleHoldEnd() {
         // a real amount reads "Network fee ≈ 0.004 USDC"; a sentence from the server stays as written
         note: `${fee ? (/\d/.test(fee) ? `Network fee ≈ ${fee} · ` : `${fee} · `) : ""}Nothing moves until you confirm`,
         warning: defiTicket?.dataFound === false ? (defiTicket.summary || "No reliable data found for this operation.") : shortfall,
-        executable: !shortfall && (defiTicket && planEligible ? !!defiTicket.executable : true),
+        executable: !shortfall && planSim?.state !== "fail" && (defiTicket && planEligible ? !!defiTicket.executable : true),
+        simulation: planSim,
         activeIndex: single ? 0 : planStepIndex,
         doneCount: single ? (done ? 1 : 0) : Math.max(0, planStepIndex),
         txUrl: lastHash ? explorerTx(lastHash, activeNetwork) : null,
@@ -7772,16 +7975,19 @@ function handleHoldEnd() {
       <main className="frame frame--ask">
         {/* The plan takes the whole wallet while it is on screen, like a sheet. */}
         <AnimatePresence>
-          {planView && (
+          {planView && (() => {
+            // grows out of the Ask Lyra box when the request was just sent from it
+            const o = askOriginRef.current && Date.now() - askOriginRef.current.at < 5000 ? askOriginRef.current : null;
+            return (
             <motion.div
               className="plan-sheet"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+              initial={o ? { clipPath: `inset(${o.clip.map(v => `${v}px`).join(" ")} round ${o.radius})` } : { y: "100%" }}
+              animate={o ? { clipPath: `inset(0px 0px 0px 0px round ${o.frameRadius})` } : { y: 0 }}
+              exit={{ opacity: 0, transition: { duration: 0.25, ease: "easeOut" } }}
+              transition={o ? { duration: 0.62, ease: [0.65, 0, 0.25, 1] } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
             >
               <div className="plan-sheet-body">
-                {planRequest && <div className="plan-sheet-request">{planRequest}</div>}
+                {planRequest && <FlyingRequest text={planRequest} origin={o} />}
                 {/* Lyra's work log for this request: live phase + seconds, then "Worked for…" */}
                 {(() => {
                   const run = activityRuns[activityRuns.length - 1];
@@ -7797,7 +8003,8 @@ function handleHoldEnd() {
                 />
               </div>
             </motion.div>
-          )}
+            );
+          })()}
         </AnimatePresence>
         <header className="header">
           <div className="brand">
@@ -7809,6 +8016,27 @@ function handleHoldEnd() {
   <div className="name">Lyra</div>
 
   <div className="header-actions">
+    <AnimatePresence>
+      {incoming && wallet && !locked && (
+        <motion.button
+          key={incoming.id}
+          type="button"
+          className="incoming-pill"
+          initial={{ opacity: 0, y: -8, scale: 0.94 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -6, scale: 0.97 }}
+          transition={{ type: "spring", stiffness: 420, damping: 30 }}
+          onClick={() => { setIncoming(null); openTxCategory(uiMode === "3d" ? "received" : "send"); }}
+          aria-label={`Received ${incoming.amount} ${incoming.symbol} from ${incoming.from}`}
+        >
+          <span className="incoming-dot"><ArrowDownLeft size={12} strokeWidth={2.6} /></span>
+          <span className="incoming-text">
+            <strong>+{incoming.amount.toLocaleString("en-US", { maximumFractionDigits: 4 })} {incoming.symbol}</strong>
+            <span>from {incoming.from}{incoming.more > 0 ? ` · +${incoming.more}` : ""}</span>
+          </span>
+        </motion.button>
+      )}
+    </AnimatePresence>
     {wallet && uiMode !== "3d" && (
       <div className="header-menu" ref={headerMenuRef}>
         <button
@@ -10289,6 +10517,50 @@ function handleHoldEnd() {
           <span>Export your seed phrase</span>
         </button>
 
+        <button
+          type="button"
+          className={`settings-action-row appr-toggle${showApprovals ? " is-open" : ""}`}
+          onClick={() => {
+            const next = !showApprovals;
+            setShowApprovals(next);
+            if (next && wallet?.address) {
+              fetch(`${API_BASE_URL}/api/transactions/${wallet.address}?network=${activeNetworkKey}`)
+                .then(r => (r.ok ? r.json() : { transactions: [] }))
+                .then(({ transactions = [] }) => setCalledContracts(
+                  [...new Set(transactions
+                    .filter(t => t.type === "native" && t.from?.toLowerCase() === wallet.address.toLowerCase() && t.to)
+                    .map(t => t.to.toLowerCase()))].slice(0, 20)
+                ))
+                .catch(() => {});
+            }
+          }}
+          aria-expanded={showApprovals}
+        >
+          <ShieldCheck size={16} strokeWidth={1.8} />
+          <span>Token approvals</span>
+          <ChevronDown size={15} className="appr-chevron" />
+        </button>
+        <AnimatePresence initial={false}>
+          {showApprovals && wallet?.address && (
+            <motion.div
+              key="approvals"
+              style={{ overflow: "hidden" }}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <Approvals
+                owner={wallet.address}
+                provider={RPC}
+                tokens={tokens}
+                spenders={approvalSpenders}
+                onRevoke={revokeApproval}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="settings-row">
           <div className="settings-row-info">
             <div className="settings-row-title">Require biometric above</div>
@@ -11438,44 +11710,27 @@ function handleHoldEnd() {
               <div className="contacts-empty">{txHistoryError}</div>
             )}
 
-            {!txHistoryLoading && !txHistoryError && txHistoryRows.length === 0 && (
-              <div className="contacts-empty">
-                No transactions found for this category.
-              </div>
-            )}
-
-            {!txHistoryLoading && !txHistoryError && txHistoryRows.map((row) => {
-              const date = new Date(row.timestamp * 1000);
-
-              const direction = row.category === "send"
-                ? `${row.isSent ? "↗ Sent to" : "↙ Received from"} ${shortAddress(row.counterparty)}`
-                : row.category === "swap"
-                ? "⇄ Swap"
-                : row.category === "stake"
-                ? (row.isSent ? "◆ Staked" : "◆ Withdrawn")
-                : "⇢ Bridged";
-
-              return (
-                <a
-                  className={`tx-item ${row.isSent ? "sent" : "received"}`}
-                  key={row.hash}
-                  href={explorerTx(row.hash, activeNetwork)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <div className="tx-item-main">
-                    <div className="tx-item-direction">{direction}</div>
-                    <div className="tx-item-date">
-                      {date.toLocaleDateString("en-US")} · {date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
-                    </div>
-                  </div>
-
-                  <div className={`tx-item-amount ${row.isSent ? "negative" : "positive"}`}>
-                    {row.isSent ? "-" : "+"}{Number(row.display.valueXPL).toLocaleString("en-US", { maximumFractionDigits: 6 })} {row.display.symbol || "XPL"}
-                  </div>
-                </a>
-              );
-            })}
+            {!txHistoryLoading && !txHistoryError && (() => {
+              const known = Object.keys(tokens);
+              const people = loadContacts();
+              const rows = txHistoryRows.map(r => {
+                const contact = people.find(c => c.address?.toLowerCase() === String(r.counterparty || "").toLowerCase());
+                return {
+                  ...r,
+                  asset: stakeAssetOf(r.display?.symbol, known),
+                  counterpartyName: contact?.name || null,
+                  counterpartyLabel: contact?.name || shortAddress(r.counterparty),
+                };
+              });
+              const common = { networkName: activeNetwork.name, protocolFor, explorerUrl: (h) => explorerTx(h, activeNetwork) };
+              if (txHistoryTab === "stake") {
+                const positions = Object.entries(tokens)
+                  .filter(([sym]) => (stakedBalances[sym] || 0n) > 0n)
+                  .map(([sym, t]) => ({ symbol: sym, amount: Number(ethers.formatUnits(stakedBalances[sym], t.decimals)), apy: stakedApy[sym] ?? null }));
+                return <StakeHistory rows={rows} positions={positions} networkKey={activeNetworkKey} {...common} />;
+              }
+              return <TxHistoryList key={txHistoryTab} rows={rows} {...common} />;
+            })()}
           </>
         )}
 
