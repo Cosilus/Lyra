@@ -4620,3 +4620,8 @@ a.stake-pos:hover .stake-pos-link { color: var(--beige); }
 .appr-revoke.is-confirm { background: #D57463; border-color: #D57463; color: #fff; }
 .appr-revoke:disabled { opacity: 0.6; cursor: default; }
 .appr-note { margin: 4px 4px 0; font-size: 11px; color: var(--muted-dim); }
+
+/* the incoming pill on one line: "+0.5 USDC from 0x12…00" */
+.incoming-pill { padding: 0 14px; height: 30px; gap: 0; }
+.incoming-pill .incoming-text { display: block; font: 700 12px var(--mono); color: #7EE2A0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 30px; }
+.incoming-pill .incoming-from { font: 500 11.5px var(--sans); color: var(--muted); }
