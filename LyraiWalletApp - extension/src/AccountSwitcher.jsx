@@ -91,7 +91,7 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
             transition={{ duration: 0.18 }}
           >
             <ul className="acct-list">
-              {accounts.map(a => {
+              {accounts.map((a, i) => {
                 const active = a.address.toLowerCase() === activeAddress?.toLowerCase();
                 if (renaming === a.address) {
                   return (
@@ -122,7 +122,13 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
                   );
                 }
                 return (
-                  <li key={a.address} className="acct-item">
+                  <motion.li
+                    key={a.address}
+                    className="acct-item"
+                    initial={{ opacity: 0, x: -14 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: Math.min(i, 8) * 0.04 }}
+                  >
                     <button
                       type="button"
                       className={`acct-row${active ? " is-active" : ""}`}
@@ -149,7 +155,7 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
                     >
                       <Pencil size={12} strokeWidth={2} />
                     </button>
-                  </li>
+                  </motion.li>
                 );
               })}
             </ul>

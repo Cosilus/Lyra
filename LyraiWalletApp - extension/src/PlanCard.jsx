@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { HoldSquares } from "./HoldSquares.jsx";
 import { ArrowLeftRight, ArrowUpFromDot, ArrowDownToDot, Vault, MoveHorizontal, Wallet, Zap, ListOrdered, MessageCircle, Check, Fingerprint, Loader2, ExternalLink, X, ChevronDown } from "lucide-react";
 import { TokenLogo, tokenLogoUrl } from "./tokenLogo.jsx";
 import { StatusBadge } from "./StatusBadge.jsx";
@@ -69,7 +70,7 @@ function Value({ text }) {
   );
 }
 
-function StepRow({ step, index, checked, active }) {
+function StepRow({ step, index, checked, active, showTx }) {
   return (
     <motion.div
       className={`plan-step${active ? " is-active" : ""}`}
@@ -107,7 +108,72 @@ function StepRow({ step, index, checked, active }) {
         </div>
       </div>
       {active && <Loader2 size={14} className="plan-spin plan-step-spin" />}
+      {showTx && step.txUrl && !active && (
+        <motion.a
+          className="plan-step-tx"
+          href={step.txUrl}
+          target="_blank"
+          rel="noreferrer"
+          data-tip="View this step on the explorer"
+          aria-label={`View ${step.label} on the explorer`}
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: "spring", stiffness: 420, damping: 24 }}
+        >
+          <ExternalLink size={13} />
+        </motion.a>
+      )}
     </motion.div>
+  );
+}
+
+// Steps with different transactions: the link under the steps opens a list
+// of them; ONE transaction (a single step, a Ledger batch): it opens it.
+function stepLinksApart(steps) {
+  return new Set(steps.map(s => s.txUrl).filter(Boolean)).size > 1;
+}
+
+const shortHash = (url) => {
+  const h = String(url || "").split("/").filter(Boolean).pop() || "";
+  return /^0x[0-9a-f]{10,}$/i.test(h) ? `${h.slice(0, 6)}…${h.slice(-4)}` : "transaction";
+};
+
+function TxLinks({ steps, txUrl }) {
+  const [open, setOpen] = useState(false);
+  if (!stepLinksApart(steps)) {
+    const url = txUrl || steps.find(s => s.txUrl)?.txUrl;
+    return url ? (
+      <a className="plan-txlink" href={url} target="_blank" rel="noreferrer">
+        View transaction on the explorer <ExternalLink size={12} />
+      </a>
+    ) : null;
+  }
+  return (
+    <div className="plan-txlinks">
+      <button type="button" className={`plan-txlink plan-txlinks-toggle${open ? " is-open" : ""}`} onClick={() => setOpen(o => !o)} aria-expanded={open}>
+        View transactions on the explorer <ChevronDown size={13} className="plan-txlinks-chev" />
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            className="plan-txlinks-list"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {steps.map((s, i) => s.txUrl && (
+              <a key={i} className="plan-txlinks-row" href={s.txUrl} target="_blank" rel="noreferrer">
+                <span className="plan-txlinks-step">Step {i + 1}</span>
+                <span className="plan-txlinks-label">{s.label}</span>
+                <span className="plan-txlinks-hash">{shortHash(s.txUrl)}</span>
+                <ExternalLink size={12} />
+              </a>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -153,11 +219,7 @@ export function RequestBox({ entry }) {
             </div>
             {entry.error && <div className="request-error">{entry.error}</div>}
             {entry.status === "cancelled" && <div className="request-note">Cancelled before anything was sent.</div>}
-            {entry.txUrl && (
-              <a className="plan-txlink" href={entry.txUrl} target="_blank" rel="noreferrer">
-                View transaction on the explorer <ExternalLink size={12} />
-              </a>
-            )}
+            {entry.status !== "cancelled" && <TxLinks steps={entry.steps || []} txUrl={entry.txUrl} />}
           </motion.div>
         )}
       </AnimatePresence>
@@ -165,26 +227,41 @@ export function RequestBox({ entry }) {
   );
 }
 
+// Held for 1.5 s: the staircase of squares grows from the centre and covers
+// the button; let go early and it shrinks back.
+const HOLD_MS = 1500;
 function HoldButton({ onDone, disabled, children }) {
-  const [holding, setHolding] = useState(false);
-  const timer = useRef(null);
-  const start = () => {
-    if (disabled) return;
-    setHolding(true);
-    timer.current = setTimeout(() => { setHolding(false); onDone(); }, 1500);
+  const drawRef = useRef(null);
+  const raf = useRef(0);
+  const done = useRef(false);
+  const start = (e) => {
+    if (disabled || raf.current) return;
+    e.preventDefault?.();
+    done.current = false;
+    const t0 = performance.now();
+    const tick = (now) => {
+      const p = Math.min(100, ((now - t0) / HOLD_MS) * 100);
+      drawRef.current?.(p);
+      if (p >= 100) { raf.current = 0; done.current = true; onDone(); return; }
+      raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
   };
-  const stop = () => { clearTimeout(timer.current); setHolding(false); };
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const stop = () => {
+    if (raf.current) { cancelAnimationFrame(raf.current); raf.current = 0; }
+    if (!done.current) drawRef.current?.(0);
+  };
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
   return (
     <button
       type="button"
-      className={`plan-confirm plan-hold${holding ? " is-holding" : ""}`}
+      className="plan-confirm plan-hold"
       disabled={disabled}
-      onMouseDown={start} onMouseUp={stop} onMouseLeave={stop}
-      onTouchStart={start} onTouchEnd={stop} onTouchCancel={stop}
+      onPointerDown={start} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}
+      onContextMenu={(e) => e.preventDefault()}
     >
-      <span className="plan-hold-fill" aria-hidden="true" />
-      <span className="plan-hold-label">{children}</span>
+      <HoldSquares drawRef={drawRef} />
+      <span className="hold-content">{children}</span>
     </button>
   );
 }
@@ -304,7 +381,7 @@ export function PlanCard({
         </AnimatePresence>
       </motion.div>
 
-      {warning && <div className="plan-warning">{warning}</div>}
+      {warning && phase === "review" && <div className="plan-warning">{warning}</div>}
 
       {/* what the plan really does, simulated on-chain right before confirming */}
       {phase === "review" && simulation && simulation.state !== "off" && (
@@ -389,11 +466,7 @@ export function PlanCard({
 
       {/* one explorer link, even for a multi-step plan (its last transaction),
           under the details once it went through */}
-      {phase === "done" && txUrl && (
-        <a className="plan-txlink" href={txUrl} target="_blank" rel="noreferrer">
-          View transaction on the explorer <ExternalLink size={12} />
-        </a>
-      )}
+      {phase === "done" && <TxLinks steps={steps} txUrl={txUrl} />}
       {(error || (phase === "failed" && stopError)) && <div className="plan-error">{phase === "failed" ? stopError : error}</div>}
 
       {phase === "failed" && (

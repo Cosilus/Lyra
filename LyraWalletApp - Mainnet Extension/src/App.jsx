@@ -19,7 +19,9 @@ import { TxHistoryList, StakeHistory, stakeAssetOf } from "./TxHistoryList.jsx";
 import { Approvals } from "./Approvals.jsx";
 import { buildPlanCalls } from "./planSimulation.js";
 import { FlyingRequest } from "./FlyingRequest.jsx";
-import { ledgerAddress, ledgerSupported, connectLedger, LEDGER_DEFAULT_PATH } from "./ledger.js";
+import { HoldSquares } from "./HoldSquares.jsx";
+import { ledgerAddress, ledgerSupported, connectLedger, ledgerSettings, LEDGER_DEFAULT_PATH } from "./ledger.js";
+import { LedgerSetup } from "./LedgerSetup.jsx";
 import { batchSupported, isDelegated, activateBatching, sendLedgerBatch } from "./ledgerBatch.js";
 import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodePaymentResponseHeader, decodePaymentRequiredHeader, findEip3009SettlementTx, selectGatewayOptions, signGatewayPayment, fetchGatewayBalances, GATEWAY_NETWORKS, GATEWAY_WALLET_MAINNET, GATEWAY_WALLET_ABI } from "./x402";
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
@@ -594,7 +596,7 @@ function loadPortfolioHistory() {
   }
 }
 
-function recordPortfolioSnapshot(xplBalanceWei, defiValueXpl = 0, networkKey) {
+function recordPortfolioSnapshot(xplBalanceWei, defiValueXpl = 0, networkKey, address = null) {
   try {
     const history = loadPortfolioHistory();
     const now = Date.now();
@@ -606,6 +608,7 @@ function recordPortfolioSnapshot(xplBalanceWei, defiValueXpl = 0, networkKey) {
       last.balance === balanceStr &&
       last.defi === defiValueXpl &&
       last.network === networkKey &&
+      last.address === (address ? address.toLowerCase() : undefined) &&
       now - last.t < 5 * 60 * 1000
     ) {
       return history;
@@ -613,7 +616,7 @@ function recordPortfolioSnapshot(xplBalanceWei, defiValueXpl = 0, networkKey) {
 
     const next = [
       ...history,
-      { t: now, balance: balanceStr, defi: defiValueXpl, network: networkKey, priced: true }
+      { t: now, balance: balanceStr, defi: defiValueXpl, network: networkKey, ...(address ? { address: address.toLowerCase() } : {}), priced: true }
     ].slice(-MAX_HISTORY_POINTS);
 
     localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(next));
@@ -715,111 +718,6 @@ function addContact(name, address) {
 // which is what made the animation look janky instead of fluid.
 // Calling draw(0) after a hold shrinks the squares back instead of
 // wiping them instantly.
-function HoldSquares({ drawRef }) {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !canvas.parentElement) return;
-
-    const btn = canvas.parentElement;
-    const ctx = canvas.getContext("2d");
-    const ROWS = 5;        // odd, so a row of squares sits on the centre line
-    const SPAN = 3.2;      // width of the soft edge, in squares
-    const RETRACT_MS = 420;
-    let shown = 0;
-    let retractRaf = 0;
-
-    function paint(progress) {
-      const rect = btn.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = rect.width || 260;
-      const h = rect.height || 50;
-
-      const targetW = Math.round(w * dpr);
-      const targetH = Math.round(h * dpr);
-      if (canvas.width !== targetW || canvas.height !== targetH) {
-        canvas.width = targetW;
-        canvas.height = targetH;
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-
-      if (progress <= 0) {
-        btn.classList.remove("dots-cover");
-        return;
-      }
-
-      const cell = h / ROWS;
-      const halfRows = (ROWS - 1) / 2;
-      const halfCols = Math.ceil(w / 2 / cell);
-      const R = (progress / 100) * (halfRows + halfCols + SPAN);
-
-      // Flip the label to white once the wave has grown past its ends.
-      const label = btn.querySelector(".hold-content");
-      let textW = 0;
-      if (label) {
-        const range = document.createRange();
-        range.selectNodeContents(label);
-        textW = range.getBoundingClientRect().width;
-      }
-      btn.classList.toggle("dots-cover", R - textW / 2 / cell - halfRows > SPAN * 0.7);
-
-      ctx.fillStyle = "#6D4FD1"; // --accent-deep, same as on the website
-      for (let j = -halfRows; j <= halfRows; j++) {
-        for (let i = -halfCols; i <= halfCols; i++) {
-          let t = (R - (Math.abs(i) + Math.abs(j))) / SPAN;
-          t = t < 0 ? 0 : t > 1 ? 1 : t;
-          if (t <= 0.01) continue;
-          t = t * t * (3 - 2 * t);
-          const side = t >= 1 ? cell + 0.75 : cell * (0.3 + 0.7 * t);
-          ctx.globalAlpha = t >= 1 ? 1 : 0.25 + 0.75 * t;
-          ctx.fillRect(w / 2 + i * cell - side / 2, h / 2 + j * cell - side / 2, side, side);
-        }
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    function draw(progress) {
-      if (progress > 0) {
-        cancelAnimationFrame(retractRaf);
-        retractRaf = 0;
-        shown = progress;
-        paint(progress);
-        return;
-      }
-      if (retractRaf) return; // already shrinking back
-      if (shown <= 0) {
-        paint(0);
-        return;
-      }
-      const from = shown;
-      const t0 = performance.now();
-      const step = (now) => {
-        const k = Math.min((now - t0) / (RETRACT_MS * Math.max(0.35, from / 100)), 1);
-        shown = from * (1 - k * k);
-        paint(shown);
-        if (k >= 1) {
-          shown = 0;
-          paint(0);
-          retractRaf = 0;
-          return;
-        }
-        retractRaf = requestAnimationFrame(step);
-      };
-      retractRaf = requestAnimationFrame(step);
-    }
-
-    draw(0);
-    drawRef.current = draw;
-    return () => {
-      cancelAnimationFrame(retractRaf);
-      if (drawRef.current === draw) drawRef.current = null;
-    };
-  }, [drawRef]);
-
-  return <canvas ref={canvasRef} className="hold-squares" />;
-}
 
 export default function App() {
   const [activeNetworkKey, setActiveNetworkKey] = useState(() => localStorage.getItem("plasma_active_network_v1") || DEFAULT_NETWORK.key);
@@ -1062,6 +960,8 @@ export default function App() {
   // Its key never leaves the device; plans are sent as one batched
   // transaction (ledgerBatch.js) and everything else that signs is off.
   const [ledgerActive, setLedgerActive] = useState(null);
+  // The Ledger settings guide (LedgerSetup.jsx): { model, need, blindOn }
+  const [ledgerGuide, setLedgerGuide] = useState(null);
   const [showAccounts, setShowAccounts] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const accountKeysRef = useRef(new Map()); // lowercased address -> { privateKey, localSecret }
@@ -1356,6 +1256,23 @@ export default function App() {
   // a moment, then it becomes the first line of the requests history.
   const [celebratingRequest, setCelebratingRequest] = useState(null); // its n
   const [showAllRequests, setShowAllRequests] = useState(false);
+  // The requests list ends at the wallet's bottom edge and scrolls inside it
+  const requestsListRef = useRef(null);
+  useLayoutEffect(() => {
+    const el = requestsListRef.current;
+    const frameEl = el?.closest(".frame");
+    if (!el || !frameEl) return;
+    const fit = () => {
+      const f = frameEl.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      const k = frameEl.offsetHeight / (f.height || 1); // the 3D view scales the wallet
+      el.style.maxHeight = Math.max(120, Math.floor((f.bottom - r.top) * k) - 8) + "px";
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(frameEl);
+    return () => ro.disconnect();
+  });
   const lastRequestCountRef = useRef(0);
   useEffect(() => {
     const reqs = messages.filter(m => m.role === "request");
@@ -1590,6 +1507,12 @@ useEffect(() => {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // The address on screen right now: a balance read for another address (an
+  // older read still in flight after a switch) must not land on this one.
+  const shownAddressRef = useRef(null);
+  shownAddressRef.current = wallet?.address || null;
+  const isShown = (address) => !shownAddressRef.current || String(address).toLowerCase() === shownAddressRef.current.toLowerCase();
+
   async function refreshTokenBalances(address = wallet?.address) {
   if (!address) return {};
   const entries = await Promise.all(
@@ -1605,7 +1528,7 @@ useEffect(() => {
     })
   );
   const result = Object.fromEntries(entries);
-  setTokenBalances(result);
+  if (isShown(address)) setTokenBalances(result);
   return result;
 }
 
@@ -1632,7 +1555,7 @@ useEffect(() => {
     })
   );
   const result = Object.fromEntries(entries);
-  setStakedBalances(result);
+  if (isShown(address)) setStakedBalances(result);
 
   // Real pool APY per staked asset, read straight from Aave, same
   // liquidityRate the AI's get_aave_apy tool reads server-side.
@@ -1657,8 +1580,14 @@ useEffect(() => {
 }
 
     const networkPortfolioHistory = useMemo(
-    () => filterHistoryByNetwork(portfolioHistory, activeNetworkKey),
-    [portfolioHistory, activeNetworkKey]
+    () => {
+      // points from before addresses were recorded belong to the saved (main) address
+      const me = String(wallet?.address || "").toLowerCase();
+      const saved = String(loadSavedWallet()?.address || "").toLowerCase();
+      return filterHistoryByNetwork(portfolioHistory, activeNetworkKey)
+        .filter(p => (p.address ? p.address === me : me === saved));
+    },
+    [portfolioHistory, activeNetworkKey, wallet?.address]
   );
 
   const portfolioChangePercent = useMemo(() => {
@@ -2474,6 +2403,8 @@ async function connectLedgerAccount() {
     addAccount({ address, name: `Ledger ${list.filter(a => a.kind === "ledger").length + 1}`, kind: "ledger", path: LEDGER_DEFAULT_PATH, record: null });
   }
   await switchAccount(address);
+  const settings = await ledgerSettings().catch(() => null);
+  if (settings?.blindSigning === false) setLedgerGuide({ model: settings.model, need: "both", blindOn: false });
 }
 
 // A whole plan as ONE Ledger signature (EIP-7702 batch, see ledgerBatch.js).
@@ -2483,6 +2414,10 @@ async function executeLedgerPlan() {
   if (!steps?.length) throw new Error("No plan pending.");
   // straight away, while the click still counts: the browser may ask which USB device
   await connectLedger();
+  const settings = await ledgerSettings().catch(() => null);
+  if (settings?.blindSigning === false) {
+    throw Object.assign(new Error("Turn on Blind signing on your Ledger."), { ledgerSetup: "blind", ledgerModel: settings.model });
+  }
   // any network where the Ledger-approved delegate (Simple7702Account) is deployed
   if (!(await batchSupported(RPC))) {
     throw new Error(`Nothing was sent. Plans with a Ledger aren't available on ${activeNetwork.name} yet (Plasma works).`);
@@ -2971,6 +2906,7 @@ async function unlockWithBiometric() {
   try {
     if (!silent) setStatus("Reading the network…");
     const b = await RPC.getBalance(address);
+    if (!isShown(address)) return;
     setBalance(b);
     setBalanceReady(true);
     if (!silent) setStatus(`Connected to ${activeNetwork.name}`);
@@ -2990,7 +2926,7 @@ async function unlockWithBiometric() {
     // snapshot missing them would show up later as a fake jump.
     if (stableUsdValue === 0 || xplPriceUSD) {
       const defiValueXpl = xplPriceUSD ? stableUsdValue / xplPriceUSD : 0;
-      setPortfolioHistory(recordPortfolioSnapshot(b, defiValueXpl, activeNetworkKey));
+      setPortfolioHistory(recordPortfolioSnapshot(b, defiValueXpl, activeNetworkKey, address));
     }
   } catch (e) {
     console.error(e);
@@ -6305,7 +6241,12 @@ const signer = new ethers.Wallet(
       walletAddress: wallet?.address || null,
       balance: fmtXpl(balance),
       // a finished plan's box goes back to Lyra as the request it was
-      history: messages.map(m => (m.role === "request" ? { role: "user", text: m.text } : m)),
+      history: messages.flatMap(m => (m.role === "request"
+        ? [
+            { role: "user", text: m.text },
+            { role: "ai", text: m.status === "done" ? "Done, it went through." : m.status === "cancelled" ? "The user cancelled this. Nothing was sent. Don't redo it unless asked again." : `It stopped${m.error ? ` (${m.error})` : ""}. Nothing more will be done for it unless the user asks again.` },
+          ]
+        : [m])),
       pendingTransaction,
       contacts: loadContacts(),
       network: activeNetworkKey,
@@ -7751,7 +7692,15 @@ function handleHoldEnd() {
     const from = amount ? `${estimate ? "≈ " : ""}${fmtAmt(amount)} ${asset || ""}`.trim() : asset || null;
     const via = protocolLabel(kind, { asset, network });
     if (kind === "send") return { kind, label: "Send", sub, from, to: recipient || contactName ? personLabel(recipient, contactName) : null, avatar: true };
-    if (kind === "swap") return { kind, label: "Swap", sub, via, from, to: receive || toAsset || null };
+    // always two amounts: the quote when it is one ("≈ 0.086 EURC"); for
+    // Circle's kit on Arc (it answers "Live quote at swap confirmation") the
+    // kit's own estimate, fetched below, "… EURC" until it arrives
+    if (kind === "swap") {
+      const quoted = receive && /d/.test(String(receive)) ? receive : null;
+      const est = swapEstimates[`${asset}>${toAsset}:${amount}`];
+      const to = quoted || (toAsset ? (est ? `≈ ${fmtAmt(est)} ${toAsset}` : `… ${toAsset}`) : null);
+      return { kind, label: "Swap", sub, via, from, to };
+    }
     if (kind === "bridge") return { kind, label: "Bridge", sub, via, from, to: network ? networkLabel(network) : null };
     if (kind === "unstake") return { kind, label: "Withdraw", sub, via, from, to: "Wallet" };
     if (kind === "stake") return { kind, label: "Stake", sub, via, from, to: "Staking" };
@@ -7835,6 +7784,30 @@ function handleHoldEnd() {
       if (held !== null && held + 1e-9 < need) return `You have ${fmtAmt(held)} ${sym}, this needs ${fmtAmt(need)} ${sym}. Add funds first, or lower the amount.`;
     }
     return null;
+  }
+
+  // Estimates for swaps without a quote (Circle's Swap Kit on Arc), from the kit itself
+  const [swapEstimates, setSwapEstimates] = useState({});
+  const swapEstimatesAsked = useRef(new Set());
+  async function estimateArcSwap(asset, toAsset, amount) {
+    const key = `${asset}>${toAsset}:${amount}`;
+    if (swapEstimatesAsked.current.has(key)) return;
+    swapEstimatesAsked.current.add(key);
+    try {
+      // only a quote: any key will do, nothing is signed
+      const adapter = createEthersAdapterFromPrivateKey({ privateKey: unlockedPrivateKey || ethers.Wallet.createRandom().privateKey });
+      const q = await new SwapKit().estimate({
+        from: { adapter, chain: NETWORK_KEY_TO_CIRCLE_CHAIN.arc },
+        tokenIn: asset,
+        tokenOut: toAsset,
+        amountIn: String(amount),
+        config: { slippageBps: Math.round(DEFAULT_SLIPPAGE * 10000) },
+      });
+      const out = Number(q?.estimatedOutput?.amount);
+      if (out > 0) setSwapEstimates(m => ({ ...m, [key]: out }));
+    } catch (e) {
+      console.error("Swap estimate unavailable:", e);
+    }
   }
 
   const planRows = (() => {
@@ -7933,6 +7906,15 @@ function handleHoldEnd() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planSimKey]);
 
+  useEffect(() => {
+    if (activeNetworkKey !== "arc" || !planRows) return;
+    for (const r of planRows) {
+      if (r.kind === "swap" && r.asset && r.toAsset && Number(r.amount) > 0 && !(r.receive && /d/.test(String(r.receive)))) {
+        estimateArcSwap(r.asset, r.toAsset, r.amount);
+      }
+    }
+  });
+
   const planView = (() => {
     if (planRows) {
       const single = !multiTicket;
@@ -7948,7 +7930,11 @@ function handleHoldEnd() {
         key: "plan",
         phase: planError ? "failed" : done ? "done" : running ? "running" : "review",
         error: planError,
-        steps: planRows.map(r => planStepFrom(r.kind, r)),
+        // each step with its own transaction on the explorer, once it has one
+        steps: planRows.map((r, i) => {
+          const hash = multiTicket ? stepTxHashes[i] : i === 0 ? txHash : null;
+          return { ...planStepFrom(r.kind, r), txUrl: hash ? explorerTx(hash, activeNetwork) : null };
+        }),
         after: buildPlanAfter(planRows),
         // a real amount reads "Network fee ≈ 0.004 USDC"; a sentence from the server stays as written
         note: `${fee ? (/\d/.test(fee) ? `Network fee ≈ ${fee} · ` : `${fee} · `) : ""}Nothing moves until you confirm`,
@@ -7966,7 +7952,9 @@ function handleHoldEnd() {
         phase: "thinking",
         steps: pendingPlan.steps.map((st, i) => planStepFrom(st.kind, {
           amount: /^\d/.test(st.amount || "") ? st.amount : null,
-          asset: st.asset, toAsset: st.toAsset, contactName: st.recipient,
+          asset: st.asset, toAsset: st.toAsset,
+          recipient: ethers.isAddress(st.recipient || "") ? st.recipient : null,
+          contactName: ethers.isAddress(st.recipient || "") ? null : st.recipient,
           network: NETWORKS.find(x => x.name === st.network)?.key,
           sub: i > 0 && st.amount === "the rest" ? "The rest" : null,
         })),
@@ -7996,6 +7984,14 @@ function handleHoldEnd() {
       await signAndSend();
     } catch (e) {
       console.error(e);
+      if (e?.ledgerSetup) {
+        // nothing was sent: the plan stays as it was, the guide shows what to turn on
+        resetExecutionProgress();
+        setBusy(false);
+        const s = await ledgerSettings().catch(() => null);
+        setLedgerGuide({ model: e.ledgerModel || s?.model || null, need: e.ledgerSetup, blindOn: s?.blindSigning ?? (e.ledgerSetup === "blind" ? false : null) });
+        return;
+      }
       // stays on the card as "stopped": a half-run plan must never be offered again as-is
       setPlanError(String(friendlyErrorText(e)).replace(/^❌\s*/, ""));
     }
@@ -8118,6 +8114,15 @@ function handleHoldEnd() {
 
   const frame = (
       <main className="frame frame--ask">
+        {ledgerGuide && (
+          <LedgerSetup
+            model={ledgerGuide.model}
+            need={ledgerGuide.need}
+            blindOn={ledgerGuide.blindOn}
+            onCheck={() => ledgerSettings()}
+            onClose={() => setLedgerGuide(null)}
+          />
+        )}
         {/* The plan takes the whole wallet while it is on screen, like a sheet. */}
         <AnimatePresence>
           {planView && (() => {
@@ -8494,7 +8499,7 @@ function handleHoldEnd() {
                       </button>
                     )}
                   </div>
-                  <div className={`requests-list${showAllRequests ? " is-all" : ""}`}>
+                  <div ref={requestsListRef} className={`requests-list${showAllRequests ? " is-all" : ""}`}>
                     {shown.map(e => {
                       const fresh = e.n === celebratingRequest;
                       return (

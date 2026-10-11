@@ -53,10 +53,17 @@ function rowDetails(row, { networkName, protocolFor }) {
   return lines;
 }
 
-function TxLine({ row, open, onToggle, networkName, protocolFor, explorerUrl }) {
+// one line after the other, sliding in from the left (like the ideas under Ask Lyra)
+const slideIn = (i) => ({
+  initial: { opacity: 0, x: -18 },
+  animate: { opacity: 1, x: 0 },
+  transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: Math.min(i, 10) * 0.045 },
+});
+
+function TxLine({ row, open, onToggle, networkName, protocolFor, explorerUrl, index = 0 }) {
   const negative = row.category === "stake" ? row.stakeAction !== "withdraw" : row.isSent;
   return (
-    <div className={`tx-item-wrap${open ? " is-open" : ""}`}>
+    <motion.div className={`tx-item-wrap${open ? " is-open" : ""}`} {...slideIn(index)}>
       <button type="button" className={`tx-item ${negative ? "sent" : "received"}`} onClick={onToggle} aria-expanded={open}>
         <div className="tx-item-main">
           <div className="tx-item-direction">{rowTitle(row)}</div>
@@ -90,16 +97,17 @@ function TxLine({ row, open, onToggle, networkName, protocolFor, explorerUrl }) 
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 
 export function TxHistoryList({ rows, networkName, protocolFor, explorerUrl, emptyText = "No transactions found for this category." }) {
   const [openHash, setOpenHash] = useState(null);
   if (!rows.length) return <div className="contacts-empty">{emptyText}</div>;
-  return rows.map(row => (
+  return rows.map((row, i) => (
     <TxLine
       key={row.hash}
+      index={i}
       row={row}
       open={openHash === row.hash}
       onToggle={() => setOpenHash(h => (h === row.hash ? null : row.hash))}
@@ -173,11 +181,11 @@ export function StakeHistory({ rows, positions, networkName, networkKey, protoco
       {view === "active" && (
         positions.length === 0 ? (
           <div className="contacts-empty">Nothing staked right now.</div>
-        ) : positions.map(p => {
+        ) : positions.map((p, i) => {
           // the position on Aave's own dashboard: connect the wallet there and it's listed
           const link = { href: aaveDashboardUrl(networkKey), target: "_blank", rel: "noreferrer", "data-tip": "See this position on Aave" };
           return (
-            <a className="stake-pos" key={p.symbol} {...link}>
+            <motion.a className="stake-pos" key={p.symbol} {...link} {...slideIn(i)}>
               <div className="tx-item-main">
                 <div className="tx-item-direction">{p.symbol}</div>
                 <div className="tx-item-date">{protocolFor("stake", { asset: p.symbol })} · {networkName}</div>
@@ -187,7 +195,7 @@ export function StakeHistory({ rows, positions, networkName, networkKey, protoco
                 {p.apy != null && <div className="stake-pos-apy">{p.apy.toFixed(2)}% APY</div>}
               </div>
               <ExternalLink size={13} className="stake-pos-link" />
-            </a>
+            </motion.a>
           );
         })
       )}
@@ -195,10 +203,10 @@ export function StakeHistory({ rows, positions, networkName, networkKey, protoco
       {view === "closed" && (
         closed.length === 0 ? (
           <div className="contacts-empty">No closed positions yet.</div>
-        ) : closed.map(c => {
+        ) : closed.map((c, i) => {
           const open = openAsset === c.symbol;
           return (
-            <div className={`tx-item-wrap${open ? " is-open" : ""}`} key={c.symbol}>
+            <motion.div className={`tx-item-wrap${open ? " is-open" : ""}`} key={c.symbol} {...slideIn(i)}>
               <button type="button" className="tx-item" onClick={() => setOpenAsset(open ? null : c.symbol)} aria-expanded={open}>
                 <div className="tx-item-main">
                   <div className="tx-item-direction">{c.symbol}</div>
@@ -230,7 +238,7 @@ export function StakeHistory({ rows, positions, networkName, networkKey, protoco
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
+            </motion.div>
           );
         })
       )}
