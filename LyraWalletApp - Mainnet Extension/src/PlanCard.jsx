@@ -201,6 +201,7 @@ export function PlanCard({
   doneCount = 0,       // steps already confirmed on-chain
   txUrl,
   biometric,           // { label } when the wallet can confirm with biometrics
+  simulation,          // the plan simulated before confirming (App.jsx planSim)
   onConfirm,           // async () => void, after the biometric / hold passed
   onCancel,
   onDone,
@@ -304,6 +305,38 @@ export function PlanCard({
       </motion.div>
 
       {warning && <div className="plan-warning">{warning}</div>}
+
+      {/* what the plan really does, simulated on-chain right before confirming */}
+      {phase === "review" && simulation && simulation.state !== "off" && (
+        <motion.div
+          className={`plan-sim is-${simulation.state}`}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: EASE }}
+          layout
+        >
+          <div className="plan-sim-head">
+            {simulation.state === "loading" ? <Loader2 size={13} className="plan-spin" />
+              : simulation.state === "fail" ? <X size={13} strokeWidth={2.6} />
+              : <Check size={13} strokeWidth={2.6} />}
+            <span>
+              {simulation.state === "loading" ? "Simulating…"
+                : simulation.state === "fail" ? (simulation.multi && simulation.step != null ? `Step ${simulation.step + 1} would fail` : "This would fail")
+                : "Result · simulated just now"}
+            </span>
+          </div>
+          {simulation.state === "fail" && <div className="plan-sim-error">{simulation.error}. Nothing was sent.</div>}
+          {simulation.state === "ok" && (
+            <div className="plan-sim-rows">
+              {simulation.rows.map((r, i) => (
+                <div key={i} className={`plan-sim-row is-${r.kind}`}>{withTokenLogos(r.text)}</div>
+              ))}
+              {simulation.fee && <div className="plan-sim-fee">Network fee ≈ {simulation.fee}</div>}
+              {simulation.skipped?.length > 0 && <div className="plan-sim-fee">{simulation.skipped.join(", ")} not simulated</div>}
+            </div>
+          )}
+        </motion.div>
+      )}
 
       {/* What changes and the fee: in a drop-down, closed by default */}
       {phase !== "thinking" && phase !== "failed" && after.length > 0 && (

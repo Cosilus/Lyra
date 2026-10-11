@@ -197,8 +197,82 @@ async function simulate(network, provider, from, tx) {
   return { available: true, reverted: false, changes, approvals };
 }
 
+// ---------------------------------------------------------------- plan simulation
+// A Lyra plan (send, approve + swap, approve + stake...) as one block of
+// calls: each call sees the state the previous ones left, so a stake right
+// after a swap is simulated with the swapped tokens. Returns the wallet's net
+// token moves over the whole plan, or the first call that would fail.
+async function simulatePlan(network, provider, from, calls) {
+  const toCall = (tx) => ({ from, to: tx.to, data: tx.data || "0x", value: tx.value ? ethers.toQuantity(BigInt(tx.value)) : "0x0" });
+  let res;
+  try {
+    res = await provider.send("eth_simulateV1", [{ blockStateCalls: [{ calls: calls.map(toCall) }], traceTransfers: true, validation: false }, "latest"]);
+  } catch (e) {
+    const rpcMessage = e.error?.message || e.info?.error?.message || "";
+    if (e.error?.code === -38014 || /insufficient funds/i.test(rpcMessage)) {
+      return { available: true, reverted: true, failedIndex: 0, step: calls[0]?.step ?? 0, error: `not enough ${network.nativeSymbol} for this amount plus the network fee` };
+    }
+    return { available: false, reason: rpcMessage || e.shortMessage || e.message };
+  }
+  const results = res?.[0]?.calls || [];
+  if (results.length !== calls.length) return { available: false, reason: "No result" };
+  const failedIndex = results.findIndex(r => r.status !== "0x1");
+  if (failedIndex >= 0) {
+    const r = results[failedIndex];
+    let reason = r.error?.message || "The transaction would fail.";
+    // a plain revert string (Error(string)) reads better than "execution reverted"
+    const data = r.error?.data || r.returnData;
+    if (typeof data === "string" && data.startsWith("0x08c379a0")) {
+      try { reason = ethers.AbiCoder.defaultAbiCoder().decode(["string"], "0x" + data.slice(10))[0]; } catch { /* keep the generic one */ }
+    }
+    return { available: true, reverted: true, failedIndex, step: calls[failedIndex].step ?? null, error: reason };
+  }
+
+  const me = from.toLowerCase();
+  const net = new Map(); // token -> net raw amount
+  for (const log of results.flatMap(r => r.logs || [])) {
+    if (log.topics?.[0] !== TRANSFER || log.topics.length !== 3) continue;
+    const token = log.address.toLowerCase();
+    const f = topicAddress(log.topics[1]), t = topicAddress(log.topics[2]);
+    const amount = BigInt(log.data);
+    if (f === me) net.set(token, (net.get(token) || 0n) - amount);
+    if (t === me) net.set(token, (net.get(token) || 0n) + amount);
+  }
+  const changes = [];
+  for (const [token, raw] of net) {
+    if (raw === 0n) continue;
+    const meta = await tokenMeta(provider, network, token);
+    const abs = raw > 0n ? raw : -raw;
+    changes.push({ token, symbol: meta.symbol, direction: raw > 0n ? "in" : "out", amount: meta.decimals == null ? abs.toString() : ethers.formatUnits(abs, meta.decimals) });
+  }
+  const gasUsed = results.reduce((sum, r) => sum + BigInt(r.gasUsed || 0), 0n);
+  let fee = null;
+  try {
+    const fd = await provider.getFeeData();
+    const price = fd.gasPrice ?? fd.maxFeePerGas;
+    if (price) fee = ethers.formatEther(gasUsed * price);
+  } catch { /* the fee line is optional */ }
+  return { available: true, reverted: false, changes, gasUsed: gasUsed.toString(), fee, feeSymbol: network.nativeSymbol };
+}
+
 // ---------------------------------------------------------------- route
 export function registerDappRoutes(app, { resolveNetwork, getServerRpc, lookupSecurityBadges }) {
+  //   POST /api/simulate/plan { network, from, calls: [{ to, data, value, step }] }
+  app.post("/api/simulate/plan", async (req, res) => {
+    const { network: networkKey, from, calls } = req.body || {};
+    if (!ethers.isAddress(from || "")) return res.status(400).json({ error: "from must be an address." });
+    if (!Array.isArray(calls) || !calls.length || calls.length > 24 || !calls.every(c => ethers.isAddress(c?.to || ""))) {
+      return res.status(400).json({ error: "calls must be 1 to 24 transactions." });
+    }
+    const network = resolveNetwork(networkKey);
+    const provider = getServerRpc(network);
+    try {
+      res.json(await simulatePlan(network, provider, from, calls));
+    } catch (e) {
+      res.json({ available: false, reason: e.message });
+    }
+  });
+
   app.post("/api/dapp/analyze", async (req, res) => {
     const { network: networkKey, origin, from, tx, address } = req.body || {};
     if (!ethers.isAddress(from || "")) return res.status(400).json({ error: "from must be an address." });

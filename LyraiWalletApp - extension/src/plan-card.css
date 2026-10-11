@@ -521,3 +521,30 @@
 .requests-list { display: flex; flex-direction: column; gap: 6px; }
 .requests-list.is-all { max-height: 260px; overflow-y: auto; }
 @media (prefers-reduced-motion: reduce) { .request-fresh-icon::after { animation: none; } }
+
+/* ---- The plan simulated before confirming ---- */
+.plan-sim {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(var(--beige-rgb), 0.03);
+}
+.plan-sim.is-ok { border-color: rgba(87, 188, 108, 0.3); }
+.plan-sim.is-fail { border-color: rgba(213, 116, 99, 0.45); background: rgba(213, 116, 99, 0.08); }
+.plan-sim-head { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--muted); }
+.plan-sim.is-ok .plan-sim-head svg { color: #57BC6C; }
+.plan-sim.is-fail .plan-sim-head { color: #E08A7A; }
+.plan-sim-rows { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.plan-sim-row { display: flex; align-items: center; gap: 6px; font: 600 13px var(--mono); color: var(--beige); }
+.plan-sim-row.is-out { color: #E9A193; }
+.plan-sim-row.is-in { color: #7EE2A0; }
+.plan-sim-row.is-stake { color: var(--beige); }
+.plan-sim-fee { margin-top: 2px; font-size: 11px; color: var(--muted); }
+.plan-sim-error { margin-top: 6px; font-size: 12.5px; line-height: 1.45; color: var(--beige); }
+
+/* The request bubble that glides up from the Ask Lyra box (FlyingRequest.jsx):
+   its pearl background is its own layer, so it can fade in around the text */
+.plan-sheet-request.is-flying { position: relative; background: none; will-change: transform; }
+.plan-sheet-request-bg { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(135deg, var(--beige), var(--beige-dim)); }
+.plan-sheet-request-text { position: relative; color: var(--void); }
