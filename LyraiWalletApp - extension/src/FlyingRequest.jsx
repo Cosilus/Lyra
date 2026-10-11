@@ -28,7 +28,9 @@ export function FlyingRequest({ text, origin }) {
     el.style.transform = `translateX(${dx}px) translateY(${dy}px) scale(${s})`;
     bg.style.opacity = "0";
     label.style.color = "#F3EBFF";
-    animate(el, { x: [dx, 0], y: [dy, 0], scale: [s, 1] }, { duration: 0.62, ease: EASE });
+    // one transform string: it runs on the compositor, smooth even while the
+    // wallet is busy with the request
+    animate(el, { transform: [`translateX(${dx}px) translateY(${dy}px) scale(${s})`, "translateX(0px) translateY(0px) scale(1)"] }, { duration: 0.62, ease: EASE });
     animate(bg, { opacity: [0, 1] }, { duration: 0.4, delay: 0.25, ease: "easeOut" });
     animate(label, { color: ["#F3EBFF", "#0D0916"] }, { duration: 0.4, delay: 0.25, ease: "easeOut" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
