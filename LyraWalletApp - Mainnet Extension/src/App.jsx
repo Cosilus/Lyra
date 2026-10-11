@@ -2898,58 +2898,64 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [wallet?.address, locked, activeNetworkKey]);
 
-  // Incoming transfers: the history is checked every 30 s while the wallet is
-  // open and visible; anything newer than the last one seen shows the pill.
-  // The first check only remembers where we are, so old transfers never pop.
+  // Money that arrives: the balances are re-read every 15 s (and after every
+  // action); a rise the wallet didn't cause itself is a receipt. The explorer's
+  // history can take minutes to index it, so it is only used afterwards, to
+  // name the sender.
+  const lastBalancesRef = useRef(null); // { key, since, native, tokens }
+  const ownActivityAtRef = useRef(0);
   useEffect(() => {
-    if (!wallet?.address || locked) return;
-    const key = `lyra_seen_incoming_v1:${activeNetworkKey}:${wallet.address.toLowerCase()}`;
-    let stopped = false;
-    const check = async () => {
-      if (document.hidden || stopped) return;
+    if (busy || executionSteps.length > 0 || multiTicket || defiTicket || showSend) ownActivityAtRef.current = Date.now();
+  });
+  useEffect(() => {
+    if (!wallet?.address || locked || !balanceReady) return;
+    const key = `${activeNetworkKey}:${wallet.address.toLowerCase()}`;
+    const prev = lastBalancesRef.current;
+    const since = prev && prev.key === key ? prev.since : Date.now();
+    lastBalancesRef.current = { key, since, native: balance, tokens: { ...tokenBalances } };
+    if (!prev || prev.key !== key) return;
+    // just switched network or address: the first reads are still settling
+    if (Date.now() - since < 20000) return;
+    // the wallet's own swap, withdrawal, bridge... also raise a balance
+    if (Date.now() - ownActivityAtRef.current < 90000) return;
+    const rises = [];
+    if (balance > prev.native) rises.push({ symbol: activeNetwork.nativeSymbol, raw: balance - prev.native, decimals: 18 });
+    for (const [sym, v] of Object.entries(tokenBalances)) {
+      const before = prev.tokens[sym];
+      if (before !== undefined && v > before) rises.push({ symbol: sym, raw: v - before, decimals: tokens[sym]?.decimals ?? 18 });
+    }
+    if (!rises.length) return;
+    const r = rises[0];
+    const amount = Number(ethers.formatUnits(r.raw, r.decimals));
+    if (!(amount > 0)) return;
+    const id = `${key}:${Date.now()}`;
+    setIncoming({ id, amount, symbol: r.symbol, from: null });
+    // who sent it: the latest incoming transfer of that token, once indexed
+    const address = wallet.address;
+    const findSender = async (tries) => {
       try {
-        const r = await fetch(`${API_BASE_URL}/api/transactions/${wallet.address}?network=${activeNetworkKey}`);
-        if (!r.ok) return;
-        const { transactions = [] } = await r.json();
-        const rows = buildTxRows(transactions, wallet.address, defi)
-          .filter(x => x.category === "send" && !x.isSent && Number(x.display?.valueXPL) > 0);
-        const latest = rows.reduce((m, x) => Math.max(m, x.timestamp), 0);
-        let seen = 0;
-        try { seen = Number(localStorage.getItem(key)) || 0; } catch { /* storage off */ }
-        if (!seen) {
-          try { localStorage.setItem(key, String(latest || Math.floor(Date.now() / 1000))); } catch { /* storage off */ }
+        const res = await fetch(`${API_BASE_URL}/api/transactions/${address}?network=${activeNetworkKey}`);
+        const { transactions = [] } = res.ok ? await res.json() : {};
+        const row = buildTxRows(transactions, address, defi)
+          .filter(x => x.category === "send" && !x.isSent && (x.display?.symbol || activeNetwork.nativeSymbol) === r.symbol)
+          .sort((x, y) => y.timestamp - x.timestamp)[0];
+        if (row && Date.now() / 1000 - row.timestamp < 1800) {
+          const contact = loadContacts().find(c => c.address?.toLowerCase() === String(row.counterparty).toLowerCase());
+          setIncoming(cur => (cur && cur.id === id ? { ...cur, from: contact?.name || shortAddress(row.counterparty) } : cur));
           return;
         }
-        // a look-alike of a contact sending dust is address poisoning, not news
-        const fresh = rows
-          .filter(x => x.timestamp > seen && !findLookalikeMatch(x.counterparty, loadContacts(), wallet.address))
-          .sort((a, b) => a.timestamp - b.timestamp);
-        if (latest > seen) {
-          try { localStorage.setItem(key, String(latest)); } catch { /* storage off */ }
-        }
-        if (!fresh.length || stopped) return;
-        const last = fresh[fresh.length - 1];
-        const contact = loadContacts().find(c => c.address?.toLowerCase() === String(last.counterparty).toLowerCase());
-        setIncoming({
-          id: last.hash,
-          amount: Number(last.display.valueXPL),
-          symbol: last.display.symbol || activeNetwork.nativeSymbol,
-          from: contact?.name || shortAddress(last.counterparty),
-          more: fresh.length - 1,
-        });
-        refreshBalance(wallet.address, { silent: true });
-      } catch { /* the next check catches up */ }
+      } catch { /* try again below */ }
+      if (tries > 0) setTimeout(() => findSender(tries - 1), 2500);
     };
-    check();
-    const t = setInterval(check, 30000);
-    return () => { stopped = true; clearInterval(t); };
+    findSender(2);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallet?.address, locked, activeNetworkKey]);
+  }, [balance, tokenBalances]);
   useEffect(() => {
     if (!incoming) return;
-    const t = setTimeout(() => setIncoming(null), 7000);
+    // 3 s on screen; naming the sender later does not restart it
+    const t = setTimeout(() => setIncoming(null), 3000);
     return () => clearTimeout(t);
-  }, [incoming]);
+  }, [incoming?.id]);
 
   async function createWallet() {
   const w = ethers.Wallet.createRandom();
@@ -8027,12 +8033,11 @@ function handleHoldEnd() {
           exit={{ opacity: 0, y: -6, scale: 0.97 }}
           transition={{ type: "spring", stiffness: 420, damping: 30 }}
           onClick={() => { setIncoming(null); openTxCategory(uiMode === "3d" ? "received" : "send"); }}
-          aria-label={`Received ${incoming.amount} ${incoming.symbol} from ${incoming.from}`}
+          aria-label={`Received ${incoming.amount} ${incoming.symbol}${incoming.from ? ` from ${incoming.from}` : ""}`}
         >
-          <span className="incoming-dot"><ArrowDownLeft size={12} strokeWidth={2.6} /></span>
           <span className="incoming-text">
-            <strong>+{incoming.amount.toLocaleString("en-US", { maximumFractionDigits: 4 })} {incoming.symbol}</strong>
-            <span>from {incoming.from}{incoming.more > 0 ? ` · +${incoming.more}` : ""}</span>
+            +{incoming.amount.toLocaleString("en-US", { maximumFractionDigits: 4 })} {incoming.symbol}
+            {incoming.from && <span className="incoming-from"> from {incoming.from}</span>}
           </span>
         </motion.button>
       )}
