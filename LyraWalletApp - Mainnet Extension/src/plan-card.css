@@ -564,3 +564,77 @@
 }
 .plan-sheet.is-growing .plan-sheet-body { position: relative; }
 .plan-sheet-content { display: flex; flex-direction: column; gap: 14px; }
+
+/* Hold to confirm on the plan card: the staircase (HoldSquares.jsx), the
+   label turns white once the squares cover it */
+.plan-hold { user-select: none; -webkit-user-select: none; touch-action: none; transition: color 0.25s ease, transform 0.15s ease; }
+.plan-hold .hold-content { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+.plan-hold.dots-cover { color: #fff; }
+
+/* Requests under Ask Lyra: as tall as what is left of the wallet (App.jsx sets
+   max-height), scrolling without a bar, the last lines fading out at the bottom */
+.requests-list,
+.requests-list.is-all {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding-bottom: 34px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+}
+.requests-list::-webkit-scrollbar { display: none; }
+
+/* Hold to confirm: violet, the label in the wallet's own near-black (--void),
+   readable on violet and on the pearl-white staircase alike, so it never
+   changes colour while held */
+.plan-confirm.plan-hold {
+  --hold-square: #FBF8FF;
+  color: var(--void);
+  background: linear-gradient(135deg, #8B6FE8, #6D4FD1);
+  box-shadow: 0 10px 30px -12px rgba(var(--accent-rgb), 0.8);
+}
+.plan-confirm.plan-hold.dots-cover { color: var(--void); }
+
+/* a step's own transaction on the explorer, at the right of the step */
+.plan-step-tx {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border-radius: 9px;
+  color: var(--muted);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.plan-step-tx:hover { color: var(--beige); background: rgba(var(--beige-rgb), 0.08); }
+.plan-step-tx.is-small { width: 22px; height: 22px; border-radius: 7px; }
+
+/* The plan's buttons (Hold to confirm, Done, Close) sit at the bottom of the
+   sheet, not right under the steps: the card stretches to the sheet's height
+   and its actions are pushed down */
+.plan-sheet-body > .plan-sheet-content { flex: 1 0 auto; display: flex; flex-direction: column; }
+.plan-sheet-content > .plan-card { flex: 1 0 auto; }
+.plan-sheet .plan-actions { margin-top: auto; padding: 12px 0 18px; }
+
+/* "View transactions on the explorer": a list of each step's transaction */
+.plan-txlinks { display: flex; flex-direction: column; align-items: center; }
+.plan-txlinks-toggle { border: 0; background: none; cursor: pointer; font: inherit; }
+.plan-txlinks-chev { transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+.plan-txlinks-toggle.is-open .plan-txlinks-chev { transform: rotate(180deg); }
+.plan-txlinks-list { overflow: hidden; align-self: stretch; display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.plan-txlinks-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--beige);
+  text-decoration: none;
+  font-size: 12.5px;
+  transition: background 0.15s ease;
+}
+.plan-txlinks-row:hover { background: rgba(var(--beige-rgb), 0.06); }
+.plan-txlinks-step { font-weight: 700; }
+.plan-txlinks-label { color: var(--muted); }
+.plan-txlinks-hash { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }

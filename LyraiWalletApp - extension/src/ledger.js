@@ -29,7 +29,17 @@ export async function connectLedger() {
   if (!ledgerSupported()) throw new Error("This browser can't reach a Ledger over USB (WebHID). Use Chrome or Edge.");
   if (session) return session;
   const { dmk, SignerEthBuilder } = await loadKit();
-  const device = await new Promise((resolve, reject) => {
+  // A Ledger this page was already allowed to use connects without Chrome's
+  // chooser; the chooser only shows the first time.
+  const known = await new Promise((resolve) => {
+    let sub = null;
+    const done = (v) => { try { sub?.unsubscribe(); } catch { /* closed */ } resolve(v); };
+    try {
+      sub = dmk.listenToAvailableDevices({}).subscribe({ next: (list) => done(list?.[0] || null), error: () => done(null) });
+    } catch { done(null); }
+    setTimeout(() => done(null), 1500);
+  });
+  const device = known || await new Promise((resolve, reject) => {
     const sub = dmk.startDiscovering({}).subscribe({
       next: (d) => { sub.unsubscribe(); resolve(d); },
       error: (e) => reject(e),
@@ -113,6 +123,28 @@ function ledgerErrorText(e) {
   return raw ? `Ledger: ${raw}` : "The Ledger didn't answer.";
 }
 
+// Which Ledger it is, and whether Blind signing is on (the Ethereum app's
+// GET_APP_CONFIGURATION, flag 0x01). Smart accounts isn't reported by the app.
+export async function ledgerSettings() {
+  const { sessionId } = await connectLedger();
+  const { dmk } = kit;
+  let model = null;
+  try { model = dmk.getConnectedDevice({ sessionId })?.modelId || null; } catch { /* unknown model */ }
+  try {
+    const res = await dmk.sendApdu({ sessionId, apdu: new Uint8Array([0xe0, 0x06, 0x00, 0x00, 0x00]) });
+    const ok = res?.statusCode?.[0] === 0x90 && res.statusCode[1] === 0x00;
+    return { model, blindSigning: ok && res.data?.length ? (res.data[0] & 0x01) === 0x01 : null };
+  } catch {
+    return { model, blindSigning: null }; // Ethereum app not open yet
+  }
+}
+
+// A refusal caused by a setting, for the setup guide: "blind" or "smart"
+function markSetup(e, kind) {
+  e.ledgerSetup = kind;
+  return e;
+}
+
 export async function ledgerAddress(path = LEDGER_DEFAULT_PATH, onPrompt) {
   const { signer } = await connectLedger();
   const out = await run(signer.getAddress(path, { checkOnDevice: false }), onPrompt);
@@ -122,12 +154,23 @@ export async function ledgerAddress(path = LEDGER_DEFAULT_PATH, onPrompt) {
 // EIP-7702 authorization for `contract` (the batch executor), signed on the device
 export async function ledgerSignDelegation({ path = LEDGER_DEFAULT_PATH, chainId, contract, nonce }, onPrompt) {
   const { signer } = await connectLedger();
-  return run(signer.signDelegationAuthorization(path, Number(chainId), contract, Number(nonce)), onPrompt, "One-time setup (delegation)");
+  try {
+    return await run(signer.signDelegationAuthorization(path, Number(chainId), contract, Number(nonce)), onPrompt, "One-time setup (delegation)");
+  } catch (e) {
+    // "Smart accounts" off (the app answers "command not allowed", 0x698x)
+    if (/698[0-9a-f]|not allowed|smart account/i.test(e.message) && !/6985|rejected/i.test(e.message)) throw markSetup(e, "smart");
+    throw e;
+  }
 }
 
 // A full transaction (unsigned serialized bytes) -> { r, s, v }
 export async function ledgerSignTransaction({ path = LEDGER_DEFAULT_PATH, unsignedSerialized }, onPrompt) {
   const { signer } = await connectLedger();
   const bytes = Uint8Array.from(unsignedSerialized.slice(2).match(/../g).map(h => parseInt(h, 16)));
-  return run(signer.signTransaction(path, bytes), onPrompt, "Plan signature");
+  try {
+    return await run(signer.signTransaction(path, bytes), onPrompt, "Plan signature");
+  } catch (e) {
+    if (/6a80|blind/i.test(e.message)) throw markSetup(e, "blind");
+    throw e;
+  }
 }
