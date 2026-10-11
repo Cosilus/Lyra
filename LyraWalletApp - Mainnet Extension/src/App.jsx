@@ -6,7 +6,7 @@ import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, Wal
 import { IS_TESTNET, API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx, KYBERSWAP_API_BASE, NATIVE_PSEUDO_ADDRESS, KYBERSWAP_CLIENT_ID, POLYMARKET_ORDER_DOMAIN_NAME, POLYMARKET_ORDER_DOMAIN_VERSION, POLYMARKET_ORDER_TYPES, POLYMARKET_ORDER_SIDE_BUY, POLYMARKET_ORDER_SIDE_SELL, POLYMARKET_BYTES32_ZERO, POLYMARKET_SIGNATURE_TYPE_EOA, POLYMARKET_SIGNATURE_TYPE_GNOSIS_SAFE, POLYMARKET_SIGNATURE_TYPE_POLY_1271, POLYMARKET_DEPOSIT_WALLET_DOMAIN_NAME, POLYMARKET_DEPOSIT_WALLET_DOMAIN_VERSION, POLYMARKET_PUSD_COLLATERAL, AAVE_V4_SPOKE_ABI } from "./config";
 import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
-import { LYRA_TREASURY, LYRA_FEE_PERCENT_LABEL, feeOf, splitOnTop, toRaw, isFeeExempt, assetInfo, usdPerUnit, feeIsWorthCharging, includedFeePreview, collectLyraFee, runWithLyraFee, estimateAfterFee } from "./fees.js";
+import { LYRA_TREASURY, LYRA_FEE_PERCENT_LABEL, feeOf, splitOnTop, splitIncluded, toRaw, isFeeExempt, assetInfo, usdPerUnit, feeIsWorthCharging, includedFeePreview, collectLyraFee, runWithLyraFee, estimateAfterFee } from "./fees.js";
 import { parseUiModeCommand } from "./uiModeCommand.js";
 import { parseNetworkCommand } from "./networkCommand.js";
 import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiometricPresence, encryptWithKey, decryptWithKey } from "./Biometric";
@@ -19,6 +19,8 @@ import { TxHistoryList, StakeHistory, stakeAssetOf } from "./TxHistoryList.jsx";
 import { Approvals } from "./Approvals.jsx";
 import { buildPlanCalls } from "./planSimulation.js";
 import { FlyingRequest } from "./FlyingRequest.jsx";
+import { ledgerAddress, ledgerSupported, connectLedger, LEDGER_DEFAULT_PATH } from "./ledger.js";
+import { batchSupported, isDelegated, activateBatching, sendLedgerBatch } from "./ledgerBatch.js";
 import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodePaymentResponseHeader, decodePaymentRequiredHeader, findEip3009SettlementTx, selectGatewayOptions, signGatewayPayment, fetchGatewayBalances, GATEWAY_NETWORKS, GATEWAY_WALLET_MAINNET, GATEWAY_WALLET_ABI } from "./x402";
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
 import { DEMO_A2A_AGENT_URL, sendA2ATask, fetchAgentCard } from "./a2a";
@@ -1056,6 +1058,10 @@ export default function App() {
     for (const a of calledContracts) add(a, "Contract", false);
     return [...out.values()];
   }, [defi, calledContracts]);
+  // A Ledger address in use (walletAccounts kind "ledger"): { address, path }.
+  // Its key never leaves the device; plans are sent as one batched
+  // transaction (ledgerBatch.js) and everything else that signs is off.
+  const [ledgerActive, setLedgerActive] = useState(null);
   const [showAccounts, setShowAccounts] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const accountKeysRef = useRef(new Map()); // lowercased address -> { privateKey, localSecret }
@@ -2233,6 +2239,7 @@ useEffect(() => {
 
 function lockWallet() {
   accountKeysRef.current.clear();
+  setLedgerActive(null);
   setShowAccounts(false);
   setUnlockedPrivateKey(null);
   setLocked(true);
@@ -2343,6 +2350,20 @@ async function verifyWalletPassword(password) {
 async function switchAccount(address, password) {
   const entry = findAccount(address);
   if (!entry) throw new Error("This address isn't in your wallet.");
+  if (entry.kind === "ledger") {
+    // the Lyra address stays the saved one (it pays the one-time setup);
+    // no key is loaded, so nothing but a Ledger plan can sign from here
+    setLedgerActive({ address: entry.address, path: entry.path || LEDGER_DEFAULT_PATH });
+    setUnlockedPrivateKey(null);
+    setMpcEnabled(false);
+    setWallet({ address: entry.address });
+    setAccounts(loadAccounts());
+    setShowAccounts(false);
+    setToast(`Switched to ${entry.name}.`);
+    refreshBalance(entry.address);
+    return;
+  }
+  setLedgerActive(null);
   let k = accountKeysRef.current.get(address.toLowerCase());
   if (!k) {
     let localSecret;
@@ -2442,6 +2463,101 @@ async function revokeApproval(tokenAddress, spender) {
   const tx = await token.approve(spender, 0n);
   await tx.wait();
   setToast("Approval revoked.");
+}
+
+// Adds the Ledger plugged in (first address of its Ethereum app) and switches to it
+async function connectLedgerAccount() {
+  if (!ledgerSupported()) throw new Error("This browser can't reach a Ledger over USB. Use Chrome or Edge.");
+  const address = await ledgerAddress(LEDGER_DEFAULT_PATH, (p) => p && setToast(p));
+  const list = loadAccounts();
+  if (!list.some(a => a.address.toLowerCase() === address.toLowerCase())) {
+    addAccount({ address, name: `Ledger ${list.filter(a => a.kind === "ledger").length + 1}`, kind: "ledger", path: LEDGER_DEFAULT_PATH, record: null });
+  }
+  await switchAccount(address);
+}
+
+// A whole plan as ONE Ledger signature (EIP-7702 batch, see ledgerBatch.js).
+// The same transactions as the simulation, with Lyra's fee as extra calls.
+async function executeLedgerPlan() {
+  const steps = planSimSteps;
+  if (!steps?.length) throw new Error("No plan pending.");
+  // straight away, while the click still counts: the browser may ask which USB device
+  await connectLedger();
+  // any network where the Ledger-approved delegate (Simple7702Account) is deployed
+  if (!(await batchSupported(RPC))) {
+    throw new Error(`Nothing was sent. Plans with a Ledger aren't available on ${activeNetwork.name} yet (Plasma works).`);
+  }
+  const prompt = (p) => { if (p) { setStatus(p); setToast(p); } };
+  setBusy(true);
+  setExecutionLabel("Ledger");
+  setExecutionSteps(["Prepare the plan", "Approve on your Ledger", "Confirm on-chain"]);
+  setExecutionStepIndex(-1);
+  setPlanStepIndex(0);
+  beginExecutionTimer();
+  try {
+    const ctx = lyraFeeCtx();
+    const from = ledgerActive.address;
+    // Lyra's fee: on top for a send, taken out of the amount otherwise (as the normal run)
+    const feeCalls = [];
+    const ERC20 = new ethers.Interface(["function transfer(address to, uint256 amount) returns (bool)"]);
+    const feeCall = (info, fee) => (info.isNative
+      ? { to: LYRA_TREASURY, value: fee.toString(), data: "0x" }
+      : { to: info.address, value: "0", data: ERC20.encodeFunctionData("transfer", [LYRA_TREASURY, fee]) });
+    const adjusted = steps.map(st => {
+      if (!["send", "swap", "stake", "bridge"].includes(st.kind) || st.amountIsEstimate || !(Number(st.amount) > 0)) return st;
+      const info = assetInfo(st.asset, ctx);
+      const raw = info ? toRaw(st.amount, info.decimals) : null;
+      if (!info || !raw) return st;
+      if (st.kind === "send") {
+        if (isFeeExempt(from, st.recipient)) return st;
+        const fee = feeOf(raw);
+        if (feeIsWorthCharging(fee, info.decimals, usdPerUnit(st.asset, ctx))) feeCalls.push(feeCall(info, fee));
+        return st;
+      }
+      const { fee, net } = splitIncluded(raw);
+      if (net <= 0n || !feeIsWorthCharging(fee, info.decimals, usdPerUnit(st.asset, ctx))) return st;
+      feeCalls.push(feeCall(info, fee));
+      return { ...st, amount: ethers.formatUnits(net, info.decimals) };
+    });
+    const { calls, skipped } = await buildPlanCalls(adjusted, {
+      from, network: activeNetwork, networkKey: activeNetworkKey, isTestnet: IS_TESTNET,
+      tokens, defi, nativeSymbol: activeNetwork.nativeSymbol, nativePseudo: NATIVE_PSEUDO_ADDRESS,
+      slippage: DEFAULT_SLIPPAGE, kyberBase: KYBERSWAP_API_BASE, kyberClientId: KYBERSWAP_CLIENT_ID,
+      lifiQuoteUrl: LIFI_QUOTE_API_URL, aaveV4Reserve,
+      suppliedV4: (v4) => new ethers.Contract(defi.aaveV4.spoke, AAVE_V4_SPOKE_ABI, RPC).getUserSuppliedAssets(v4.id, from),
+    });
+    if (skipped.length) {
+      throw new Error(`Nothing was sent. ${skipped.map(i => planStepFrom(adjusted[i].kind, {}).label).join(", ")} can't be signed with a Ledger yet.`);
+    }
+    advanceExecutionTo(0);
+
+    if (!(await isDelegated(RPC, from))) {
+      // one time per network: the Lyra address sends the Ledger's delegation and pays its fee
+      const saved = loadSavedWallet();
+      const relayerKey = saved?.address ? accountKeysRef.current.get(saved.address.toLowerCase())?.privateKey : null;
+      if (!relayerKey) throw new Error("Nothing was sent. Unlock your Lyra address once: it pays the one-time setup of Ledger plans.");
+      prompt("One-time setup: approve on your Ledger");
+      await activateBatching({ provider: RPC, ledgerAddress: from, path: ledgerActive.path, relayer: new ethers.Wallet(relayerKey, RPC), onPrompt: prompt });
+    }
+
+    prompt("Review and approve the plan on your Ledger");
+    const tx = await sendLedgerBatch({ provider: RPC, ledgerAddress: from, path: ledgerActive.path, calls: [...calls, ...feeCalls], onPrompt: prompt });
+    advanceExecutionTo(1);
+    setTxHash(tx.hash);
+    if (multiTicket) setStepTxHashes(steps.map(() => tx.hash));
+    setStatus("Confirming…");
+    const receipt = await tx.wait();
+    if (!receipt || receipt.status !== 1) throw new Error("The plan was rejected on-chain. Nothing moved.");
+    setPlanStepIndex(steps.length);
+    advanceExecutionTo(2);
+    await new Promise(resolve => setTimeout(resolve, DONE_TRANSITION_BEAT_MS));
+    advanceExecutionTo(3);
+    if (multiTicket) setMultiTicketDone(true);
+    setMessages(m => [...m, { role: "ai", text: `✅ ${steps.length > 1 ? `All ${steps.length} steps` : "Done"}, in one Ledger signature.\n\n[View on Explorer Here](${explorerTx(tx.hash, activeNetwork)})` }]);
+    refreshBalance(from);
+  } finally {
+    await finishExecution();
+  }
 }
 
 async function handleRevealPrivateKey() {
@@ -5748,6 +5864,9 @@ function decimalsOfAsset(asset) {
   }
 
   async function signAndSend() {
+  if (ledgerActive) {
+    return executeLedgerPlan();
+  }
   if (multiTicket) {
     return executeMultiTicket();
   }
@@ -7856,7 +7975,7 @@ function handleHoldEnd() {
     return null;
   })();
 
-  const planBiometric = (() => {
+  const planBiometric = ledgerActive ? null : (() => {
     const ua = navigator.userAgent || "";
     const label = /Mac|iPhone|iPad/.test(ua) ? "Touch ID" : /Windows/.test(ua) ? "Windows Hello" : "biometrics";
     const record = biometricEnabled ? loadBiometricRecord() : null;
@@ -8320,7 +8439,8 @@ function handleHoldEnd() {
                   <AccountSwitcher
                     accounts={accounts}
                     activeAddress={wallet.address}
-                    keyReady={accountKeyReady}
+                    keyReady={(a) => accountKeyReady(a) || accounts.some(x => x.kind === "ledger" && x.address.toLowerCase() === String(a).toLowerCase())}
+                    onConnectLedger={ledgerSupported() ? connectLedgerAccount : null}
                     onSwitch={switchAccount}
                     onCreate={createAccount}
                     onImport={importAccount}
