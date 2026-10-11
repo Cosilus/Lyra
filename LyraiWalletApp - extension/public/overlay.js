@@ -157,7 +157,7 @@
   const frame = document.createElement("iframe");
   frame.src = chrome.runtime.getURL("index.html?card=" + key);
   frame.title = "Lyra wallet";
-  frame.allow = "clipboard-write; publickey-credentials-get; publickey-credentials-create; microphone";
+  frame.allow = "clipboard-write; publickey-credentials-get; publickey-credentials-create; microphone; hid";
 
   const moveLabel = document.createElement("div");
   moveLabel.className = "move-label";

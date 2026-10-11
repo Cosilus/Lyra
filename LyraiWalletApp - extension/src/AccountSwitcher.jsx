@@ -4,7 +4,7 @@
 // under the address, inside the card.
 import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Plus, Download, Lock, ArrowLeft, Loader2, Pencil } from "lucide-react";
+import { Check, Plus, Download, Lock, ArrowLeft, Loader2, Pencil, Usb } from "lucide-react";
 
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "");
 
@@ -21,7 +21,7 @@ function AccountMark({ address }) {
   );
 }
 
-export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, onCreate, onImport, onRename }) {
+export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, onCreate, onImport, onRename, onConnectLedger }) {
   // the address being renamed, and the name being typed
   const [renaming, setRenaming] = useState(null);
   const [draftName, setDraftName] = useState("");
@@ -132,7 +132,7 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
                       <AccountMark address={a.address} />
                       <span className="acct-text">
                         <span className="acct-name">{a.name}</span>
-                        <span className="acct-address">{short(a.address)}</span>
+                        <span className="acct-address">{a.kind === "ledger" ? `Ledger · ${short(a.address)}` : short(a.address)}</span>
                       </span>
                       {active ? (
                         <Check size={15} strokeWidth={2.4} className="acct-state is-on" />
@@ -161,6 +161,17 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
               <button type="button" className="acct-action" onClick={() => setView("import")}>
                 <Download size={14} strokeWidth={2.2} /> Import
               </button>
+              {onConnectLedger && (
+                <button
+                  type="button"
+                  className="acct-action"
+                  disabled={working}
+                  onClick={() => run(onConnectLedger)}
+                  data-tip="Plug in your Ledger and open its Ethereum app"
+                >
+                  {working ? <Loader2 size={14} className="acct-spin" /> : <Usb size={14} strokeWidth={2.2} />} Ledger
+                </button>
+              )}
             </div>
           </motion.div>
         ) : (
