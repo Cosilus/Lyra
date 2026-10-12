@@ -2,7 +2,11 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { overlayRoot } from "../cardBridge.js";
 import { motion } from "framer-motion";
+import { isTouchOnly } from "./touch.js";
+import { IS_APP } from "../platform.js";
 import "./interface-chooser.css";
+
+const TOUCH = IS_APP || isTouchOnly();
 
 // Rough, looping animated previews (not real videos): a mini phone with
 // a mouse cursor, just enough to show the two real differences -- how the
@@ -17,7 +21,7 @@ function MiniPhone({ variant }) {
     <div className="ic-phone">
       <div className="ic-phone-glow" />
       <div className="ic-phone-top">
-        <img className="ic-phone-logo" src="/logo.svg" alt="" />
+        <img className="ic-phone-logo" src={`${import.meta.env.BASE_URL}logo.svg`} alt="" />
         {is2d && <span className="ic-phone-menu-btn">Menu</span>}
       </div>
       <div className="ic-phone-balance">
@@ -85,7 +89,7 @@ const CARDS = {
           The familiar flat wallet. Everything sits on one calm screen: open the <strong>Menu</strong> at the top right
           for contacts, transactions, network and settings, and follow your portfolio on the chart.
         </p>
-        <p className="ic-card-note">Doesn't react to the mouse.</p>
+        <p className="ic-card-note">{TOUCH ? "Stays still, menus one tap away." : "Doesn't react to the mouse."}</p>
       </>
     ),
     cta: "Choose 2D",
@@ -95,11 +99,18 @@ const CARDS = {
     title: "Immersive 3D",
     body: (
       <>
-        <p>
-          The same wallet floating in depth. It <strong>tilts as your mouse moves</strong>. Push to the left or right edge of the
-          screen for contacts, settings and history, or to the top for your assets.
-        </p>
-        <p className="ic-card-note">Built for a mouse. Great on desktop.</p>
+        {TOUCH ? (
+          <p>
+            The same wallet floating in depth. <strong>Swipe from the left or right edge</strong> and it steps aside for
+            contacts, settings and history, or swipe down from the top for your assets.
+          </p>
+        ) : (
+          <p>
+            The same wallet floating in depth. It <strong>tilts as your mouse moves</strong>. Push to the left or right edge of the
+            screen for contacts, settings and history, or to the top for your assets.
+          </p>
+        )}
+        <p className="ic-card-note">{TOUCH ? "Made for your thumb." : "Built for a mouse. Great on desktop."}</p>
       </>
     ),
     cta: "Choose 3D",

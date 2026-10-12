@@ -90,7 +90,6 @@ import { ActivityBlock } from "./three-d/ActivityBlock.jsx";
 import { HelpFaq } from "./three-d/HelpFaq.jsx";
 import { TokenLogo } from "./tokenLogo.jsx";
 import { IS_CARD, reportCardBusy } from "./cardBridge.js";
-import { TiltActivation, isTouchOnly, needsMotionPermission, rememberTilt, tiltRemembered } from "./three-d/TiltActivation.jsx";
 
 // In the 3D interface the wallet frame lives inside a perspective +
 // transform context, which turns every `position: fixed` modal inside
@@ -2459,10 +2458,12 @@ async function executeLedgerPlan() {
       tokens, defi, nativeSymbol: activeNetwork.nativeSymbol, nativePseudo: NATIVE_PSEUDO_ADDRESS,
       slippage: DEFAULT_SLIPPAGE, kyberBase: KYBERSWAP_API_BASE, kyberClientId: KYBERSWAP_CLIENT_ID,
       lifiQuoteUrl: LIFI_QUOTE_API_URL, aaveV4Reserve,
+      circleChain: NETWORK_KEY_TO_CIRCLE_CHAIN[activeNetworkKey],
+      networkKeyOfLifi: (code) => Object.keys(NETWORK_KEY_TO_LIFI_KEY).find(k => NETWORK_KEY_TO_LIFI_KEY[k] === code),
       suppliedV4: (v4) => new ethers.Contract(defi.aaveV4.spoke, AAVE_V4_SPOKE_ABI, RPC).getUserSuppliedAssets(v4.id, from),
     });
     if (skipped.length) {
-      throw new Error(`Nothing was sent. ${skipped.map(i => planStepFrom(adjusted[i].kind, {}).label).join(", ")} can't be signed with a Ledger yet.`);
+      throw new Error(`Nothing was sent. ${skipped.map(i => planStepFrom(adjusted[i].kind, {}).label).join(", ")} can't be signed with a Ledger yet (Polymarket bets, or a token Circle doesn't bridge).`);
     }
     advanceExecutionTo(0);
 
@@ -7553,28 +7554,12 @@ function handleHoldEnd() {
   holdCanvasDrawRef.current?.(0);
 }
 
-  // Phones: 3D follows the tilt of the device, but only once the user
-  // turns it on (iOS needs a tap for the motion prompt). Android with a
-  // remembered "on" needs no prompt, so it turns itself back on.
-  const [tiltEnabled, setTiltEnabled] = useState(false);
-  const touchOnly = isTouchOnly();
-  const wantsTiltScreen =
-    uiMode === "3d" && touchOnly && !tiltEnabled &&
-    !!wallet && !locked && !showUnlock && !showInterfaceChoice && !showWallet && !showPasswordSetup;
   useEffect(() => {
-    if (wantsTiltScreen && !needsMotionPermission() && tiltRemembered()) setTiltEnabled(true);
-  }, [wantsTiltScreen]);
-  const showTiltActivation = wantsTiltScreen && (needsMotionPermission() || !tiltRemembered());
-  useEffect(() => {
-    if (uiMode !== "3d") setTiltEnabled(false);
-  }, [uiMode]);
-
-  useEffect(() => {
-    if (uiMode !== "3d" || tourOpen || hasSeenTour() || showTiltActivation) return;
+    if (uiMode !== "3d" || tourOpen || hasSeenTour()) return;
     if (!wallet || locked || showUnlock || showInterfaceChoice || showWallet || showPasswordSetup) return;
     const t = setTimeout(() => setTourOpen(true), 700);
     return () => clearTimeout(t);
-  }, [uiMode, tourOpen, showTiltActivation, wallet, locked, showUnlock, showInterfaceChoice, showWallet, showPasswordSetup]);
+  }, [uiMode, tourOpen, wallet, locked, showUnlock, showInterfaceChoice, showWallet, showPasswordSetup]);
 
   // Leaving 3D mid-tour just ends it.
   useEffect(() => {
@@ -7914,6 +7899,8 @@ function handleHoldEnd() {
           tokens, defi, nativeSymbol: activeNetwork.nativeSymbol, nativePseudo: NATIVE_PSEUDO_ADDRESS,
           slippage: DEFAULT_SLIPPAGE, kyberBase: KYBERSWAP_API_BASE, kyberClientId: KYBERSWAP_CLIENT_ID,
           lifiQuoteUrl: LIFI_QUOTE_API_URL, aaveV4Reserve,
+          circleChain: NETWORK_KEY_TO_CIRCLE_CHAIN[activeNetworkKey],
+          networkKeyOfLifi: (code) => Object.keys(NETWORK_KEY_TO_LIFI_KEY).find(k => NETWORK_KEY_TO_LIFI_KEY[k] === code),
           suppliedV4: (v4) => new ethers.Contract(defi.aaveV4.spoke, AAVE_V4_SPOKE_ABI, RPC).getUserSuppliedAssets(v4.id, wallet.address),
         });
         if (!calls.length) { if (!cancelled) setPlanSim({ state: "off", reason: "skipped" }); return; }
@@ -8234,7 +8221,7 @@ function handleHoldEnd() {
           <div className="brand">
   <img
     className="mark"
-    src="/logo.svg"
+    src={`${import.meta.env.BASE_URL}logo.svg`}
     alt="Lyra"
   />
   <div className="name">Lyra</div>
@@ -11977,12 +11964,6 @@ function handleHoldEnd() {
     <>
       {toast ? <div className="toast">{toast}</div> : null}
       {showInterfaceChoice && <InterfaceChooser onChoose={chooseInterface} />}
-      {showTiltActivation && (
-        <TiltActivation
-          onEnabled={() => { rememberTilt(true); setTiltEnabled(true); }}
-          onStay2d={() => changeUiMode("2d")}
-        />
-      )}
     </>
   );
 
@@ -11990,7 +11971,7 @@ function handleHoldEnd() {
     return (
       <div className="page page--3d">
         {toastEl}
-        <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} paused={anyOverlayOpen} tourActive={tourOpen} onTourDone={finishTour} tiltEnabled={tiltEnabled}>
+        <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} paused={anyOverlayOpen} tourActive={tourOpen} onTourDone={finishTour}>
           {frame}
         </Box3D>
       </div>

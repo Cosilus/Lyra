@@ -162,7 +162,7 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
             {error && <div className="acct-error">{error}</div>}
             <div className="acct-actions">
               <button type="button" className="acct-action" onClick={() => setView("create")}>
-                <Plus size={14} strokeWidth={2.2} /> New address
+                <Plus size={14} strokeWidth={2.2} /> New
               </button>
               <button type="button" className="acct-action" onClick={() => setView("import")}>
                 <Download size={14} strokeWidth={2.2} /> Import

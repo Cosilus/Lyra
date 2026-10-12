@@ -638,3 +638,21 @@
 .plan-txlinks-step { font-weight: 700; }
 .plan-txlinks-label { color: var(--muted); }
 .plan-txlinks-hash { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+/* ---- web app on a phone (src/platform.js) ---- */
+/* the ticket starts below the status bar / camera, not glued to the top */
+html.lyra-app .plan-sheet-body { padding: calc(env(safe-area-inset-top, 0px) + 72px) 24px 0; gap: 16px; }
+html.lyra-app .plan-sheet-content { gap: 16px; }
+/* a long address in the request wraps instead of running out of the bubble */
+html.lyra-app .plan-sheet-request-text { overflow-wrap: anywhere; }
+/* hold to confirm: pearl white like the other main buttons; the violet
+   staircase rising through it is the only motion (it shows the hold) */
+html.lyra-app .plan-confirm.plan-hold {
+  --hold-square: #6D4FD1;
+  background: linear-gradient(135deg, #FBF8FF, #D6CEE6) !important;
+  color: var(--void);
+  box-shadow: none;
+}
+html.lyra-app .plan-confirm.plan-hold.dots-cover { color: #FBF8FF !important; }
+/* the buttons at the bottom keep clear of the home bar */
+html.lyra-app .plan-sheet .plan-actions { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); }

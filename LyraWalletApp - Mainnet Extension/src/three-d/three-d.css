@@ -361,66 +361,6 @@
 }
 .d3-replay-btn:hover { background: rgba(var(--accent-rgb), 0.22); }
 
-/* ---- Tilt Mode activation (touch devices) ---- */
-.tilt-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(13, 9, 22, 0.97);
-  animation: tilt-in 0.3s ease-out;
-}
-@keyframes tilt-in { from { opacity: 0; } to { opacity: 1; } }
-.tilt-card {
-  width: min(340px, 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-}
-.tilt-icon {
-  width: 54px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  border-radius: 16px;
-  font-size: 22px;
-  color: var(--beige);
-  background: var(--panel2);
-  border: 1px solid var(--line);
-  box-shadow: 0 0 40px -10px rgba(var(--accent-rgb), 0.5);
-}
-.tilt-card h2 { margin: 6px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; color: var(--beige); }
-.tilt-card p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--muted); }
-.tilt-enable {
-  width: 100%;
-  margin-top: 6px;
-  padding: 14px;
-  border: 0;
-  border-radius: 14px;
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--void);
-  background: var(--beige);
-  cursor: pointer;
-}
-.tilt-enable:disabled { opacity: 0.6; cursor: default; }
-.tilt-2d {
-  width: 100%;
-  padding: 12px;
-  border-radius: 14px;
-  font-weight: 600;
-  color: var(--beige-dim);
-  background: transparent;
-  border: 1px solid var(--line);
-  cursor: pointer;
-}
-.tilt-card small { color: var(--muted-dim); font-size: 12px; }
-.tilt-card .tilt-error { color: #EBD6A3; font-size: 13px; }
 
 /* The skirt only exists in the full-window layout below. */
 .d3-skirt { display: none; }
@@ -562,3 +502,31 @@
   .mv-group, .mv-card, .mv-chip, .mv-pointer, .mv-ring circle { animation: none; }
   .mv-pointer, .mv-chip { opacity: 1; }
 }
+
+/* ---- web app (src/platform.js): on a tablet too the wallet fills the whole
+   screen (Box3D.jsx), so the same edge-to-edge rules as the narrow window ---- */
+html.lyra-app .page.page--3d { padding: 0; }
+html.lyra-app .d3-side-menu--left { right: auto; left: var(--d3-menu-edge); }
+html.lyra-app .d3-side-menu--right { left: auto; right: var(--d3-menu-edge); }
+html.lyra-app .d3-face--front,
+html.lyra-app .d3-face--back,
+html.lyra-app .d3-face--front > .frame {
+  border-radius: 0;
+  transition: border-radius 0.3s ease;
+}
+html.lyra-app .d3-face--front,
+html.lyra-app .d3-face--back { box-shadow: none; }
+html.lyra-app .d3-face--front > .frame { border: 0; box-shadow: none; max-width: none; }
+html.lyra-app .d3-assets-menu { top: var(--d3-menu-edge); max-width: calc(100% - 2 * var(--d3-menu-edge)); }
+html.lyra-app .d3-scene--docked .d3-face--front,
+html.lyra-app .d3-scene--docked .d3-face--back,
+html.lyra-app .d3-scene--docked .d3-face--front > .frame { border-radius: 34px; }
+html.lyra-app .d3-skirt {
+  display: block;
+  position: absolute;
+  inset: -28px;
+  background: var(--void);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+html.lyra-app .d3-scene--docked .d3-skirt { opacity: 0; }

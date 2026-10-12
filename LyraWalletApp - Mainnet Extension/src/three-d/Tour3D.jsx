@@ -1,4 +1,6 @@
 import { createPortal } from "react-dom";
+import { isTouchOnly } from "./touch.js";
+import { IS_APP } from "../platform.js";
 
 // One stop per menu button, grouped by dock. `index` points at the
 // button's position inside that side's menu (see App.jsx's leftMenu3d /
@@ -9,6 +11,7 @@ export const TOUR_STEPS = [
     dock: null,
     title: "Welcome to the 3D wallet",
     body: "Same wallet, same Lyra. Move your mouse and the wallet tilts toward you. Your menus now live on its sides, and a quick tour will show you where everything went.",
+    bodyTouch: "Same wallet, same Lyra. Swipe from the left or right edge and the wallet steps aside for your menus. A quick tour will show you where everything went.",
   },
 
   { dock: "left", index: 0, title: "Contacts", body: "Your saved addresses. Add, edit or remove the people you send to, so you can just say their name to Lyra." },
@@ -23,7 +26,7 @@ export const TOUR_STEPS = [
   { dock: "right", index: 3, title: "Bridge history", body: "Your cross-chain transfers from one network to another." },
   { dock: "right", index: 4, title: "Stake history", body: "What you deposited into or withdrew from staking." },
 
-  { dock: "top", title: "Assets", body: "Push the mouse to the top edge to pull up every asset you hold with its USD value. Hover the icon for the name, or the value for the exact amount." },
+  { dock: "top", title: "Assets", body: "Push the mouse to the top edge to pull up every asset you hold with its USD value. Hover the icon for the name, or the value for the exact amount.", bodyTouch: "Swipe down from the top of the screen to pull up every asset you hold with its USD value. Swipe back up, or tap the wallet, to close it." },
 
   // only in the floating card on a website (cardBridge.js): the side panel doesn't move
   {
@@ -38,13 +41,15 @@ export const TOUR_STEPS = [
     dock: null,
     title: "You're all set",
     body: "Push to the left or right edge for the side menus, and to the top for your assets. You can replay this tour or switch back to 2D any time in Settings.",
+    bodyTouch: "Swipe from the left or right edge for the side menus, and down from the top for your assets. Tap the wallet to bring it back. You can replay this tour or switch back to 2D any time in Settings.",
   },
 ];
 
 // The steps for where the wallet runs now (the move step only in the floating card)
 export function tourStepsHere() {
   const card = typeof document !== "undefined" && document.documentElement.classList.contains("lyra-card");
-  return TOUR_STEPS.filter(s => !s.cardOnly || card);
+  const touch = IS_APP || isTouchOnly();
+  return TOUR_STEPS.filter(s => !s.cardOnly || card).map(s => (touch && s.bodyTouch ? { ...s, body: s.bodyTouch } : s));
 }
 
 // A looping preview of move mode: the pointer presses the wallet, the ring
