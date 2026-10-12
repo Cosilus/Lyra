@@ -8533,7 +8533,8 @@ function handleHoldEnd() {
                 onChange={setInput}
                 onSubmit={(text, how) => { voiceRequestRef.current = !!how?.voice; handleIntent(text); setInput(""); }}
                 busy={busy}
-                tokenSymbols={[activeNetwork.nativeSymbol, ...Object.keys(tokens)]}
+                // the ones held come first: a misheard ticker goes to what the user owns
+                tokenSymbols={[activeNetwork.nativeSymbol, ...Object.keys(tokens)].sort((x, y) => Number((y === activeNetwork.nativeSymbol ? balance : tokenBalances[y] || 0n) > 0n) - Number((x === activeNetwork.nativeSymbol ? balance : tokenBalances[x] || 0n) > 0n))}
                 contacts={contacts}
                 networks={NETWORKS}
                 suggestions={askLyraSuggestions}
