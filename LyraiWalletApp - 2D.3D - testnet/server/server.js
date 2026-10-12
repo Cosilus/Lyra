@@ -6463,6 +6463,8 @@ app.post("/api/ai", async (req, res) => {
       history = [],
       pendingTransaction = null,
       contacts = [],
+      holdings = [],
+      voice = false,
       network: networkKey
     } = req.body;
     const languageRule = replyLanguageRule(replyLanguageOf(req.body));
@@ -6573,6 +6575,18 @@ ${network.nativeSymbol}
 Available stablecoins on this network:
 ${Object.keys(TOKENS_BY_NETWORK[network.key] || {}).join(", ") || "none"}
 
+What the wallet holds on this network right now (read when this request was
+sent, so it already includes anything that just arrived):
+${Array.isArray(holdings) && holdings.length
+  ? holdings
+      .filter(h => h && h.symbol)
+      .map(h => `- ${h.symbol}: ${h.amount}${h.staked ? ` (plus ${h.staked} staked)` : ""}`)
+      .join("\n")
+  : "Not provided."}
+Use these amounts for "all my X", "my 100 X", "half of my X". A ticker the
+user names loosely (USDT, "dollars") means the matching token they hold here
+(e.g. USDT0 on Plasma).
+
 CURRENT TRANSACTION:
 
 Amount:
@@ -6591,7 +6605,15 @@ ${contacts.length
   : "No saved contacts."}
 
 
-IMPORTANT:
+${voice ? `SPOKEN REQUEST:
+This message was dictated and transcribed automatically, so tickers and names
+may be misheard. A word that sounds like one of this network's tickers means
+that ticker (XL, XP, PL, "ex PL" = XPL; "USDT zero" = USDT0; "USD C" = USDC).
+A name close to a saved contact means that contact (Bryan = Brian). Spelled
+numbers are amounts ("un", "one" = 1). Act on the obvious reading; only ask
+when two readings are equally likely.
+
+` : ""}IMPORTANT:
 The balance above may be stale.
 
 If the user asks for their balance,

@@ -1,11 +1,12 @@
-import { useMemo, useRef, useState } from "react";
-import { MousePointer2, Mic, Globe, Check } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MousePointer2, Mic, Globe, Check, Square } from "lucide-react";
 import { motion } from "framer-motion";
 import { drawIdeas } from "./askLyraIdeas.js";
 import { LYRA_LANGUAGES, speechLangFor } from "./lyraLanguages.js";
 import { useVoiceInput } from "./useVoiceInput.js";
 import { LyraStar, StepIcon, withTokenLogos } from "./PlanCard.jsx";
 import { parseAskLyra } from "./askLyraParse.js";
+import { fixTranscript } from "./voiceFix.js";
 import "./ask-lyra.css";
 
 // "Ask Lyra": the message box, right under the balance. While the user types,
@@ -14,6 +15,43 @@ import "./ask-lyra.css";
 // handleIntent as before.
 
 const STEP_LABELS = { swap: "Swap", send: "Send", stake: "Stake", unstake: "Withdraw", bridge: "Bridge" };
+
+// While Lyra listens: bars that move with the voice (newest on the right,
+// like a recorder) and how long it has been listening. Drawn straight to the
+// DOM each frame from the hook's level, without re-rendering React.
+const WAVE_BARS = 32;
+function VoiceWave({ levelRef, startedAt }) {
+  const barsRef = useRef(null);
+  const timeRef = useRef(null);
+  useEffect(() => {
+    const heights = new Array(WAVE_BARS).fill(0.06);
+    let raf = 0, last = 0;
+    const draw = (now) => {
+      raf = requestAnimationFrame(draw);
+      if (now - last < 70) return; // a new bar about 14 times a second
+      last = now;
+      heights.shift();
+      heights.push(Math.max(0.06, Math.min(1, levelRef.current * (0.75 + Math.random() * 0.5))));
+      const bars = barsRef.current?.children;
+      if (bars) for (let i = 0; i < bars.length; i++) bars[i].style.transform = `scaleY(${heights[i]})`;
+      if (timeRef.current) {
+        const sec = Math.floor((Date.now() - startedAt) / 1000);
+        timeRef.current.textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+      }
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [levelRef, startedAt]);
+  return (
+    <div className="ask-wave" aria-hidden="true">
+      <span className="ask-wave-dot" />
+      <span className="ask-wave-time" ref={timeRef}>0:00</span>
+      <span className="ask-wave-bars" ref={barsRef}>
+        {Array.from({ length: WAVE_BARS }, (_, i) => <i key={i} />)}
+      </span>
+    </div>
+  );
+}
 
 function StepPreview({ step, index, previous, via }) {
   const label = STEP_LABELS[step.kind] || "Send";
@@ -68,10 +106,15 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
   const [langOpen, setLangOpen] = useState(false);
   const currentLang = LYRA_LANGUAGES.find(l => l.code === language) || LYRA_LANGUAGES[0];
   // talk instead of typing: the words fill the box live, then are sent
+  // the text in the box came from the microphone (then maybe edited a little)
+  const spokenRef = useRef(false);
+  // what was heard is matched to the wallet as it is now: this network's
+  // tickers ("XL" -> XPL) and the saved contacts ("Bryan" -> Brian)
   const voice = useVoiceInput({
     lang: speechLangFor(language),
-    onText: text => onChange(text),
-    onDone: text => { if (!busy) onSubmit(text); },
+    onText: text => { spokenRef.current = true; onChange(text); },
+    onDone: text => { if (!busy) { spokenRef.current = false; onSubmit(text, { voice: true }); } },
+    fix: text => fixTranscript(text, { symbols: tokenSymbols || [], contacts: contacts || [] }),
   });
 
   const { steps } = useMemo(
@@ -80,10 +123,13 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
   );
 
   function submit() {
+    // while listening, send = stop and send what was said
+    if (voice.listening) { voice.stop(true); return; }
     const text = value.trim();
     if (!text || busy) return;
     inputRef.current?.blur();
-    onSubmit(text);
+    onSubmit(text, { voice: spokenRef.current });
+    spokenRef.current = false;
   }
 
   function pick(text) {
@@ -104,7 +150,7 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
 
       <div className="ask-box">
         <div className="ask-field">
-          {!value && (
+          {!value && !voice.listening && (
             <div className="ask-placeholder" aria-hidden="true">
               <LyraStar />
               <span>Ask Lyra</span>
@@ -116,7 +162,7 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
           rows={2}
           value={value}
           aria-label="Ask Lyra"
-          onChange={e => onChange(e.target.value)}
+          onChange={e => { if (!e.target.value) spokenRef.current = false; onChange(e.target.value); }}
           onFocus={() => {
             clearTimeout(blurTimer.current);
             setIdeas(d => ({ id: d.id + 1, list: drawIdeas(suggestions, 3) }));
@@ -130,6 +176,7 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
         </div>
         <div className="ask-foot">
           {/* the language Lyra answers in and listens to */}
+          {voice.listening ? <VoiceWave levelRef={voice.levelRef} startedAt={voice.startedAt} /> : (
           <div className="ask-lang">
             <button
               type="button"
@@ -172,21 +219,20 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
               </>
             )}
           </div>
-          <span className={`ask-hint${voice.listening ? " is-live" : ""}`}>
-            {voice.listening ? "Listening… tap the mic to stop" : voice.voiceNote}
-          </span>
+          )}
+          {!voice.listening && <span className="ask-hint">{voice.voiceNote}</span>}
           {voice.supported && (
             <button
               type="button"
               className={`ask-mic${voice.listening ? " is-on" : ""}`}
               onMouseDown={e => e.preventDefault()}
-              onClick={voice.toggle}
+              onClick={() => (voice.listening ? voice.stop(false) : voice.start())}
               disabled={busy}
               aria-pressed={voice.listening}
               aria-label={voice.listening ? "Stop listening" : "Talk to Lyra"}
               data-tip={voice.listening ? "Stop listening" : "Talk to Lyra"}
             >
-              <Mic size={16} strokeWidth={2} />
+              {voice.listening ? <Square size={13} fill="currentColor" strokeWidth={0} /> : <Mic size={16} strokeWidth={2} />}
             </button>
           )}
           {/* the same pearl send button as the old message bar */}
@@ -194,7 +240,7 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
             type="button"
             className="send ask-send"
             onClick={submit}
-            disabled={!value.trim() || busy}
+            disabled={(!value.trim() && !voice.listening) || busy}
             aria-label="Send to Lyra"
             title="Send to Lyra"
           >

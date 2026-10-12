@@ -142,13 +142,15 @@
 .ask-mic:hover:not(:disabled) svg { transform: translateY(-1px); }
 .ask-mic:active:not(:disabled) { background: rgba(var(--beige-rgb), 0.18); }
 .ask-mic:disabled { opacity: 0.45; cursor: default; }
-.ask-mic.is-on { background: rgba(var(--beige-rgb), 0.16); }
-.ask-mic.is-on::after {
-  content: ""; position: absolute; inset: -4px; border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.75);
-  animation: ask-mic-ring 1.2s ease-out infinite;
-}
-@keyframes ask-mic-ring { from { transform: scale(0.9); opacity: 0.9; } to { transform: scale(1.25); opacity: 0; } }
+/* listening: the mic becomes a pearl stop button (a square), the bars and
+   the timer take the place of the language chip (VoiceWave in AskLyra.jsx) */
+.ask-mic.is-on { background: linear-gradient(135deg, #FBF8FF, #D6CEE6); border-color: transparent; color: #1A1028; }
+.ask-wave { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 28px; }
+.ask-wave-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: #F26B6B; box-shadow: 0 0 8px rgba(242, 107, 107, 0.7); animation: ask-pulse 1.4s ease-in-out infinite; }
+.ask-wave-time { flex: 0 0 auto; font: 600 11.5px/1 var(--mono, ui-monospace, monospace); color: rgba(var(--beige-rgb), 0.85); font-variant-numeric: tabular-nums; min-width: 30px; }
+.ask-wave-bars { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: flex-end; gap: 2px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 30%); mask-image: linear-gradient(to right, transparent, #000 30%); }
+.ask-wave-bars i { flex: 0 0 3px; height: 100%; border-radius: 3px; background: rgba(var(--beige-rgb), 0.9); transform: scaleY(0.06); transition: transform 0.07s linear; }
 /* .send (styles.css) gives the pearl look of the old message bar's button */
 .ask-send { cursor: pointer; }
 .ask-send:disabled { opacity: 0.45; cursor: default; transform: none; }
@@ -272,5 +274,5 @@
 .frame--ask .chat { padding-top: 14px; padding-bottom: 24px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ask-step, .ask-step-value, .ask-skel, .ask-spark, .ask-lyra.is-busy .ask-send, .ask-mic.is-on::after { animation: none; }
+  .ask-step, .ask-step-value, .ask-skel, .ask-spark, .ask-lyra.is-busy .ask-send, .ask-wave-dot { animation: none; }
 }

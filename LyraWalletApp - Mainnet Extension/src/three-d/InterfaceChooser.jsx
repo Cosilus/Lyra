@@ -9,8 +9,9 @@ import "./interface-chooser.css";
 const TOUCH = IS_APP || isTouchOnly();
 
 // Rough, looping animated previews (not real videos): a mini phone with
-// a mouse cursor, just enough to show the two real differences -- how the
-// menus open, and what the card does when the mouse moves.
+// a mouse cursor (or, on a phone, a fingertip that taps and swipes), just
+// enough to show the two real differences -- how the menus open, and what
+// the card does.
 
 // `variant` mirrors the real difference: the classic 2D frame has the
 // header "Menu" button and the chart under the balance; in 3D both are
@@ -54,6 +55,12 @@ function Cursor() {
   );
 }
 
+// a fingertip: a soft pearl dot that presses (taps) and slides (swipes)
+function Finger() {
+  return <span className="ic-finger" />;
+}
+const Pointer = TOUCH ? Finger : Cursor;
+
 function Preview2D() {
   return (
     <div className="ic-scene ic-scene--2d" aria-hidden="true">
@@ -61,7 +68,7 @@ function Preview2D() {
       <div className="ic-circle-menu">
         <span /><span /><span />
       </div>
-      <Cursor />
+      <Pointer />
     </div>
   );
 }
@@ -75,7 +82,7 @@ function Preview3D() {
       <div className="ic-tilt">
         <MiniPhone variant="3d" />
       </div>
-      <Cursor />
+      <Pointer />
     </div>
   );
 }

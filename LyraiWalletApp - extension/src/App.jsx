@@ -1205,6 +1205,8 @@ export default function App() {
   const [xplPriceUSD, setXplPriceUSD] = useState(null);
   const [tokenBalances, setTokenBalances] = useState({}); 
   const [stakedBalances, setStakedBalances] = useState({});
+  // the last request sent to Lyra was spoken (Ask Lyra's microphone)
+  const voiceRequestRef = useRef(false);
   const [stakedApy, setStakedApy] = useState({});
   const [defiTicket, setDefiTicket] = useState(null);
 
@@ -6251,6 +6253,18 @@ const signer = new ethers.Wallet(
         : [m])),
       pendingTransaction,
       contacts: loadContacts(),
+      // what the wallet holds right now on this network (updated as funds
+      // arrive), so "send my 100 USDT to Brian" is read against the real balance
+      holdings: [
+        { symbol: activeNetwork.nativeSymbol, amount: ethers.formatEther(balance || 0n) },
+        ...Object.keys(tokens).map(sym => ({
+          symbol: sym,
+          amount: ethers.formatUnits(tokenBalances[sym] || 0n, tokens[sym].decimals),
+          ...(stakedBalances[sym] ? { staked: ethers.formatUnits(stakedBalances[sym], tokens[sym].decimals) } : {}),
+        })),
+      ],
+      // spoken, not typed: tickers and names may be misheard
+      voice: voiceRequestRef.current,
       network: activeNetworkKey,
       language: lyraLanguage,
       progressId
@@ -8517,7 +8531,7 @@ function handleHoldEnd() {
               <AskLyra
                 value={input}
                 onChange={setInput}
-                onSubmit={text => { handleIntent(text); setInput(""); }}
+                onSubmit={(text, how) => { voiceRequestRef.current = !!how?.voice; handleIntent(text); setInput(""); }}
                 busy={busy}
                 tokenSymbols={[activeNetwork.nativeSymbol, ...Object.keys(tokens)]}
                 contacts={contacts}

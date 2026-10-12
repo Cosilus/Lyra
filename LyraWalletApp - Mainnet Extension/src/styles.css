@@ -4718,3 +4718,5 @@ html.lyra-app .d3-side-menu--show .d3-side-item:is(:hover, :focus-visible) { sca
 html.lyra-app .d3-tour-dots span.on { background: #FBF8FF; }
 html.lyra-app .toggle-switch input:checked ~ .toggle-switch-track { background: #F3EEFA; border-color: #F3EEFA; }
 html.lyra-app .toggle-switch input:checked ~ .toggle-switch-track .toggle-switch-thumb { background: var(--void); }
+/* the 2D header buttons (gift, Menu) line up with the logo, below the camera */
+html.lyra-app .header-actions { top: calc(env(safe-area-inset-top, 0px) + 56px); right: 24px; }
