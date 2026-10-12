@@ -171,11 +171,7 @@ export const HELP_FAQ = [
       },
       {
         q: "How do the 3D menus work?",
-        a: "Move the mouse to the left or right edge for your menus, and to the top edge for all your assets. On a phone, turn on Tilt Mode and tilt the phone instead.",
-      },
-      {
-        q: "Tilt Mode does not work on my phone",
-        a: "It needs a secure (HTTPS) connection and your permission to use the motion sensor. Motion is always optional: Stay in 2D works the same, and nothing in the wallet needs the sensor.",
+        a: "Move the mouse to the left or right edge for your menus, and to the top edge for all your assets. On a phone or tablet, swipe from the left or right edge, or down from the top; tap the wallet to bring it back.",
       },
     ],
   },

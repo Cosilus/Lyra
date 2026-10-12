@@ -8,7 +8,7 @@ import "./logo-3d.css";
 // (with its .bin/textures next to it) works; the first one found wins.
 // If none is there or WebGL is unavailable, the flat /logo.svg is shown
 // instead, so the entry screens never break.
-const MODEL_URLS = ["/models/lyra-logo.glb", "/models/lyra-logo.gltf"];
+const MODEL_URLS = [`${import.meta.env.BASE_URL}models/lyra-logo.glb`, `${import.meta.env.BASE_URL}models/lyra-logo.gltf`];
 
 // Loaded and polished once, then cloned for every mount (the welcome and
 // unlock screens share it, and React StrictMode mounts twice in dev).
@@ -41,7 +41,7 @@ export default function Logo3D({ className = "" }) {
   return (
     <div className={`logo-3d ${className}`} aria-hidden="true">
       <div ref={mountRef} className={`logo-3d-canvas${ready ? " is-ready" : ""}`} />
-      {!ready && <img className="logo-3d-fallback" src="/logo.svg" alt="" />}
+      {!ready && <img className="logo-3d-fallback" src={`${import.meta.env.BASE_URL}logo.svg`} alt="" />}
     </div>
   );
 }

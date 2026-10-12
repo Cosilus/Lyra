@@ -2459,10 +2459,12 @@ async function executeLedgerPlan() {
       tokens, defi, nativeSymbol: activeNetwork.nativeSymbol, nativePseudo: NATIVE_PSEUDO_ADDRESS,
       slippage: DEFAULT_SLIPPAGE, kyberBase: KYBERSWAP_API_BASE, kyberClientId: KYBERSWAP_CLIENT_ID,
       lifiQuoteUrl: LIFI_QUOTE_API_URL, aaveV4Reserve,
+      circleChain: NETWORK_KEY_TO_CIRCLE_CHAIN[activeNetworkKey],
+      networkKeyOfLifi: (code) => Object.keys(NETWORK_KEY_TO_LIFI_KEY).find(k => NETWORK_KEY_TO_LIFI_KEY[k] === code),
       suppliedV4: (v4) => new ethers.Contract(defi.aaveV4.spoke, AAVE_V4_SPOKE_ABI, RPC).getUserSuppliedAssets(v4.id, from),
     });
     if (skipped.length) {
-      throw new Error(`Nothing was sent. ${skipped.map(i => planStepFrom(adjusted[i].kind, {}).label).join(", ")} can't be signed with a Ledger yet.`);
+      throw new Error(`Nothing was sent. ${skipped.map(i => planStepFrom(adjusted[i].kind, {}).label).join(", ")} can't be signed with a Ledger yet (Polymarket bets, or a token Circle doesn't bridge).`);
     }
     advanceExecutionTo(0);
 
@@ -7914,6 +7916,8 @@ function handleHoldEnd() {
           tokens, defi, nativeSymbol: activeNetwork.nativeSymbol, nativePseudo: NATIVE_PSEUDO_ADDRESS,
           slippage: DEFAULT_SLIPPAGE, kyberBase: KYBERSWAP_API_BASE, kyberClientId: KYBERSWAP_CLIENT_ID,
           lifiQuoteUrl: LIFI_QUOTE_API_URL, aaveV4Reserve,
+          circleChain: NETWORK_KEY_TO_CIRCLE_CHAIN[activeNetworkKey],
+          networkKeyOfLifi: (code) => Object.keys(NETWORK_KEY_TO_LIFI_KEY).find(k => NETWORK_KEY_TO_LIFI_KEY[k] === code),
           suppliedV4: (v4) => new ethers.Contract(defi.aaveV4.spoke, AAVE_V4_SPOKE_ABI, RPC).getUserSuppliedAssets(v4.id, wallet.address),
         });
         if (!calls.length) { if (!cancelled) setPlanSim({ state: "off", reason: "skipped" }); return; }

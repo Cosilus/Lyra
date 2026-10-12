@@ -4236,7 +4236,6 @@ html.lyra-moving, html.lyra-moving * { cursor: grabbing !important; user-select:
 /* Floating card: the 2D/3D chooser and the tilt screen sit inside the wallet,
    so they get a little less room around them */
 html.lyra-card .ic-overlay,
-html.lyra-card .tilt-overlay { position: absolute; padding: 18px 14px; }
 html.lyra-card .ic-title { font-size: 20px; }
 html.lyra-card .ic-panel { gap: 14px; }
 
@@ -4653,3 +4652,69 @@ a.stake-pos:hover .stake-pos-link { color: var(--beige); }
 .lsetup-why { display: flex; gap: 6px; align-items: flex-start; margin: 0 0 12px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
 .lsetup-why svg { flex: 0 0 auto; margin-top: 1px; }
 .lsetup-done { width: 100%; }
+
+/* ---- Web app on phones and tablets (vite.app.config.js, src/platform.js) ----
+   The same wallet as the side panel; only what a finger and a phone screen
+   need differs: no page bounce or pull-to-refresh, no grey tap flash, room
+   for the notch and the home bar once installed, and fields at 16px so iOS
+   doesn't zoom in on them. */
+html.lyra-app,
+html.lyra-app body {
+  background: #0B0814;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+html.lyra-app body { min-height: 100dvh; }
+html.lyra-app .frame {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (pointer: coarse) {
+  html.lyra-app input,
+  html.lyra-app textarea,
+  html.lyra-app select { font-size: max(16px, 1em); }
+  html.lyra-app button,
+  html.lyra-app a { touch-action: manipulation; }
+}
+/* the flat 2D wallet fills the screen too, phone or tablet */
+html.lyra-app .page:not(.page--3d) { padding: 0; }
+html.lyra-app .page:not(.page--3d) .frame { max-width: none; height: 100vh; height: 100dvh; max-height: none; border-radius: 0; border-left: 0; border-right: 0; }
+/* No hover on a phone: the main buttons are pearl white at rest, with no
+   fill, glow or pulse animation (the extension keeps its hover effects). */
+html.lyra-app :is(.unlock-btn-gradient, .plan-confirm, .confirm, .connect-wallet, .multisig-btn-primary, .biometric-unlock-btn, .ic-card-cta, .d3-tour-next, .faq-foot-btn) {
+  background: linear-gradient(135deg, #FBF8FF, #D6CEE6) !important;
+  color: #1A1028 !important;
+  box-shadow: none !important;
+  animation: none !important;
+  transition: none !important;
+}
+html.lyra-app :is(.unlock-btn-gradient, .plan-confirm, .confirm, .connect-wallet, .multisig-btn-primary)::before { display: none; }
+html.lyra-app .fill-btn-fill { display: none; }
+html.lyra-app .fill-btn-icon,
+html.lyra-app .fill-btn-label { color: #1A1028 !important; transition: none; }
+html.lyra-app :is(.unlock-btn-gradient, .plan-confirm, .confirm, .connect-wallet, .multisig-btn-primary, .biometric-unlock-btn, .ic-card-cta, .d3-tour-next, .faq-foot-btn):disabled { opacity: 0.5; }
+
+/* Room to breathe on a phone: the screen is tall, so the wallet starts well
+   below the camera and its boxes sit further apart. Every value on the
+   8-point grid, 24px side margins and card padding (like the Plasma app). */
+html.lyra-app .frame--ask > .header { padding: 48px 24px 24px; } /* .frame already clears the notch */
+html.lyra-app .frame--ask .brand { margin-bottom: 16px; }
+html.lyra-app .frame--ask .balance-card { padding: 24px; border-radius: 24px; }
+html.lyra-app .frame--ask .ask-lyra { margin-top: 24px; gap: 16px; }
+html.lyra-app .frame--ask .ask-box { padding: 16px 16px 16px 20px; border-radius: 24px; }
+html.lyra-app .frame--ask > .chat { padding-left: 24px; padding-right: 24px; }
+html.lyra-app .modal-card { padding: 24px; gap: 16px; border-radius: 24px; }
+
+/* every other violet control turns pearl white too (no hover on a phone) */
+html.lyra-app :is(.d3-pill-thumb, .ic-pill-thumb, .d3-side-item--spot, .faq-tab-fill, .hold-coin),
+html.lyra-app .d3-side-menu--show .d3-side-item:is(:hover, :focus-visible),
+html.lyra-app .circle-menu-item:hover {
+  background: linear-gradient(135deg, #FBF8FF, #D6CEE6) !important;
+  color: #1A1028;
+  box-shadow: none !important;
+}
+html.lyra-app .d3-side-menu--show .d3-side-item:is(:hover, :focus-visible) { scale: 1; }
+html.lyra-app .d3-tour-dots span.on { background: #FBF8FF; }
+html.lyra-app .toggle-switch input:checked ~ .toggle-switch-track { background: #F3EEFA; border-color: #F3EEFA; }
+html.lyra-app .toggle-switch input:checked ~ .toggle-switch-track .toggle-switch-thumb { background: var(--void); }

@@ -5,6 +5,7 @@ import { useParallax3d } from "./useParallax3d.js";
 import { Tour3D, tourStepsHere } from "./Tour3D.jsx";
 import { TokenLogo } from "../tokenLogo.jsx";
 import { IS_CARD, reportCardDock } from "../cardBridge.js";
+import { IS_APP } from "../platform.js";
 import "./three-d.css";
 
 // The box is 420 x up to 820 on a normal window, but must also fit a narrow, tall
@@ -36,8 +37,9 @@ function computeBoxSize() {
     return { width: w >= MIN_VIEW_W ? w : FALLBACK_VIEW_W, height: h >= MIN_VIEW_H ? h : FALLBACK_VIEW_H };
   }
   const { vw, vh } = viewportSize();
-  // Side panel / phone: the box IS the window, edge to edge (straight corners, see three-d.css).
-  if (vw <= BOX.fillBelowPx) return { width: vw, height: vh };
+  // Side panel / phone, and the web app on any screen (tablets too): the box IS the
+  // window, edge to edge (straight corners, see three-d.css).
+  if (vw <= BOX.fillBelowPx || IS_APP) return { width: vw, height: vh };
   const narrow = vw <= NARROW_PX;
   const width = Math.max(280, Math.min(BOX.widthPx, vw - NARROW_MARGIN_PX * 2));
   const wanted = narrow ? vh - NARROW_MARGIN_PX * 2 : Math.round(vh * BOX.viewportFraction);
@@ -147,7 +149,7 @@ function AssetsTopMenu({ show, spot, assets, onMouseEnter, onMouseLeave }) {
 // the box and opens a side menu (leftItems / rightItems), reaching the
 // top edge opens the assets menu. `paused` freezes it flat (e.g. while
 // a real modal is open on top).
-export function Box3D({ children, leftItems, rightItems, assets, paused, tourActive = false, onTourDone, tiltEnabled = false }) {
+export function Box3D({ children, leftItems, rightItems, assets, paused, tourActive = false, onTourDone }) {
   const { width, height } = useBoxSize();
   const [tourStep, setTourStep] = useState(0);
   useEffect(() => {
@@ -158,7 +160,7 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
   const forcedDock = step ? step.dock : null;
   const assetsMenuHoveredRef = useRef(false);
   const isAssetsMenuHovered = useCallback(() => assetsMenuHoveredRef.current, []);
-  const { rotateX, rotateY, shiftX, shiftY, scale, dockedSide } = useParallax3d(paused, isAssetsMenuHovered, forcedDock, tiltEnabled);
+  const { rotateX, rotateY, shiftX, shiftY, scale, dockedSide } = useParallax3d(paused, isAssetsMenuHovered, forcedDock);
   useEffect(() => {
     if (IS_CARD) reportCardDock(dockedSide);
   }, [dockedSide]);
