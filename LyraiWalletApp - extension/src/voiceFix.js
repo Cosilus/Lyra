@@ -67,7 +67,107 @@ function nearTicker(word, symbols) {
     if (Math.abs(S.length - w.length) > 1) return false;
     return lev(S, w) === 1 && (S.includes(w) || w.length >= 3 || S[0] === w[0] || S.endsWith(w));
   });
-  return close[0] || null; // symbols come held-first, so the one the user owns wins a tie
+  if (close[0]) return close[0]; // symbols come held-first, so the one the user owns wins a tie
+  // by sound: spelled letters that rhyme ("bee, see, dee, ee, gee, pee, tee,
+  // vee, zee", "bé, cé, dé, pé, té, vé") are easy to mix up, so "USB" can be
+  // USDT. Compared on that sound, without a trailing digit (USDT0 -> USDT).
+  const key = (x) => x.toUpperCase().replace(/[^A-Z]/g, "").replace(/[BCDEGPTVZ]/g, "E");
+  const wk = key(w);
+  if (wk.length < 2 || !/^[A-Z]{2,5}$/.test(word)) return null; // only words heard as capitals
+  const bySound = symbols.filter(s => {
+    const sk = key(s.replace(/\d+$/, ""));
+    return sk[0] === wk[0] && sk !== wk && lev(sk, wk) <= 1 && Math.abs(sk.length - wk.length) <= 1;
+  });
+  return bySound[0] || null;
+}
+
+// ---- numbers said as words -> digits, so Lyra reads them as amounts ----
+const UNITS = {
+  zero: 0, "zéro": 0, cero: 0, um: 1, uma: 1, one: 1, un: 1, une: 1, uno: 1, una: 1, eins: 1, ein: 1, eine: 1,
+  two: 2, deux: 2, dos: 2, due: 2, zwei: 2, dois: 2, duas: 2,
+  three: 3, trois: 3, tres: 3, "três": 3, tre: 3, drei: 3,
+  four: 4, quatre: 4, cuatro: 4, quattro: 4, vier: 4, quatro: 4,
+  five: 5, cinq: 5, cinco: 5, cinque: 5, "fünf": 5,
+  six: 6, seis: 6, sei: 6, sechs: 6,
+  seven: 7, sept: 7, siete: 7, sette: 7, sieben: 7, sete: 7,
+  eight: 8, huit: 8, ocho: 8, otto: 8, acht: 8, oito: 8,
+  nine: 9, neuf: 9, nueve: 9, nove: 9, neun: 9,
+  ten: 10, dix: 10, diez: 10, dieci: 10, zehn: 10, dez: 10,
+  eleven: 11, onze: 11, once: 11, undici: 11, elf: 11,
+  twelve: 12, douze: 12, doce: 12, dodici: 12, "zwölf": 12,
+  thirteen: 13, treize: 13, fourteen: 14, quatorze: 14, fifteen: 15, quinze: 15, sixteen: 16, seize: 16,
+  seventeen: 17, eighteen: 18, nineteen: 19,
+  twenty: 20, vingt: 20, veinte: 20, venti: 20, zwanzig: 20, vinte: 20,
+  thirty: 30, trente: 30, treinta: 30, trenta: 30, "dreißig": 30, trinta: 30,
+  forty: 40, quarante: 40, cuarenta: 40, quaranta: 40, vierzig: 40, quarenta: 40,
+  fifty: 50, cinquante: 50, cincuenta: 50, cinquanta: 50, "fünfzig": 50, cinquenta: 50,
+  sixty: 60, soixante: 60, sesenta: 60, sessanta: 60, sechzig: 60, sessenta: 60,
+  seventy: 70, septante: 70, eighty: 80, huitante: 80, ninety: 90, nonante: 90,
+};
+const HUNDRED = new Set(["hundred", "cent", "cents", "cien", "ciento", "cento", "hundert", "cem"]);
+const THOUSAND = new Set(["thousand", "mille", "mil", "mila", "tausend"]);
+const DECIMAL = new Set(["point", "virgule", "comma", "coma", "virgola", "komma", "vírgula", "virgula"]);
+const JOIN = new Set(["et", "and", "y", "e", "und"]);
+// "un", "one"... are also articles: they count only right before a ticker
+const AMBIGUOUS = new Set(["un", "une", "one", "uno", "una", "um", "uma", "ein", "eine", "eins"]);
+
+const low = (w) => strip(w || "").toLowerCase().replace(/[^a-zß\-]/g, "");
+const unitOf = (w) => UNITS[low(w)] ?? UNITS[(w || "").toLowerCase().replace(/[^\p{L}]/gu, "")];
+
+// number words from i on ("vingt et un", "cent cinquante", "twenty-five",
+// "zéro virgule cinq"); returns { value, end } or null
+function numberRun(words, i) {
+  let total = 0, current = 0, end = i, any = false;
+  for (let j = i; j < words.length; j++) {
+    const parts = (words[j] || "").toLowerCase().replace(/[^\p{L}\-]/gu, "").split("-").filter(Boolean);
+    if (!parts.length) break;
+    let ok = true, local = 0;
+    for (const p of parts) {
+      const u = UNITS[p] ?? UNITS[strip(p)];
+      if (u !== undefined) local += u;
+      else if (HUNDRED.has(p)) { current = ((current + local) || 1) * 100; local = 0; }
+      else if (THOUSAND.has(p)) { total += ((current + local) || 1) * 1000; current = 0; local = 0; }
+      else if (JOIN.has(p) && any) continue;
+      else { ok = false; break; }
+    }
+    if (!ok) {
+      if (any && JOIN.has(low(words[j])) && unitOf(words[j + 1]) !== undefined) continue; // "vingt et un"
+      break;
+    }
+    current += local;
+    any = true;
+    end = j + 1;
+  }
+  if (!any) return null;
+  let value = String(total + current);
+  if (DECIMAL.has(low(words[end])) && unitOf(words[end + 1]) !== undefined && unitOf(words[end + 1]) < 10) {
+    let digits = "", k = end + 1;
+    while (k < words.length && unitOf(words[k]) !== undefined && unitOf(words[k]) < 10) { digits += unitOf(words[k]); k++; }
+    value += "." + digits;
+    end = k;
+  }
+  return { value, end };
+}
+
+function wordsToDigits(text, symbols) {
+  const words = text.split(" ");
+  const isTicker = (w) => !!w && symbols.some(s => s.toUpperCase() === w.replace(/[^\p{L}\p{N}]/gu, "").toUpperCase());
+  const out = [];
+  for (let i = 0; i < words.length; i++) {
+    // "1,5 XPL" in French: a decimal comma
+    if (/^\d+,\d+$/.test(words[i]) && isTicker(words[i + 1])) { out.push(words[i].replace(",", ".")); continue; }
+    const run = numberRun(words, i);
+    if (!run) { out.push(words[i]); continue; }
+    if (run.end === i + 1 && AMBIGUOUS.has(low(words[i])) && !isTicker(words[i + 1])) { out.push(words[i]); continue; }
+    const tail = words[run.end - 1].replace(/^[\p{L}\p{N}\-]+/u, ""); // a trailing comma or period stays
+    out.push(run.value + tail);
+    i = run.end - 1;
+  }
+  // "swap 1 XPL USDT0": the "to" / "en" between two tickers was lost
+  for (let i = out.length - 2; i >= 0; i--) {
+    if (isTicker(out[i]) && isTicker(out[i + 1]) && /^[\p{L}\p{N}]+$/u.test(out[i])) out.splice(i + 1, 0, "to");
+  }
+  return out.join(" ");
 }
 
 /**
@@ -126,6 +226,6 @@ export function fixTranscript(text, { symbols = [], contacts = [] } = {}) {
     }
     out.push(w);
   }
-  // rebuild with single spaces where words were merged, original spacing otherwise
-  return out.join(" ").replace(/\s+/g, " ").trim();
+  // rebuild with single spaces where words were merged, then amounts as digits
+  return wordsToDigits(out.join(" ").replace(/\s+/g, " ").trim(), symbols);
 }
