@@ -68,3 +68,42 @@ export async function sendLedgerBatch({ provider, ledgerAddress, path, calls, on
   tx.signature = sig(signed);
   return provider.broadcastTransaction(tx.serialized);
 }
+
+// The same one-transaction plan, signed with the wallet's own key. Everything
+// that takes time (routes, quotes, nonce, fees, gas) is read ahead, while the
+// plan is on screen; confirming only signs and broadcasts. The first plan on a
+// network also carries the delegation (signed by that same key, no setup step).
+export async function prepareOwnBatch({ provider, address, calls }) {
+  const data = encodeBatch(calls);
+  const [{ chainId }, nonce, fee, delegated] = await Promise.all([
+    provider.getNetwork(),
+    provider.getTransactionCount(address, "pending"),
+    provider.getFeeData(),
+    isDelegated(provider, address),
+  ]);
+  // before the delegation the address has no code: gas is estimated with it, at signing
+  const gas = delegated ? await provider.estimateGas({ from: address, to: address, data }) : null;
+  return { address, data, chainId, nonce, fee, delegated, gas, at: Date.now() };
+}
+
+export async function sendOwnBatch({ wallet, prepared }) {
+  const { address, data, chainId, nonce, fee, delegated } = prepared;
+  // sender and authority are the same address: the authorization takes the next nonce
+  const authorizationList = delegated ? undefined
+    : [await wallet.authorize({ address: BATCH_DELEGATOR, nonce: nonce + 1, chainId })];
+  const gas = prepared.gas ?? await wallet.provider.estimateGas({ from: address, to: address, data, authorizationList });
+  const maxFee = fee.maxFeePerGas ?? fee.gasPrice;
+  return wallet.sendTransaction({
+    type: delegated ? 2 : 4,
+    chainId,
+    nonce,
+    to: address,
+    data,
+    value: 0n,
+    gasLimit: (gas * 13n) / 10n,
+    // room for the base fee moving since it was read; only what is used is paid
+    maxFeePerGas: (maxFee * 3n) / 2n,
+    maxPriorityFeePerGas: fee.maxPriorityFeePerGas ?? 0n,
+    ...(authorizationList ? { authorizationList } : {}),
+  });
+}

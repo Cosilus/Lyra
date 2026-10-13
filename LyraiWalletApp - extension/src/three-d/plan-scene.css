@@ -33,9 +33,7 @@
 /* (visibility, not opacity: framer-motion sets an inline opacity on them) */
 .plan-sheet.scene-playing .plan-card,
 .plan-sheet.scene-playing .plan-sheet-request { visibility: hidden; pointer-events: none; }
-.plan-sheet.has-scene:not(.scene-playing) .plan-card { animation: ps3d-in 0.65s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.plan-sheet.has-scene:not(.scene-playing) .plan-sheet-request { animation: ps3d-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
-@keyframes ps3d-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+/* the recap's fade-in is run by the scene itself (PlanScene3D.jsx) */
 
 /* the recap: its boxes come closer under the pointer (PlanScene3D.jsx) */
 .plan-sheet.has-scene .plan-sheet-content { perspective: 900px; }
