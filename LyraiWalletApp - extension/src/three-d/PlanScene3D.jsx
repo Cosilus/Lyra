@@ -257,6 +257,8 @@ export function PlanScene3D({ request, steps: liveSteps, ready, settled, leaving
         }
         await checkStep(i, true);
       }
+      // the last step stays on screen a moment, checked, before the recap
+      await sleep(800);
       s.settling = true;
       stepBack();
       for (const it of s.items) it.el.animate([{ opacity: pose(it.slot).opacity }, { opacity: 0 }], { duration: 650, delay: 250, fill: "forwards" });
@@ -296,6 +298,9 @@ export function PlanScene3D({ request, steps: liveSteps, ready, settled, leaving
     return () => { sheet.removeEventListener("pointermove", onMove); sheet.removeEventListener("pointerleave", onLeave); reset(current); };
   }, []);
 
+  // what the boxes show: the plan Lyra made once it is there (real amounts,
+  // "≈ 0.0802 USDT0" instead of "… USDT"), the words of the request before
+  const shown = steps.map((st, i) => (liveSteps?.length === steps.length && liveSteps[i] ? liveSteps[i] : st));
   const words = requestWords(request);
   return (
     <div className="ps3d" ref={rootRef} aria-hidden="true">
@@ -308,7 +313,7 @@ export function PlanScene3D({ request, steps: liveSteps, ready, settled, leaving
               return <span key={i} className={`ps3d-w${cls}`}>{w}{i < words.length - 1 ? " " : ""}</span>;
             })}
           </div>
-          {steps.map((step, i) => (
+          {shown.map((step, i) => (
             <div key={i} data-i={i} className="ps3d-item ps3d-step plan-step is-active">
               <span className="plan-step-icon">
                 <StepIcon kind={step.kind} />

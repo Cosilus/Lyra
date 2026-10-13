@@ -1249,7 +1249,11 @@ export default function App() {
   const [planScene, setPlanScene] = useState(null);
   const [planSceneSettled, setPlanSceneSettled] = useState(false);
   const [plan3dPref, setPlan3dPref] = useState(plan3dEnabled);
-  const [planRequest, setPlanRequest] = useState("");   // the sentence the plan answers, shown at the top of the plan sheet
+  const [planRequest, setPlanRequest] = useState("");
+  // a request held back because it sends to a name that isn't a contact yet:
+  // Lyra asked for that address, the request runs again once it is saved
+  const [pendingContact, setPendingContact] = useState(null); // { name, text }
+  const handleIntentRef = useRef(null);   // the sentence the plan answers, shown at the top of the plan sheet
   const planStartedAtRef = useRef(0);                   // when that request was sent: picks its own work log
   const planMsgStartRef = useRef(0);                    // chat length before that request: what the request box replaces
   // The plan simulated before confirming (planSimulation.js + the server's
@@ -6240,13 +6244,21 @@ const signer = new ethers.Wallet(
     let aiDone = false;
     // lets the server report what it is doing, see activityFollowServer
     const progressId = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    let aiBody = null; // kept to ask again if Lyra plans only part of the request
+    // the actions the sentence holds, read here word by word: when there are
+    // several, Lyra is told up front so that none of them gets left out
+    const localPlan = parseAskLyra(text, { tokenSymbols: [activeNetwork.nativeSymbol, ...Object.keys(tokens)], contacts, networks: NETWORKS }).steps;
+    const describeStep = (st) => [st.kind, st.amount, st.asset, st.toAsset ? `to ${st.toAsset}` : "", st.recipient ? `to ${st.recipient}` : "", st.network ? `to ${st.network}` : ""].filter(Boolean).join(" ");
+    const planHint = localPlan.length >= 2
+      ? `\n\n(This request has ${localPlan.length} separate actions: ${localPlan.map(describeStep).join("; ")}. Plan ALL of them as one MULTI_ACTION, in this order. If a recipient or a detail is unknown, ask about it instead of leaving that action out.)`
+      : "";
     const aiRequest = fetch(`${API_BASE_URL}/api/ai`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-      message: text,
+      body: JSON.stringify(aiBody = {
+      message: text + planHint,
       walletAddress: wallet?.address || null,
       balance: fmtXpl(balance),
       // a finished plan's box goes back to Lyra as the request it was
@@ -6285,10 +6297,38 @@ const signer = new ethers.Wallet(
 
     await activityPreflight(text, readingStarted, () => aiDone, progressId);
 
-    const { ok: aiOk, data } = await aiRequest;
+    let { ok: aiOk, data } = await aiRequest;
 
     if (!aiOk) {
       throw new Error(data.error || "AI error.");
+    }
+
+    // Never half a request: when the sentence holds several actions (read
+    // here, word by word) but Lyra answers with a single one, ask once more
+    // for the whole plan; if it still drops a part, nothing is prepared and
+    // the user is told, instead of a ticket that silently skips an action.
+    {
+      const SINGLE = ["SEND_XPL", "SWAP_XPL", "BRIDGE_XPL", "STAKE_XPL", "UNSTAKE_XPL"];
+      const local = localPlan;
+      const describe = describeStep;
+      if (local.length >= 2 && SINGLE.includes(data.intent)) {
+        activityStep("Planning every step", `${local.length} actions`);
+        const hint = `${text}${planHint} Your previous answer planned only one of them: plan them all.`;
+        try {
+          const again = await fetch(`${API_BASE_URL}/api/ai`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...aiBody, message: hint, progressId: undefined }),
+          }).then(async (r) => ({ ok: r.ok, data: await r.json() }));
+          if (again.ok) data = again.data;
+        } catch { /* the check below decides */ }
+        if (SINGLE.includes(data.intent)) {
+          data = {
+            intent: "CHAT",
+            message: `I could only work out part of this (${local.length} actions: ${local.map(describe).join("; ")}), so I didn't prepare anything. Try again with each action spelled out, or send them one at a time.`,
+          };
+        }
+      }
     }
 
     {
@@ -7474,8 +7514,30 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
   }
 }
 
+  // a contact saved from Ask Lyra (the "Save as" chip, or the address Lyra
+  // asked for): when a request was waiting for it, it runs now
+  function saveContactFromChat(name, address) {
+    const clean = ethers.getAddress(address.trim());
+    addContact(name, clean);
+    setContacts(loadContacts());
+    const waiting = pendingContact && pendingContact.name.toLowerCase() === name.toLowerCase() ? pendingContact : null;
+    setMessages(m => [...m, { role: "ai", text: `Saved ${name} as a contact (${clean.slice(0, 6)}…${clean.slice(-4)}).${waiting ? " Preparing your request now." : ""}` }]);
+    if (waiting) {
+      setPendingContact(null);
+      // the latest handleIntent (this one sees the state from before the save)
+      setTimeout(() => handleIntentRef.current?.(waiting.text), 60);
+    }
+  }
+
+  handleIntentRef.current = handleIntent;
   async function handleIntent(text) {
   if (!text.trim()) return;
+  // the address Lyra asked for, pasted on its own: save it, then go on
+  if (pendingContact && /^\s*0x[0-9a-fA-F]{40}\s*$/.test(text)) {
+    setMessages(m => [...m, { role: "user", text: text.trim() }]);
+    saveContactFromChat(pendingContact.name, text);
+    return;
+  }
   try {
     const box = document.querySelector(".frame .ask-box");
     const frameEl = box?.closest(".frame");
@@ -7499,11 +7561,29 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
     }
   } catch { askOriginRef.current = null; }
 
+  const savedContacts = loadContacts(); // fresh: a contact may have just been added
   const { steps } = parseAskLyra(text, {
     tokenSymbols: [activeNetwork.nativeSymbol, ...Object.keys(tokens)],
-    contacts,
+    contacts: savedContacts,
     networks: NETWORKS,
   });
+  // Sending to a name that isn't a contact ("to mom", "to P1"): nothing is
+  // prepared; Lyra asks for the address, saves the contact, then runs this again.
+  {
+    const unknown = steps.find(st => st.kind === "send" && st.recipient && !ethers.isAddress(st.recipient)
+      && !/\./.test(st.recipient) // name services (alice.eth) are resolved elsewhere
+      && !savedContacts.some(c => c.name.toLowerCase() === st.recipient.toLowerCase()));
+    if (unknown) {
+      const name = unknown.recipient;
+      setPendingContact({ name, text: text.trim() });
+      setMessages(m => [...m,
+        { role: "user", text: text.trim() },
+        { role: "ai", text: `I don't know "${name}" yet, so I haven't prepared anything. Paste ${name}'s address in Ask Lyra: I'll save ${name} as a contact and send to that address.` },
+      ]);
+      return;
+    }
+  }
+  setPendingContact(null);
   setPlanBanner(null);
   setPendingPlan(steps.length ? { steps } : null);
   setPlanScene(steps.length >= 2 && plan3dEnabled() ? { id: Date.now() } : null);
@@ -7754,7 +7834,11 @@ function handleHoldEnd() {
         return `${n}${st.ticket.summary || st.ticket.riskReason || "Lyra can't run this step here yet."}`;
       }
       if (st.kind === "send") {
-        if (!st.recipient || !ethers.isAddress(st.recipient)) return `${n}the recipient isn't a valid address.`;
+        if (!st.recipient || !ethers.isAddress(st.recipient)) {
+          return st.contactName && !st.recipient
+            ? `${n}"${st.contactName}" isn't in your contacts: add them, or use their address.`
+            : `${n}the recipient isn't a valid address.`;
+        }
         if (!known) return `${n}${asset} isn't supported on ${net}.`;
       } else if (st.kind === "swap") {
         if (activeNetworkKey === "arc") {
@@ -8555,6 +8639,8 @@ function handleHoldEnd() {
                 protocolLabel={protocolLabel}
                 language={lyraLanguage}
                 onLanguageChange={changeLyraLanguage}
+                pendingContactName={pendingContact?.name || null}
+                onSaveContact={saveContactFromChat}
               />
             )}
 

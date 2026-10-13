@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MousePointer2, Mic, Globe, Check, Square } from "lucide-react";
+import { MousePointer2, Mic, Globe, Check, Square, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
 import { drawIdeas } from "./askLyraIdeas.js";
 import { LYRA_LANGUAGES, speechLangFor } from "./lyraLanguages.js";
@@ -100,7 +100,24 @@ function StepPreview({ step, index, previous, via }) {
   );
 }
 
-export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols, contacts, networks, suggestions = [], protocolLabel, language = "auto", onLanguageChange }) {
+export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols, contacts, networks, suggestions = [], protocolLabel, language = "auto", onLanguageChange, pendingContactName = null, onSaveContact }) {
+  // a 0x address typed or pasted that isn't a contact yet: "Save as contact"
+  const newAddress = (() => {
+    const a = String(value || "").match(/0x[0-9a-fA-F]{40}/)?.[0];
+    if (!a || (contacts || []).some(c => String(c.address || "").toLowerCase() === a.toLowerCase())) return null;
+    return a;
+  })();
+  const [naming, setNaming] = useState(false);
+  const [contactName, setContactName] = useState("");
+  function saveContact(name) {
+    const n = String(name || "").trim();
+    if (!n || !newAddress) return;
+    onSaveContact?.(n, newAddress);
+    setNaming(false);
+    setContactName("");
+    // the address was only there to be saved: the box is free again
+    if (/^\s*0x[0-9a-fA-F]{40}\s*$/.test(value)) onChange("");
+  }
   const [focused, setFocused] = useState(false);
   // three ideas from the deck, drawn again each time the box gets focus
   const [ideas, setIdeas] = useState({ id: 0, list: [] });
@@ -222,6 +239,34 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
               </>
             )}
           </div>
+          )}
+          {!voice.listening && newAddress && onSaveContact && (
+            naming ? (
+              <span className="ask-save-contact is-naming">
+                <input
+                  autoFocus
+                  value={contactName}
+                  placeholder="Name"
+                  onChange={e => setContactName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); saveContact(contactName); }
+                    if (e.key === "Escape") setNaming(false);
+                  }}
+                  aria-label="Contact name"
+                />
+                <button type="button" onClick={() => saveContact(contactName)} disabled={!contactName.trim()} aria-label="Save contact"><Check size={13} strokeWidth={2.4} /></button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="ask-save-contact"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => (pendingContactName ? saveContact(pendingContactName) : setNaming(true))}
+              >
+                <UserPlus size={13} strokeWidth={1.9} />
+                <span>{pendingContactName ? `Save as ${pendingContactName}` : "Save as contact"}</span>
+              </button>
+            )
           )}
           {!voice.listening && <span className="ask-hint">{voice.voiceNote}</span>}
           {voice.supported && (

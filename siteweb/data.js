@@ -167,6 +167,11 @@ window.SITE = {
     "text": "Encrypted locally on your device. Lyra never has access to it, unlocked or not."
    },
    {
+    "title": "Hardware wallets",
+    "text": "Plug in a Ledger (Nano S Plus, Nano X, Stax, Flex) over USB from Chrome: the key never leaves the device, and a whole plan is approved once, on the Ledger itself. Trezor support is on the way.",
+    "check": "Ledger compatible"
+   },
+   {
     "title": "It never signs itself",
     "text": "Every action, including withdrawing from staking, waits for your confirmation."
    },
@@ -237,6 +242,10 @@ window.SITE = {
      {
       "q": "Does Lyra ever have access to my private key?",
       "a": "No, never. Your key is encrypted and stored locally on your device. Lyra can propose transactions, but it has no path to your key, unlocked or not."
+     },
+     {
+      "q": "Can I use a hardware wallet like Ledger or Trezor?",
+      "a": "Yes with Ledger: Nano S Plus, Nano X, Stax and Flex connect over USB from Chrome on a computer. Your key never leaves the Ledger, every transaction is approved on the device, and a plan of several steps is approved once. Trezor support is on the way. On phones, hardware wallets aren't supported yet."
      },
      {
       "q": "Is Lyra custodial? Does it ever hold my funds?",
