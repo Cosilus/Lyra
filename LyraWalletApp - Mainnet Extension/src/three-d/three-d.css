@@ -160,6 +160,10 @@
   transform: translateX(-50%) translateY(-14px) scale(0.94);
   transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
 }
+/* Closing: the menu drops behind the wallet at once (z-index changes instantly,
+   the fade runs on): no piece of it left over the wallet while the wallet
+   comes back up. */
+.d3-assets-menu:not(.d3-assets-menu--show) { z-index: 0; }
 .d3-assets-menu--show {
   opacity: 1;
   pointer-events: auto;

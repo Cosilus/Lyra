@@ -32,6 +32,8 @@ const envOrigin = (name) => {
 };
 const hosts = [...new Set([
   apiOrigin,
+  // the native coin price when Lyra's server can't be reached
+  "https://api.coingecko.com",
   "https://rpc.plasma.to",
   envOrigin("VITE_ETH_RPC_URL") || "https://ethereum-rpc.publicnode.com",
   envOrigin("VITE_BASE_RPC_URL") || "https://mainnet.base.org",

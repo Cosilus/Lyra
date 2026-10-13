@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Lyra Wallet (Testnet)",
   "short_name": "Lyra",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Lyra, the wallet you just talk to. Testnet build: test coins only.",
   "icons": {
     "16": "icons/icon-16.png",

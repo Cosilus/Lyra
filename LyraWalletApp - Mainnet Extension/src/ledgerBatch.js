@@ -16,9 +16,19 @@ export async function batchSupported(provider) {
   try { return (await provider.getCode(BATCH_DELEGATOR)) !== "0x"; } catch { return false; }
 }
 
+const OUR_DELEGATION = ("0xef0100" + BATCH_DELEGATOR.slice(2)).toLowerCase();
+
 export async function isDelegated(provider, address) {
   const code = await provider.getCode(address);
-  return code.toLowerCase() === ("0xef0100" + BATCH_DELEGATOR.slice(2)).toLowerCase();
+  return code.toLowerCase() === OUR_DELEGATION;
+}
+
+// What an address is on this network: "none" (a plain address), "lyra"
+// (delegated to the batch contract above) or "other" (delegated elsewhere).
+export async function delegationOf(provider, address) {
+  const code = (await provider.getCode(address)).toLowerCase();
+  if (code === "0x") return "none";
+  return code === OUR_DELEGATION ? "lyra" : "other";
 }
 
 export function encodeBatch(calls) {
@@ -75,12 +85,15 @@ export async function sendLedgerBatch({ provider, ledgerAddress, path, calls, on
 // network also carries the delegation (signed by that same key, no setup step).
 export async function prepareOwnBatch({ provider, address, calls }) {
   const data = encodeBatch(calls);
-  const [{ chainId }, nonce, fee, delegated] = await Promise.all([
+  const [{ chainId }, nonce, fee, code] = await Promise.all([
     provider.getNetwork(),
     provider.getTransactionCount(address, "pending"),
     provider.getFeeData(),
-    isDelegated(provider, address),
+    provider.getCode(address),
   ]);
+  const delegated = code.toLowerCase() === OUR_DELEGATION;
+  // delegated to some other contract (another wallet's): never call it, never replace it here
+  if (code !== "0x" && !delegated) return { foreign: true, at: Date.now() };
   // before the delegation the address has no code: gas is estimated with it, at signing
   const gas = delegated ? await provider.estimateGas({ from: address, to: address, data }) : null;
   return { address, data, chainId, nonce, fee, delegated, gas, at: Date.now() };
@@ -106,4 +119,29 @@ export async function sendOwnBatch({ wallet, prepared }) {
     maxPriorityFeePerGas: fee.maxPriorityFeePerGas ?? 0n,
     ...(authorizationList ? { authorizationList } : {}),
   });
+}
+
+// Removes the delegation: the address becomes a plain address again (an
+// authorization to the zero address, signed by its own key and sent by itself).
+export async function removeOwnDelegation(wallet) {
+  const provider = wallet.provider;
+  const address = await wallet.getAddress();
+  const [{ chainId }, nonce, fee] = await Promise.all([
+    provider.getNetwork(),
+    provider.getTransactionCount(address, "pending"),
+    provider.getFeeData(),
+  ]);
+  const authorizationList = [await wallet.authorize({ address: ethers.ZeroAddress, nonce: nonce + 1, chainId })];
+  const gas = await provider.estimateGas({ from: address, to: address, data: "0x", authorizationList }).catch(() => 80000n);
+  const maxFee = fee.maxFeePerGas ?? fee.gasPrice;
+  const tx = await wallet.sendTransaction({
+    type: 4, chainId, nonce, to: address, data: "0x", value: 0n,
+    gasLimit: (gas * 13n) / 10n,
+    maxFeePerGas: (maxFee * 3n) / 2n,
+    maxPriorityFeePerGas: fee.maxPriorityFeePerGas ?? 0n,
+    authorizationList,
+  });
+  await tx.wait();
+  if ((await provider.getCode(address)) !== "0x") throw new Error("The delegation is still there. Try again in a moment.");
+  return tx;
 }

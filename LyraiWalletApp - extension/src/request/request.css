@@ -50,6 +50,8 @@ body { margin: 0; }
 .rq-badge-low { color: var(--success); background: rgba(185, 227, 176, 0.12); }
 .rq-badge-medium { color: #EBD6A3; background: rgba(235, 214, 163, 0.12); }
 .rq-badge-high { color: var(--danger); background: rgba(242, 160, 160, 0.14); }
+.rq-risk-blocked { border-color: rgba(242, 120, 120, 0.7); }
+.rq-badge-blocked { color: var(--danger); background: rgba(242, 120, 120, 0.2); }
 
 .rq-warnings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .rq-warnings li {

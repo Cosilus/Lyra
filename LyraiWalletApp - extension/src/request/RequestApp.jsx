@@ -8,7 +8,7 @@ import { ethers } from "ethers";
 import { ShieldCheck, ShieldAlert, AlertTriangle, Lock, Eye, EyeOff, Loader2, Globe, Check, X } from "lucide-react";
 import { NETWORKS, DEFAULT_NETWORK, ERC20_ABI } from "../config";
 import { loadSavedWallet, decryptPrivateKey, reconstructPrivateKey } from "../walletVault.js";
-import { translateRequest, shortAddress } from "../signTranslator.js";
+import { translateRequest, shortAddress, forbiddenSignature } from "../signTranslator.js";
 import Logo3D from "../three-d/Logo3D.jsx";
 
 const requestId = new URLSearchParams(window.location.search).get("id");
@@ -17,6 +17,7 @@ const RISK = {
   low: { label: "Safe", Icon: ShieldCheck },
   medium: { label: "Check the details", Icon: ShieldAlert },
   high: { label: "Be careful", Icon: AlertTriangle },
+  blocked: { label: "Blocked by Lyra", Icon: AlertTriangle },
 };
 
 function send(message) {
@@ -126,6 +127,9 @@ export default function RequestApp() {
     }
     setBusy(true);
     try {
+      // checked again here, whatever the screen showed
+      const forbidden = forbiddenSignature(req.method, req.params);
+      if (forbidden) throw new Error(forbidden);
       const named = requestedAddress(req.method, req.params);
       if (named && ethers.isAddress(named) && ethers.getAddress(named) !== ethers.getAddress(saved.address)) {
         throw new Error("This request is for a different wallet address.");
@@ -261,7 +265,7 @@ export default function RequestApp() {
 
       <div className="rq-actions">
         <button type="button" className="rq-secondary" onClick={reject} disabled={busy}><X size={16} /> Reject</button>
-        <button type="button" className={`rq-primary${risk === "high" ? " rq-primary-danger" : ""}`} onClick={approve} disabled={busy || (!isConnect && !translation)}>
+        <button type="button" className={`rq-primary${risk === "high" ? " rq-primary-danger" : ""}`} onClick={approve} disabled={busy || (!isConnect && !translation) || translation?.risk === "blocked"}>
           {busy ? <Loader2 className="spin" size={16} /> : <Check size={16} />}
           {isConnect ? "Connect" : req.method === "eth_sendTransaction" ? "Confirm" : "Sign"}
         </button>
