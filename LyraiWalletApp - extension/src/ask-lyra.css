@@ -276,3 +276,6 @@
 @media (prefers-reduced-motion: reduce) {
   .ask-step, .ask-step-value, .ask-skel, .ask-spark, .ask-lyra.is-busy .ask-send, .ask-wave-dot { animation: none; }
 }
+/* the amount never gets cut: only the target (a long name) shrinks */
+.ask-step-line > .ask-step-value:first-child, .ask-step-arrow { flex: 0 0 auto; }
+.ask-step-line > .ask-step-value:last-child { flex: 0 1 auto; min-width: 0; }

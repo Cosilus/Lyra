@@ -5,9 +5,11 @@ import "./styles.css";
 import { startCardBridge, startCloseShortcut } from "./cardBridge.js";
 import { syncNetworks } from "./providerSync.js";
 import { startTooltips } from "./tooltips.js";
+import { startMenuMorph } from "./menuMorph.js";
 
 startCardBridge();
 startTooltips();
+startMenuMorph();
 startCloseShortcut();
 syncNetworks();
 

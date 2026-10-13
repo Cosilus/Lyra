@@ -4653,3 +4653,149 @@ a.stake-pos:hover .stake-pos-link { color: var(--beige); }
 .lsetup-why { display: flex; gap: 6px; align-items: flex-start; margin: 0 0 12px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
 .lsetup-why svg { flex: 0 0 auto; margin-top: 1px; }
 .lsetup-done { width: 100%; }
+
+/* ================================
+   Fields and secondary buttons, one family (computer and phone), in the
+   shadcn/ui way: flat, crisp, 8px corners, one border colour for every field
+   (a faint pearl), and when focused a soft ring of that same pearl instead
+   of a new colour. Buttons:
+   - primary: solid pearl (Save...), the big main ones keep their own look;
+   - outline: the pearl border, transparent, lighter on hover (Export /
+     Import, Use Biometrics, Add contact, Cancel, close);
+   - tabs: a muted track with the active one raised.
+================================ */
+:root {
+  --input-border: rgba(var(--beige-rgb), 0.13);
+  --input-border-hover: rgba(var(--beige-rgb), 0.2);
+  --input-bg: rgba(var(--beige-rgb), 0.03);
+  /* focused: a soft violet glow fading out around the box (the border stays one colour) */
+  --input-ring: 0 0 0 3px rgba(var(--accent-rgb), 0.12), 0 0 22px -2px rgba(var(--accent-rgb), 0.35);
+  --btn-hover-bg: rgba(var(--beige-rgb), 0.07);
+  --btn-radius: 8px;
+}
+
+/* fields */
+.unlock-password-field,
+.password-field input,
+.ticket input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.modal-card input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.modal-card textarea,
+.contact-input, .contact-name-input, .acct-input, .mpc-limit-input,
+.seed-verification-row input, .seed-input-cell, .contacts-search {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  box-shadow: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.unlock-password-field:hover, .contacts-search:hover,
+.password-field input:hover, .modal-card textarea:hover,
+.modal-card input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover,
+.contact-input:hover, .acct-input:hover { border-color: var(--input-border-hover); }
+.unlock-password-field:focus-within,
+.password-field input:focus,
+.ticket input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.modal-card input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.modal-card textarea:focus,
+.contact-input:focus, .contact-name-input:focus, .acct-input:focus, .mpc-limit-input:focus,
+.seed-verification-row input:focus, .seed-input-cell:focus-within, .contacts-search:focus-within {
+  border-color: rgba(var(--beige-rgb), 0.28);
+  box-shadow: var(--input-ring);
+}
+.password-field input,
+.ticket input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.modal-card input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.contact-input, .acct-input { height: 40px; border-radius: var(--btn-radius); padding: 0 12px; font-size: 13.5px; }
+.modal-card textarea { border-radius: var(--btn-radius); padding: 10px 12px; }
+.password-field input::placeholder,
+.modal-card input::placeholder, .modal-card textarea::placeholder,
+.contact-input::placeholder, .acct-input::placeholder,
+.contacts-search input::placeholder { color: rgba(var(--beige-rgb), 0.38); }
+.contact-input { margin-bottom: 8px; }
+
+/* the unlock field: the same, a bit taller, the lock and eye quiet */
+.unlock-password-field { min-height: 46px; padding: 0 6px 0 14px; gap: 10px; border-radius: 10px; }
+.unlock-password-field input { font-size: 14px; }
+.unlock-password-field input[type="password"]:not(:placeholder-shown) { letter-spacing: 0.16em; }
+.unlock-password-field input::placeholder { color: rgba(var(--beige-rgb), 0.38); letter-spacing: normal; }
+.unlock-password-icon { color: rgba(var(--beige-rgb), 0.45); }
+.unlock-password-eye { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 6px; color: rgba(var(--beige-rgb), 0.5); }
+.unlock-password-eye:hover { color: var(--beige); background: var(--btn-hover-bg); }
+
+/* search pill */
+.contacts-search { height: 36px; padding: 0 12px; border-radius: var(--btn-radius); color: rgba(var(--beige-rgb), 0.5); }
+.contacts-search:focus-within { width: 168px; }
+
+/* outline buttons */
+.biometric-outline-btn,
+.contacts-io-button,
+.add-contact-button,
+.multisig-btn-secondary,
+.faq-foot-btn--ghost,
+.contact-cancel,
+.contacts-close {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--btn-radius);
+  background: transparent;
+  color: var(--beige);
+  font-weight: 500;
+  box-shadow: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.biometric-outline-btn:hover:not(:disabled),
+.contacts-io-button:hover:not(:disabled),
+.add-contact-button:hover,
+.multisig-btn-secondary:hover:not(:disabled),
+.faq-foot-btn--ghost:hover,
+.contact-cancel:hover,
+.contacts-close:hover { background: var(--btn-hover-bg); border-color: var(--input-border-hover); color: var(--beige); }
+.biometric-outline-btn:focus-visible, .contacts-io-button:focus-visible, .add-contact-button:focus-visible,
+.contact-cancel:focus-visible, .contact-save:focus-visible, .contacts-close:focus-visible { outline: none; box-shadow: var(--input-ring); }
+/* the same glow while an outline button is pressed */
+:is(.biometric-outline-btn, .contacts-io-button, .add-contact-button, .multisig-btn-secondary, .faq-foot-btn--ghost, .contact-cancel, .contacts-close):active:not(:disabled) { box-shadow: var(--input-ring); border-color: rgba(var(--beige-rgb), 0.28); }
+.contacts-io-row { gap: 8px; }
+.contacts-io-button { height: 36px; padding: 0 12px; font-size: 13px; }
+.contacts-io-button svg, .add-contact-button svg { color: rgba(var(--beige-rgb), 0.7); }
+.contacts-io-button:disabled { opacity: 0.45; }
+.contacts-io-button:disabled:hover { background: transparent; border-color: var(--input-border); color: var(--beige); }
+.add-contact-button { height: 40px; font-size: 13.5px; }
+.biometric-outline-btn { min-height: 44px; font-size: 14px; }
+.biometric-outline-btn .fill-btn-icon { color: rgba(var(--beige-rgb), 0.8); }
+.multisig-btn-secondary { border-radius: 10px; }
+.contacts-close { width: 36px; height: 36px; padding: 0; color: rgba(var(--beige-rgb), 0.7); }
+
+/* Save / Cancel: small (sm), side by side */
+.add-contact-actions, .contact-edit-actions { gap: 8px; margin-top: 2px; }
+.contact-save, .contact-cancel { height: 34px; padding: 0 14px; font-size: 13px; }
+.contact-save {
+  border: 1px solid transparent;
+  border-radius: var(--btn-radius);
+  background: #F3EEFA;
+  color: #1A1028;
+  font-weight: 600;
+  box-shadow: none;
+  transition: background 0.15s ease;
+}
+.contact-save:hover { background: rgba(243, 238, 250, 0.9); }
+.contact-save:active, .contact-cancel:active { transform: none; }
+
+/* Create / Import (every .tabs pair): a muted track, the active tab raised */
+.tabs {
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(var(--beige-rgb), 0.06);
+  border: 0;
+}
+.tabs button {
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(var(--beige-rgb), 0.6);
+  font-weight: 500;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.tabs button:hover { color: var(--beige); }
+.tabs button.active { color: var(--beige); background: var(--void); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }

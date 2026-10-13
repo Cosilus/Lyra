@@ -14,6 +14,9 @@ import "./ask-lyra.css";
 // plan is visible before anything is sent. Sending goes through the same
 // handleIntent as before.
 
+// an address (whole, or still being typed) shown short, like everywhere else
+const shortHex = (t) => (typeof t === "string" && /^0x[0-9a-fA-F]{12,}$/.test(t) ? `${t.slice(0, 6)}…${t.slice(-4)}` : t);
+
 const STEP_LABELS = { swap: "Swap", send: "Send", stake: "Stake", unstake: "Withdraw", bridge: "Bridge" };
 
 // While Lyra listens: bars that move with the voice (newest on the right,
@@ -69,7 +72,7 @@ function StepPreview({ step, index, previous, via }) {
     : step.asset || null;
   const target =
     step.kind === "swap" ? step.toAsset
-    : step.kind === "send" ? step.recipient
+    : step.kind === "send" ? shortHex(step.recipient)
     : step.kind === "bridge" ? step.network
     : step.kind === "stake" ? "Staking"
     : step.kind === "unstake" ? "Wallet"

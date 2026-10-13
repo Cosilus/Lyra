@@ -9,6 +9,10 @@ const EASE = [0.65, 0, 0.25, 1];
 const PAD_X = 14; // .plan-sheet-request padding, so the text lines up with the typed one
 const PAD_Y = 11;
 
+// a full 0x address (42 characters, no space to break on) would run out of
+// the bubble: shown short, the request itself keeps the whole address
+const shortAddresses = (t) => String(t || "").replace(/0x[0-9a-fA-F]{40}/g, a => `${a.slice(0, 6)}…${a.slice(-4)}`);
+
 export function FlyingRequest({ text, origin }) {
   const [scope, animate] = useAnimate();
 
@@ -39,7 +43,7 @@ export function FlyingRequest({ text, origin }) {
   return (
     <motion.div ref={scope} className="plan-sheet-request is-flying" style={{ transformOrigin: "0 0" }}>
       <span className="plan-sheet-request-bg" aria-hidden="true" />
-      <span className="plan-sheet-request-text">{text}</span>
+      <span className="plan-sheet-request-text">{shortAddresses(text)}</span>
     </motion.div>
   );
 }

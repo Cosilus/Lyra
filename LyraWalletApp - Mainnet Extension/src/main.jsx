@@ -5,11 +5,13 @@ import "./styles.css";
 import { startCardBridge, startCloseShortcut } from "./cardBridge.js";
 import { syncNetworks } from "./providerSync.js";
 import { startTooltips } from "./tooltips.js";
+import { startMenuMorph } from "./menuMorph.js";
 import { IS_APP, startApp } from "./platform.js";
 
 startApp();
 startCardBridge();
 startTooltips();
+startMenuMorph();
 // holding C closes the side panel; the web app has no window to close
 if (!IS_APP) startCloseShortcut();
 syncNetworks();

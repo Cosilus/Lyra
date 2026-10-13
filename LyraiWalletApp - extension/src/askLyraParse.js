@@ -86,7 +86,9 @@ export function parseAskLyra(text, { tokenSymbols = [], contacts = [], networks 
     if (!current) continue;
 
     // "half my SUI", "all my USDC", "the rest"
-    if (QUANTIFIERS.test(w.word)) {
+    // ...unless it's a contact's name: "send 1 XPL to Max"
+    const isContactHere = contactNames.some(c => c.lower === lower) && (current.amount || TO_WORDS.test(words[i - 1]?.word || ""));
+    if (QUANTIFIERS.test(w.word) && !isContactHere) {
       const startWord = FILLER_WORDS.test(words[i - 1]?.word || "") ? words[i - 1] : w;
       let endWord = w;
       let j = i + 1;
@@ -102,6 +104,12 @@ export function parseAskLyra(text, { tokenSymbols = [], contacts = [], networks 
     }
 
     if (NUMBER.test(w.word)) {
+      // "send 1 XPL to Brian and 2 XPL to Max": a new amount after a step that
+      // already has its amount and target is a new step of the same kind
+      if (current.amount && (current.recipient || current.toAsset || current.network)) {
+        current = { kind: current.kind, amount: null, asset: null, toAsset: null, recipient: null, network: null, fromPrevious: false };
+        steps.push(current);
+      }
       mark(w, "amount");
       current.amount = current.amount || w.word.replace(",", ".");
       continue;
