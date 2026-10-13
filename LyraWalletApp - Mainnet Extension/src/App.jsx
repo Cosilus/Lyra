@@ -19,6 +19,7 @@ import { TxHistoryList, StakeHistory, stakeAssetOf } from "./TxHistoryList.jsx";
 import { Approvals } from "./Approvals.jsx";
 import { buildPlanCalls } from "./planSimulation.js";
 import { FlyingRequest } from "./FlyingRequest.jsx";
+import { PlanScene3D, plan3dEnabled, setPlan3d } from "./three-d/PlanScene3D.jsx";
 import { HoldSquares } from "./HoldSquares.jsx";
 import { ledgerAddress, ledgerSupported, connectLedger, ledgerSettings, LEDGER_DEFAULT_PATH } from "./ledger.js";
 import { LedgerSetup } from "./LedgerSetup.jsx";
@@ -1243,6 +1244,11 @@ export default function App() {
   const [auditLogEntries, setAuditLogEntries] = useState([]);
   const [multiTicket, setMultiTicket] = useState(null);
   const [pendingPlan, setPendingPlan] = useState(null); // steps read from the user's sentence, until Lyra answers
+  // the 3D scene while Lyra prepares a plan of several steps (computer only):
+  // decided when the request is sent, settled once the recap takes over
+  const [planScene, setPlanScene] = useState(null);
+  const [planSceneSettled, setPlanSceneSettled] = useState(false);
+  const [plan3dPref, setPlan3dPref] = useState(plan3dEnabled);
   const [planRequest, setPlanRequest] = useState("");   // the sentence the plan answers, shown at the top of the plan sheet
   const planStartedAtRef = useRef(0);                   // when that request was sent: picks its own work log
   const planMsgStartRef = useRef(0);                    // chat length before that request: what the request box replaces
@@ -7500,6 +7506,8 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
   });
   setPlanBanner(null);
   setPendingPlan(steps.length ? { steps } : null);
+  setPlanScene(steps.length >= 2 && plan3dEnabled() ? { id: Date.now() } : null);
+  setPlanSceneSettled(false);
   setPlanRequest(text.trim());
   planStartedAtRef.current = Date.now();
   planMsgStartRef.current = messages.length;
@@ -8017,6 +8025,18 @@ function handleHoldEnd() {
     return null;
   })();
 
+  // the plan scene's progress: steps before the one Lyra is on are ready
+  const planSceneReady = (() => {
+    const run = activityRuns[activityRuns.length - 1];
+    if (!run || run.t0 < planStartedAtRef.current - 1000) return 0;
+    let ready = 0;
+    for (const st of run.steps) {
+      const m = /^Step (\d+) of (\d+)/.exec(st.label || "");
+      if (m) ready = Math.max(ready, Number(m[1]) - 1); // step k started: the ones before it are ready
+    }
+    return ready;
+  })();
+
   const planBiometric = ledgerActive ? null : (() => {
     const ua = navigator.userAgent || "";
     const label = /Mac|iPhone|iPad/.test(ua) ? "Touch ID" : /Windows/.test(ua) ? "Windows Hello" : "biometrics";
@@ -8184,7 +8204,7 @@ function handleHoldEnd() {
             const o = askOriginRef.current && Date.now() - askOriginRef.current.at < 5000 ? askOriginRef.current : null;
             return (
             <motion.div
-              className={`plan-sheet${o ? " is-growing" : ""}`}
+              className={`plan-sheet${o ? " is-growing" : ""}${planScene ? " has-scene" : ""}${planScene && !planSceneSettled ? " scene-playing" : ""}`}
               initial={o ? false : { y: "100%" }}
               animate={o ? undefined : { y: 0 }}
               exit={{ opacity: 0, transition: { duration: 0.25, ease: "easeOut" } }}
@@ -8204,8 +8224,19 @@ function handleHoldEnd() {
                   />
                 );
               })()}
+              {planScene && (
+                <PlanScene3D
+                  key={planScene.id}
+                  request={planRequest}
+                  steps={planView.steps}
+                  ready={planSceneReady}
+                  settled={planView.phase !== "thinking"}
+                  leaving={["running", "done", "failed"].includes(planView.phase)}
+                  onSettled={() => setPlanSceneSettled(true)}
+                />
+              )}
               <div className="plan-sheet-body">
-                {planRequest && <FlyingRequest text={planRequest} origin={o} />}
+                {planRequest && <FlyingRequest text={planRequest} origin={planScene ? null : o} />}
                 {/* Lyra's work log for this request: live phase + seconds, then "Worked for…" */}
                 <motion.div
                   className="plan-sheet-content"
@@ -8543,7 +8574,7 @@ function handleHoldEnd() {
               const reqs = messages.filter(m => m.role === "request").slice().reverse();
               if (!reqs.length) return null;
               const shown = showAllRequests ? reqs : reqs.slice(0, 3);
-              const summary = (e) => (e.steps || []).map(st => `${st.label} ${st.from || ""}${st.to ? ` → ${st.to}` : ""}`.replace(/\s+/g, " ").trim()).join(" · ") || e.text;
+              const summary = (e) => (e.steps || []).map(st => `${st.label} ${st.from || ""}${st.to ? ` → ${st.to}` : ""}`.replace(/\s+/g, " ").trim()).join(" · ") || String(e.text || "").replace(/0x[0-9a-fA-F]{40}/g, shortAddress);
               return (
                 <div className="requests">
                   <div className="requests-head">
@@ -10566,6 +10597,23 @@ function handleHoldEnd() {
           </div>
         </div>
 
+        <div className="settings-row">
+          <div className="settings-row-info">
+            <div className="settings-row-title">3D plan animation</div>
+            <div className="settings-row-desc">While Lyra prepares a plan of several steps, watch it come together in 3D.</div>
+          </div>
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={plan3dPref}
+              onChange={() => { const on = !plan3dPref; setPlan3d(on); setPlan3dPref(on); }}
+            />
+            <span className="toggle-switch-track">
+              <span className="toggle-switch-thumb" />
+            </span>
+          </label>
+        </div>
+
         {uiMode === "3d" && (
           <div className="settings-row">
             <div className="settings-row-info">
@@ -11727,7 +11775,8 @@ function handleHoldEnd() {
       {txHistoryTab && (
         <motion.div
           className="tx-history-detail-overlay"
-          initial={{ opacity: 0 }}
+          // opened straight from a menu button: it grows out of it (menuMorph.js) instead
+          initial={txHistoryDirect ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15, ease: "easeOut" }}
@@ -11737,7 +11786,7 @@ function handleHoldEnd() {
         >
           <motion.div
             className="contacts-panel"
-            initial={{ opacity: 0, scale: 0.95, y: 14 }}
+            initial={txHistoryDirect ? false : { opacity: 0, scale: 0.95, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 14 }}
             transition={{ type: "spring", stiffness: 340, damping: 28 }}

@@ -547,7 +547,7 @@
    its pearl background is its own layer, so it can fade in around the text */
 .plan-sheet-request.is-flying { position: relative; background: none; will-change: transform; }
 .plan-sheet-request-bg { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(135deg, var(--beige), var(--beige-dim)); }
-.plan-sheet-request-text { position: relative; color: var(--void); }
+.plan-sheet-request-text { position: relative; color: var(--void); overflow-wrap: anywhere; }
 
 /* The sheet growing out of Ask Lyra: its background is a layer scaled from
    the box to the whole wallet (transform only, see App.jsx) */
