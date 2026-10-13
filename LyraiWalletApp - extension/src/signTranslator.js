@@ -159,12 +159,42 @@ function parseTypedData(params) {
   return typeof raw === "string" ? JSON.parse(raw) : raw;
 }
 
+// Signatures a site must never get. Once an address is delegated (EIP-7702,
+// one-transaction plans), an ERC-4337 operation signed with its key is enough
+// to move everything in it, with no transaction to approve: a site asking for
+// one (typed data for an EntryPoint, a "UserOperation") is refused, always.
+const ENTRY_POINTS = [
+  "0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789", // v0.6
+  "0x0000000071727de22e5e9d8baf0edac6f37da032", // v0.7
+  "0x4337084d9e255ff0702461cf8895ce9e3b5ff108", // v0.8
+  "0x433709009b8330fda32311df1c2afa402ed8d009", // v0.9
+];
+export function forbiddenSignature(method, params) {
+  if (method === "eth_sign") return "Lyra never signs raw hashes for a site: such a signature can authorize anything.";
+  if (method !== "eth_signTypedData_v4" && method !== "eth_signTypedData_v3") return null;
+  let data;
+  try { data = parseTypedData(params); } catch { return null; }
+  const domain = data?.domain || {};
+  const typeNames = Object.keys(data?.types || {});
+  const userOp = /useroperation/i.test(String(data?.primaryType || "")) || typeNames.some(t => /useroperation/i.test(t));
+  const entryPoint = ENTRY_POINTS.includes(String(domain.verifyingContract || "").toLowerCase()) || /^erc-?4337$|entry ?point/i.test(String(domain.name || ""));
+  return userOp || entryPoint
+    ? "This is an account-abstraction operation (ERC-4337). Signed, it would let the site move everything in your wallet without any transaction to approve. Lyra blocks it."
+    : null;
+}
+
 async function translateTypedData(params, ctx) {
   let data;
   try {
     data = parseTypedData(params);
   } catch {
     return unreadable("typed", "This site sent structured data that can't be read.");
+  }
+  {
+    const forbidden = forbiddenSignature("eth_signTypedData_v4", params);
+    if (forbidden) {
+      return { kind: "typed", title: "Lyra blocked this signature", summary: forbidden, details: [], risk: "blocked", warnings: ["Close this window. A site you trust never needs this."] };
+    }
   }
   const { domain = {}, primaryType, message = {} } = data || {};
   const app = domain.name ? `${domain.name}` : "a contract";

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyra Wallet · Privacy Policy</title>
+<meta name="description" content="What the Lyra Wallet browser extension stores on your device, what it sends to Lyra's backend, and to whom.">
+<link rel="icon" href="favicon.ico">
+<style>
+  :root { color-scheme: dark; --void:#0D0916; --panel:#150E20; --line:#2a1d4a; --text:#F3EBFF; --muted:#b4a7cc; --accent:#C4B0FF; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--void); color:var(--text); font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 20px 80px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 19px; margin: 34px 0 8px; color: var(--accent); }
+  p, li { color: #e4daf5; }
+  ul { padding-left: 1.2em; }
+  li { margin: 4px 0; }
+  .meta { color: var(--muted); font-size: 14px; margin-bottom: 26px; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin: 18px 0; }
+  a { color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 10px 0; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  code { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: .92em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lyra Wallet — Privacy Policy</h1>
+  <div class="meta">Browser extension and web app · Last updated: October 2026</div>
+
+  <div class="box"><b>In short.</b> Your private key is encrypted on your device and is never sent anywhere in one piece. What you ask Lyra, your public wallet address and your balances are sent to Lyra's backend and to an AI provider so Lyra can answer. We have no accounts, no analytics, no ads, and we do not sell data. The test version of the extension has its own policy: <a href="privacy-extension.html">testnet build</a>.</div>
+
+  <h2>1. What stays on your device</h2>
+  <ul>
+    <li>Your wallet's private key, <b>encrypted with your password</b>, and your recovery phrase if you created or imported one.</li>
+    <li>Your contacts, settings, the 2D/3D choice, the last balances seen (to tell you about money received while the wallet was closed), and a local log of what the wallet did.</li>
+    <li>All of this lives in the extension's own browser storage. It is erased when you uninstall the extension or clear its data. The wallet locks when you close it.</li>
+  </ul>
+
+  <h2>2. What is sent to Lyra's backend</h2>
+  <p>The extension talks to one backend we operate, <code>lyra-mainnet.onrender.com</code>, to understand your requests and check things for you. It receives:</p>
+  <ul>
+    <li>the text you type or say to Lyra and the recent conversation, so it can answer in context;</li>
+    <li>your <b>public</b> wallet address, your balances (coins, tokens and staked amounts) and the network you are on, so Lyra plans with what you really hold;</li>
+    <li>the names and addresses of the contacts you saved, so "send to Alice" can be understood;</li>
+    <li>addresses or contracts you ask Lyra to check, and the transactions of a plan, to simulate them before you confirm.</li>
+  </ul>
+  <p>It never receives your password or your recovery phrase. The backend keeps no record of your requests: each one is processed to produce an answer and is not kept afterwards, apart from short-lived server logs used for debugging. Your IP address is used in memory for a few minutes to apply a rate limit, and our hosting provider (Render) may keep standard connection logs.</p>
+
+  <h2>3. Optional MPC protection</h2>
+  <p>If you turn on MPC protection, your private key is split in two random halves on your device. One half stays on your device, encrypted; the other is stored by Lyra's backend and released only after its own checks (a daily spending limit and a confirmation). Neither half alone reveals anything about the key, and the key is put back together only in your device's memory. If you do not turn it on, no part of your key is ever sent.</p>
+
+  <h2>4. AI providers</h2>
+  <p>To understand a request, the backend forwards the text of your request and the minimal context above to one AI provider, chosen automatically among OpenRouter (Qwen models), Mistral AI, Google (Gemini) and Anthropic (Claude). Only one provider handles a given request. Each provider processes it under its own privacy policy and may briefly retain it; Lyra does not control this.</p>
+
+  <h2>5. Voice input</h2>
+  <p>When you press the microphone, your browser's own speech recognition turns your voice into text (in Chrome, this is done by Google's speech service under Google's policy). Lyra receives only the resulting text, never the audio, and the microphone is used only while a recording is on, until you stop it.</p>
+
+  <h2>6. Other services involved</h2>
+  <table>
+    <tr><th>Service</th><th>Why</th><th>What it can see</th></tr>
+    <tr><td>Blockchain RPC nodes (Plasma, Ethereum, Base, Polygon, Arc, Hyperliquid, and Arbitrum, Optimism, BNB Chain, Avalanche when gathering funds)</td><td>Read balances, send the transactions you sign</td><td>Your IP address, your public address, the transactions you send</td></tr>
+    <tr><td>KyberSwap</td><td>Swap routes and prices</td><td>Your public address and the swap you ask for</td></tr>
+    <tr><td>Circle (Swap Kit, Bridge Kit, CCTP)</td><td>Swaps and bridges of USDC / EURC</td><td>Your public address and the transfer you confirm</td></tr>
+    <tr><td>Polymarket</td><td>Prediction markets, if you use them</td><td>Your public address and the order you place</td></tr>
+    <tr><td>Safe</td><td>Optional shared (multisig) wallets</td><td>Your public address</td></tr>
+    <tr><td>CoinGecko</td><td>The coin price, when our backend can't be reached</td><td>Your IP address</td></tr>
+    <tr><td>Block explorers (Etherscan family), GoPlus, ScamSniffer, LI.FI — reached through our backend</td><td>History, scam and contract checks, bridge routes</td><td>Public addresses and contracts you ask about</td></tr>
+  </table>
+  <p>These services apply their own privacy practices to what they receive.</p>
+
+  <h2>7. Websites you connect to</h2>
+  <p>The extension lets websites (dApps) ask to connect to your wallet, like other crypto wallets. A site sees your public address only after you approve the connection, and every signature or transaction it asks for is shown to you first, explained in plain words. The extension does not read or change the content of the pages you visit.</p>
+
+  <h2>8. Hardware wallets</h2>
+  <p>If you use a Ledger, the extension talks to it over USB through your browser. Its key stays on the device; the extension only receives the signatures you approve on it.</p>
+
+  <h2>9. Real funds</h2>
+  <p>This wallet moves real assets on public blockchains. Transactions are public by nature: anyone can see the activity of a public address. Lyra is non-custodial: we cannot move, freeze or recover your funds, and we cannot recover a lost password or recovery phrase.</p>
+
+  <h2>10. Permissions the extension asks for</h2>
+  <ul>
+    <li><b>Side panel</b>: to open the wallet in the browser's side panel.</li>
+    <li><b>Active tab and scripting</b>: when you click the toolbar icon, to show the wallet as a floating card over the current page. Nothing is added to a page before you click.</li>
+    <li><b>Storage</b>: to keep your encrypted wallet and settings on your device.</li>
+    <li><b>Access to a short list of services</b>: our backend and the services listed above. They are reached only to run the wallet.</li>
+    <li><b>Websites (https)</b>: to offer the connection described in section 7. Pages are not read.</li>
+  </ul>
+
+  <h2>11. What we do not do</h2>
+  <ul>
+    <li>We do not sell or rent your data, show ads, or build a profile of you.</li>
+    <li>We do not use your data for anything unrelated to running the wallet, and not to judge creditworthiness.</li>
+    <li>We do not use analytics or tracking in the extension.</li>
+  </ul>
+
+  <h2>12. Your choices and rights</h2>
+  <p>You can delete everything stored on your device by removing the extension. Depending on where you live, you may ask what personal data we hold about you, ask us to correct or delete it, by writing to <a href="mailto:contact@lyrapp.to">contact@lyrapp.to</a>.</p>
+
+  <h2>13. Children</h2>
+  <p>Lyra is not directed to children under 16 and we do not knowingly collect their data.</p>
+
+  <h2>14. Changes</h2>
+  <p>We may update this policy; the date at the top shows the latest version. The general policy for the Lyra website is at <a href="https://lyrapp.to/#privacy">lyrapp.to</a>.</p>
+
+  <p class="meta" style="margin-top:34px">Lyra is non-custodial software. Nothing here is financial advice.</p>
+</main>
+</body>
+</html>

@@ -27,6 +27,8 @@ run("npm run build");
 // Everything the extension calls from the browser (RPCs, Circle kits, Safe). The backend does the rest.
 const hosts = [
   apiOrigin,
+  // the native coin price when Lyra's server can't be reached
+  "https://api.coingecko.com",
   "https://testnet-rpc.plasma.to",
   "https://ethereum-sepolia-rpc.publicnode.com",
   "https://sepolia.base.org",

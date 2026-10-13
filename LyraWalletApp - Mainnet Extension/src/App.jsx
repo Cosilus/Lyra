@@ -23,7 +23,7 @@ import { PlanScene3D, plan3dEnabled, setPlan3d } from "./three-d/PlanScene3D.jsx
 import { HoldSquares } from "./HoldSquares.jsx";
 import { ledgerAddress, ledgerSupported, connectLedger, ledgerSettings, LEDGER_DEFAULT_PATH } from "./ledger.js";
 import { LedgerSetup } from "./LedgerSetup.jsx";
-import { batchSupported, isDelegated, activateBatching, sendLedgerBatch, prepareOwnBatch, sendOwnBatch } from "./ledgerBatch.js";
+import { batchSupported, isDelegated, activateBatching, sendLedgerBatch, prepareOwnBatch, sendOwnBatch, delegationOf, removeOwnDelegation } from "./ledgerBatch.js";
 import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodePaymentResponseHeader, decodePaymentRequiredHeader, findEip3009SettlementTx, selectGatewayOptions, signGatewayPayment, fetchGatewayBalances, GATEWAY_NETWORKS, GATEWAY_WALLET_MAINNET, GATEWAY_WALLET_ABI } from "./x402";
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
 import { DEMO_A2A_AGENT_URL, sendA2ATask, fetchAgentCard } from "./a2a";
@@ -1248,6 +1248,14 @@ export default function App() {
   // decided when the request is sent, settled once the recap takes over
   const [planScene, setPlanScene] = useState(null);
   const [planSceneSettled, setPlanSceneSettled] = useState(false);
+  // One-transaction plans (EIP-7702 batch): on by default, can be turned off.
+  // Removing the delegation in Settings turns them off too, or the next plan
+  // would delegate the address again.
+  const ONE_TX_KEY = "lyra_one_tx_plans_v1";
+  const [oneTxPlans, setOneTxPlansState] = useState(() => { try { return localStorage.getItem(ONE_TX_KEY) !== "off"; } catch { return true; } });
+  const setOneTxPlans = (on) => { setOneTxPlansState(on); try { localStorage.setItem(ONE_TX_KEY, on ? "on" : "off"); } catch { /* not kept */ } };
+  // this address on this network: { status: "none" | "lyra" | "other" | "error", busy, confirm, error }
+  const [delegationState, setDelegationState] = useState(null);
   const [plan3dPref, setPlan3dPref] = useState(plan3dEnabled);
   const [planRequest, setPlanRequest] = useState("");
   // a request held back because it sends to a name that isn't a contact yet:
@@ -8126,6 +8134,17 @@ function handleHoldEnd() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planSimKey]);
 
+  useEffect(() => {
+    if (!showSettings || !wallet?.address) return;
+    let alive = true;
+    setDelegationState(null);
+    delegationOf(RPC, wallet.address)
+      .then(status => { if (alive) setDelegationState({ status }); })
+      .catch(() => { if (alive) setDelegationState({ status: "error" }); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSettings, wallet?.address, activeNetworkKey]);
+
   // A plan signed with the wallet's own key runs as ONE transaction (an
   // EIP-7702 batch, the same delegate as Ledger plans): all or nothing. Routes,
   // quotes, nonce and gas are read while the plan is on screen (again every
@@ -8135,15 +8154,17 @@ function handleHoldEnd() {
   const preparedPlanRef = useRef(null);
   async function prepareOwnPlan(steps) {
     const unsupported = { unsupported: true, at: Date.now() };
-    if (!unlockedPrivateKey || !steps?.length) return unsupported;
+    if (!oneTxPlans || !unlockedPrivateKey || !steps?.length) return unsupported;
     if (steps.some((st, i) => st.kind === "predict" || (st.kind === "bridge" && i < steps.length - 1))) return unsupported;
     if (!(await batchSupported(RPC))) return unsupported;
     const from = new ethers.Wallet(unlockedPrivateKey).address;
     const { calls, skipped } = await buildPlanBatch(steps, from);
     if (skipped.length || !calls.length) return unsupported;
-    return prepareOwnBatch({ provider: RPC, address: from, calls });
+    const prepared = await prepareOwnBatch({ provider: RPC, address: from, calls });
+    // delegated to another wallet's contract: step by step, that delegation is left alone
+    return prepared.foreign ? unsupported : prepared;
   }
-  const ownBatchKey = multiTicket && !ledgerActive && unlockedPrivateKey && planSimKey ? planSimKey : null;
+  const ownBatchKey = oneTxPlans && multiTicket && !ledgerActive && unlockedPrivateKey && planSimKey ? planSimKey : null;
   useEffect(() => {
     if (!ownBatchKey) return;
     let alive = true;
@@ -8207,6 +8228,10 @@ function handleHoldEnd() {
       setStatus("Confirming…");
       const receipt = await tx.wait();
       if (!receipt || receipt.status !== 1) throw new Error("The plan was rejected on-chain. Nothing moved.");
+      // without the delegation in place the transaction runs nothing: never call that "done"
+      if (!(await isDelegated(RPC, signer.address))) {
+        throw new Error("The plan didn't run: the one-transaction setup didn't take on this network. Nothing moved. Try again, or turn off One-transaction plans in Settings.");
+      }
       setPlanStepIndex(steps.length);
       advanceExecutionTo(1);
       setMessages(m => [...m, { role: "ai", text: `✅ ${steps.length > 1 ? `All ${steps.length} steps` : "Done"} on ${activeNetwork.name}, in one transaction.\n\n[View on Explorer Here](${explorerTx(tx.hash, activeNetwork)})` }]);
@@ -11017,6 +11042,57 @@ function handleHoldEnd() {
         </SettingsSection>
 
         <SettingsSection title="Security">
+
+        <div className="settings-row">
+          <div className="settings-row-info">
+            <div className="settings-row-title">One-transaction plans</div>
+            <div className="settings-row-desc">A plan of several steps goes out as one transaction, prepared while you read it: faster, and all or nothing. Uses an EIP-7702 delegation of your address (the contract Ledger approves).</div>
+          </div>
+          <label className="toggle-switch">
+            <input type="checkbox" checked={oneTxPlans} onChange={() => setOneTxPlans(!oneTxPlans)} />
+            <span className="toggle-switch-track">
+              <span className="toggle-switch-thumb" />
+            </span>
+          </label>
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-row-info">
+            <div className="settings-row-title">Delegation on {activeNetwork.name}</div>
+            <div className="settings-row-desc">
+              {!delegationState ? "Checking…"
+                : delegationState.status === "none" ? "None: your address is a plain address here."
+                : delegationState.status === "lyra" ? "Active (Simple7702Account, for one-transaction plans). Removing it costs a small network fee and turns one-transaction plans off."
+                : delegationState.status === "other" ? "Your address is delegated to another contract (set by another wallet). Removing it costs a small network fee."
+                : "Couldn't read it right now."}
+              {delegationState?.error && <span className="seed-error" style={{ display: "block", marginTop: 6 }}>{delegationState.error}</span>}
+            </div>
+          </div>
+          {(delegationState?.status === "lyra" || delegationState?.status === "other") && (
+            ledgerActive ? <span className="settings-row-desc">Not from a Ledger yet</span> : (
+              <button
+                type="button"
+                className={delegationState.confirm ? "contact-save" : "contact-cancel"}
+                disabled={delegationState.busy || !unlockedPrivateKey}
+                onClick={async () => {
+                  if (!delegationState.confirm) { setDelegationState(d => ({ ...d, confirm: true, error: null })); return; }
+                  setDelegationState(d => ({ ...d, busy: true, error: null }));
+                  try {
+                    await removeOwnDelegation(new ethers.Wallet(unlockedPrivateKey, RPC));
+                    setOneTxPlans(false);
+                    preparedPlanRef.current = null;
+                    setDelegationState({ status: "none" });
+                    setToast("Delegation removed. One-transaction plans are off.");
+                  } catch (e) {
+                    setDelegationState(d => ({ ...d, busy: false, confirm: false, error: String(friendlyErrorText(e)).replace(/^❌s*/, "") }));
+                  }
+                }}
+              >
+                {delegationState.busy ? "Removing…" : delegationState.confirm ? "Confirm removal" : "Remove"}
+              </button>
+            )
+          )}
+        </div>
 
         <button
           type="button"
