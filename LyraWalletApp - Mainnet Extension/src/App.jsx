@@ -23,7 +23,7 @@ import { PlanScene3D, plan3dEnabled, setPlan3d } from "./three-d/PlanScene3D.jsx
 import { HoldSquares } from "./HoldSquares.jsx";
 import { ledgerAddress, ledgerSupported, connectLedger, ledgerSettings, LEDGER_DEFAULT_PATH } from "./ledger.js";
 import { LedgerSetup } from "./LedgerSetup.jsx";
-import { batchSupported, isDelegated, activateBatching, sendLedgerBatch } from "./ledgerBatch.js";
+import { batchSupported, isDelegated, activateBatching, sendLedgerBatch, prepareOwnBatch, sendOwnBatch } from "./ledgerBatch.js";
 import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodePaymentResponseHeader, decodePaymentRequiredHeader, findEip3009SettlementTx, selectGatewayOptions, signGatewayPayment, fetchGatewayBalances, GATEWAY_NETWORKS, GATEWAY_WALLET_MAINNET, GATEWAY_WALLET_ABI } from "./x402";
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
 import { DEMO_A2A_AGENT_URL, sendA2ATask, fetchAgentCard } from "./a2a";
@@ -1526,6 +1526,7 @@ useEffect(() => {
 
   async function refreshTokenBalances(address = wallet?.address) {
   if (!address) return {};
+  const failed = new Set();
   const entries = await Promise.all(
     Object.entries(tokens).map(async ([symbol, token]) => {
       try {
@@ -1534,11 +1535,14 @@ useEffect(() => {
         return [symbol, raw];
       } catch (e) {
         console.error(`${symbol} balance unavailable:`, e);
+        failed.add(symbol);
         return [symbol, 0n];
       }
     })
   );
   const result = Object.fromEntries(entries);
+  // the ones that couldn't be read (shown as 0): not a real balance
+  Object.defineProperty(result, "failed", { value: failed, enumerable: false });
   if (isShown(address)) setTokenBalances(result);
   return result;
 }
@@ -1891,41 +1895,59 @@ useEffect(() => {
   let cancelled = false;
   // Never show the previous network's price on this one (e.g. ETH's price
   // applied to Arc's USDC balance) while the new price loads or if it fails.
-  setXplPriceUSD(null);
+  // The last price seen on THIS network shows at once, until a fresh one comes.
+  const PRICE_KEY = `lyra_native_price_v1:${activeNetworkKey}`;
+  let lastKnown = null;
+  try { lastKnown = Number(JSON.parse(localStorage.getItem(PRICE_KEY) || "null")?.priceUSD) || null; } catch { /* none */ }
+  setXplPriceUSD(lastKnown);
   // A stablecoin native coin (Arc's USDC) is worth $1: no lookup to fail.
   if (activeNetwork.coingeckoId === "usd-coin") {
     setXplPriceUSD(1);
     return;
   }
 
-  async function fetchPrice() {
+  let retry = null;
+  const keep = (priceUSD) => {
+    setXplPriceUSD(priceUSD);
+    try { localStorage.setItem(PRICE_KEY, JSON.stringify({ priceUSD, at: Date.now() })); } catch { /* not kept */ }
+  };
+  async function fromServer() {
+    const response = await fetch(`${API_BASE_URL}/api/price/xpl?network=${activeNetworkKey}`);
+    const data = await response.json().catch(() => ({}));
+    // logged (429 from CoinGecko, backend down or waking up...), then the fallback
+    if (!response.ok || !(Number(data.priceUSD) > 0)) throw new Error(`price endpoint ${response.status} ${data?.error || ""}`);
+    return Number(data.priceUSD);
+  }
+  // Lyra's server can be asleep or redeploying: CoinGecko directly then
+  async function fromCoingecko() {
+    if (!activeNetwork.coingeckoId) throw new Error("no CoinGecko id");
+    const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${activeNetwork.coingeckoId}&vs_currencies=usd`);
+    const d = await r.json();
+    const p = Number(d?.[activeNetwork.coingeckoId]?.usd);
+    if (!(p > 0)) throw new Error(`CoinGecko ${r.status}`);
+    return p;
+  }
+  async function fetchPrice(attempt = 0) {
+    clearTimeout(retry);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/price/xpl?network=${activeNetworkKey}`);
-      const data = await response.json();
-
-      if (cancelled) return;
-
-      if (!response.ok) {
-        // Now logging the real failure reason (429 from CoinGecko,
-        // backend down, etc.) instead of silently disappearing.
-        console.error("Native price endpoint error:", response.status, data?.error);
-        return;
-      }
-
-      setXplPriceUSD(data.priceUSD);
-      // data.stale === true if the backend is serving its last known
-      // price because it couldn't reach CoinGecko in time.
+      let p;
+      try { p = await fromServer(); }
+      catch (e) { console.error("Native price endpoint error:", e.message); p = await fromCoingecko(); }
+      if (!cancelled) keep(p);
     } catch (e) {
       console.error("Native price unavailable:", e);
+      // soon again (10 s, 20 s, 40 s... up to 2 min), not only at the next refresh
+      if (!cancelled) retry = setTimeout(() => fetchPrice(attempt + 1), Math.min(120000, 10000 * 2 ** attempt));
     }
   }
 
   fetchPrice();
-  const interval = setInterval(fetchPrice, 2 * 60 * 1000);
+  const interval = setInterval(() => fetchPrice(), 2 * 60 * 1000);
 
   return () => {
     cancelled = true;
     clearInterval(interval);
+    clearTimeout(retry);
   };
 }, [activeNetworkKey]);
 
@@ -2420,6 +2442,44 @@ async function connectLedgerAccount() {
 
 // A whole plan as ONE Ledger signature (EIP-7702 batch, see ledgerBatch.js).
 // The same transactions as the simulation, with Lyra's fee as extra calls.
+// A plan's transactions as one batch: every step's calls, then Lyra's fee
+// (on top for a send, taken out of the amount otherwise, as a normal run).
+async function buildPlanBatch(steps, from) {
+  const ctx = lyraFeeCtx();
+  // Lyra's fee: on top for a send, taken out of the amount otherwise (as the normal run)
+  const feeCalls = [];
+  const ERC20 = new ethers.Interface(["function transfer(address to, uint256 amount) returns (bool)"]);
+  const feeCall = (info, fee) => (info.isNative
+    ? { to: LYRA_TREASURY, value: fee.toString(), data: "0x" }
+    : { to: info.address, value: "0", data: ERC20.encodeFunctionData("transfer", [LYRA_TREASURY, fee]) });
+  const adjusted = steps.map(st => {
+    if (!["send", "swap", "stake", "bridge"].includes(st.kind) || st.amountIsEstimate || !(Number(st.amount) > 0)) return st;
+    const info = assetInfo(st.asset, ctx);
+    const raw = info ? toRaw(st.amount, info.decimals) : null;
+    if (!info || !raw) return st;
+    if (st.kind === "send") {
+      if (isFeeExempt(from, st.recipient)) return st;
+      const fee = feeOf(raw);
+      if (feeIsWorthCharging(fee, info.decimals, usdPerUnit(st.asset, ctx))) feeCalls.push(feeCall(info, fee));
+      return st;
+    }
+    const { fee, net } = splitIncluded(raw);
+    if (net <= 0n || !feeIsWorthCharging(fee, info.decimals, usdPerUnit(st.asset, ctx))) return st;
+    feeCalls.push(feeCall(info, fee));
+    return { ...st, amount: ethers.formatUnits(net, info.decimals) };
+  });
+  const { calls, skipped } = await buildPlanCalls(adjusted, {
+    from, network: activeNetwork, networkKey: activeNetworkKey, isTestnet: IS_TESTNET,
+    tokens, defi, nativeSymbol: activeNetwork.nativeSymbol, nativePseudo: NATIVE_PSEUDO_ADDRESS,
+    slippage: DEFAULT_SLIPPAGE, kyberBase: KYBERSWAP_API_BASE, kyberClientId: KYBERSWAP_CLIENT_ID,
+    lifiQuoteUrl: LIFI_QUOTE_API_URL, aaveV4Reserve,
+    circleChain: NETWORK_KEY_TO_CIRCLE_CHAIN[activeNetworkKey],
+    networkKeyOfLifi: (code) => Object.keys(NETWORK_KEY_TO_LIFI_KEY).find(k => NETWORK_KEY_TO_LIFI_KEY[k] === code),
+    suppliedV4: (v4) => new ethers.Contract(defi.aaveV4.spoke, AAVE_V4_SPOKE_ABI, RPC).getUserSuppliedAssets(v4.id, from),
+  });
+  return { calls: [...calls, ...feeCalls], skipped, adjusted };
+}
+
 async function executeLedgerPlan() {
   const steps = planSimSteps;
   if (!steps?.length) throw new Error("No plan pending.");
@@ -2441,39 +2501,8 @@ async function executeLedgerPlan() {
   setPlanStepIndex(0);
   beginExecutionTimer();
   try {
-    const ctx = lyraFeeCtx();
     const from = ledgerActive.address;
-    // Lyra's fee: on top for a send, taken out of the amount otherwise (as the normal run)
-    const feeCalls = [];
-    const ERC20 = new ethers.Interface(["function transfer(address to, uint256 amount) returns (bool)"]);
-    const feeCall = (info, fee) => (info.isNative
-      ? { to: LYRA_TREASURY, value: fee.toString(), data: "0x" }
-      : { to: info.address, value: "0", data: ERC20.encodeFunctionData("transfer", [LYRA_TREASURY, fee]) });
-    const adjusted = steps.map(st => {
-      if (!["send", "swap", "stake", "bridge"].includes(st.kind) || st.amountIsEstimate || !(Number(st.amount) > 0)) return st;
-      const info = assetInfo(st.asset, ctx);
-      const raw = info ? toRaw(st.amount, info.decimals) : null;
-      if (!info || !raw) return st;
-      if (st.kind === "send") {
-        if (isFeeExempt(from, st.recipient)) return st;
-        const fee = feeOf(raw);
-        if (feeIsWorthCharging(fee, info.decimals, usdPerUnit(st.asset, ctx))) feeCalls.push(feeCall(info, fee));
-        return st;
-      }
-      const { fee, net } = splitIncluded(raw);
-      if (net <= 0n || !feeIsWorthCharging(fee, info.decimals, usdPerUnit(st.asset, ctx))) return st;
-      feeCalls.push(feeCall(info, fee));
-      return { ...st, amount: ethers.formatUnits(net, info.decimals) };
-    });
-    const { calls, skipped } = await buildPlanCalls(adjusted, {
-      from, network: activeNetwork, networkKey: activeNetworkKey, isTestnet: IS_TESTNET,
-      tokens, defi, nativeSymbol: activeNetwork.nativeSymbol, nativePseudo: NATIVE_PSEUDO_ADDRESS,
-      slippage: DEFAULT_SLIPPAGE, kyberBase: KYBERSWAP_API_BASE, kyberClientId: KYBERSWAP_CLIENT_ID,
-      lifiQuoteUrl: LIFI_QUOTE_API_URL, aaveV4Reserve,
-      circleChain: NETWORK_KEY_TO_CIRCLE_CHAIN[activeNetworkKey],
-      networkKeyOfLifi: (code) => Object.keys(NETWORK_KEY_TO_LIFI_KEY).find(k => NETWORK_KEY_TO_LIFI_KEY[k] === code),
-      suppliedV4: (v4) => new ethers.Contract(defi.aaveV4.spoke, AAVE_V4_SPOKE_ABI, RPC).getUserSuppliedAssets(v4.id, from),
-    });
+    const { calls, skipped, adjusted } = await buildPlanBatch(steps, from);
     if (skipped.length) {
       throw new Error(`Nothing was sent. ${skipped.map(i => planStepFrom(adjusted[i].kind, {}).label).join(", ")} can't be signed with a Ledger yet (Polymarket bets, or a token Circle doesn't bridge).`);
     }
@@ -2489,7 +2518,7 @@ async function executeLedgerPlan() {
     }
 
     prompt("Review and approve the plan on your Ledger");
-    const tx = await sendLedgerBatch({ provider: RPC, ledgerAddress: from, path: ledgerActive.path, calls: [...calls, ...feeCalls], onPrompt: prompt });
+    const tx = await sendLedgerBatch({ provider: RPC, ledgerAddress: from, path: ledgerActive.path, calls, onPrompt: prompt });
     advanceExecutionTo(1);
     setTxHash(tx.hash);
     if (multiTicket) setStepTxHashes(steps.map(() => tx.hash));
@@ -2928,6 +2957,7 @@ async function unlockWithBiometric() {
       refreshTokenBalances(address),
       refreshStakedBalances(address)
     ]);
+    if (isShown(address)) noteSeenBalances(address, b, walletTokens);
 
     let stableUsdValue = 0;
     Object.entries(tokens).forEach(([symbol, token]) => {
@@ -2966,41 +2996,30 @@ useEffect(() => {
   // Money that arrives: the balances are re-read every 15 s (and after every
   // action); a rise the wallet didn't cause itself is a receipt. The explorer's
   // history can take minutes to index it, so it is only used afterwards, to
-  // name the sender.
+  // name the sender. The last balances seen are also kept on this device: money
+  // that came in while the wallet was closed shows when it opens again.
+  const SEEN_BALANCES_KEY = "lyra_seen_balances_v1";
   const lastBalancesRef = useRef(null); // { key, since, native, tokens }
   const ownActivityAtRef = useRef(0);
   useEffect(() => {
     if (busy || executionSteps.length > 0 || multiTicket || defiTicket || showSend) ownActivityAtRef.current = Date.now();
   });
-  useEffect(() => {
-    if (!wallet?.address || locked || !balanceReady) return;
-    const key = `${activeNetworkKey}:${wallet.address.toLowerCase()}`;
-    const prev = lastBalancesRef.current;
-    const since = prev && prev.key === key ? prev.since : Date.now();
-    lastBalancesRef.current = { key, since, native: balance, tokens: { ...tokenBalances } };
-    if (!prev || prev.key !== key) return;
-    // just switched network or address: the first reads are still settling
-    if (Date.now() - since < 20000) return;
-    // the wallet's own swap, withdrawal, bridge... also raise a balance
-    if (Date.now() - ownActivityAtRef.current < 90000) return;
-    const rises = [];
-    if (balance > prev.native) rises.push({ symbol: activeNetwork.nativeSymbol, raw: balance - prev.native, decimals: 18 });
-    for (const [sym, v] of Object.entries(tokenBalances)) {
-      const before = prev.tokens[sym];
-      if (before !== undefined && v > before) rises.push({ symbol: sym, raw: v - before, decimals: tokens[sym]?.decimals ?? 18 });
-    }
-    if (!rises.length) return;
-    const r = rises[0];
+
+  // one rise: the pill, with the sender when it can be found
+  function announceReceipt(r, key) {
     const amount = Number(ethers.formatUnits(r.raw, r.decimals));
     if (!(amount > 0)) return;
     const id = `${key}:${Date.now()}`;
-    // The pill shows once, with the sender: a token's sender is read on-chain
-    // right away (its Transfer log); the native coin's comes from the history,
-    // checked every 4 s for up to 2 minutes until the explorer has indexed it.
+    // A token's sender is read on-chain right away (its Transfer log); the
+    // native coin's comes from the history, checked every 4 s until the
+    // explorer has indexed it. After ~12 s the pill shows without a name.
     const address = wallet.address;
+    let shown = false;
     const show = (from) => {
-      const contact = loadContacts().find(c => c.address?.toLowerCase() === String(from).toLowerCase());
-      setIncoming({ id, amount, symbol: r.symbol, from: contact?.name || shortAddress(from) });
+      if (shown) return;
+      shown = true;
+      const contact = from ? loadContacts().find(c => c.address?.toLowerCase() === String(from).toLowerCase()) : null;
+      setIncoming({ id, amount, symbol: r.symbol, from: from ? contact?.name || shortAddress(from) : null });
     };
     const fromLogs = async () => {
       const token = tokens[r.symbol];
@@ -3021,22 +3040,76 @@ useEffect(() => {
       const row = buildTxRows(transactions, address, defi)
         .filter(x => x.category === "send" && !x.isSent && (x.display?.symbol || activeNetwork.nativeSymbol) === r.symbol)
         .sort((x, y) => y.timestamp - x.timestamp)[0];
-      return row && Date.now() / 1000 - row.timestamp < 1800 ? row.counterparty : null;
+      return row && Date.now() / 1000 - row.timestamp < 86400 ? row.counterparty : null;
     };
     const findSender = async (tries) => {
+      if (shown) return;
       try {
         const from = (await fromLogs().catch(() => null)) || (await fromHistory().catch(() => null));
         if (from) { show(from); return; }
       } catch { /* try again below */ }
       if (tries > 0) setTimeout(() => findSender(tries - 1), 4000);
     };
-    findSender(30);
+    findSender(3);
+    setTimeout(() => show(null), 12000);
+  }
+
+  function balanceRises(prevNative, prevTokens, native = balance, walletTokens = tokenBalances) {
+    const rises = [];
+    if (prevNative !== undefined && native > prevNative) rises.push({ symbol: activeNetwork.nativeSymbol, raw: native - prevNative, decimals: 18 });
+    for (const [sym, v] of Object.entries(walletTokens)) {
+      const before = prevTokens?.[sym];
+      if (before !== undefined && v > before) rises.push({ symbol: sym, raw: v - before, decimals: tokens[sym]?.decimals ?? 18 });
+    }
+    return rises;
+  }
+
+  // Called with balances just read for one address on this network. The
+  // first read after opening is compared with the last one kept here (money
+  // that came in while the wallet was closed), then kept in its place.
+  const awayCheckedRef = useRef(new Set()); // network:address compared since opening
+  function noteSeenBalances(address, native, walletTokens) {
+    const key = `${activeNetworkKey}:${address.toLowerCase()}`;
+    let seen = {};
+    try { seen = JSON.parse(localStorage.getItem(SEEN_BALANCES_KEY) || "{}"); } catch { /* starts empty */ }
+    const stored = seen[key];
+    const failed = walletTokens.failed || new Set(); // unread this time: neither compared nor kept
+    const toBig = (v) => { try { return BigInt(v); } catch { return undefined; } };
+    if (stored && !awayCheckedRef.current.has(key)) {
+      // the wallet's own action just before it was closed also raises a balance
+      if (Date.now() - (stored.ownAt || 0) > 90000) {
+        const before = Object.fromEntries(Object.entries(stored.tokens || {}).filter(([k]) => !failed.has(k)).map(([k, v]) => [k, toBig(v)]));
+        const away = balanceRises(toBig(stored.native), before, native, walletTokens);
+        if (away.length) announceReceipt(away[0], key);
+      }
+    }
+    awayCheckedRef.current.add(key);
+    const kept = { ...(stored?.tokens || {}) };
+    for (const [k, v] of Object.entries(walletTokens)) if (!failed.has(k)) kept[k] = v.toString();
+    seen[key] = { native: native.toString(), tokens: kept, ownAt: ownActivityAtRef.current };
+    try { localStorage.setItem(SEEN_BALANCES_KEY, JSON.stringify(seen)); } catch { /* not kept */ }
+  }
+
+  useEffect(() => {
+    if (!wallet?.address || locked || !balanceReady) return;
+    const key = `${activeNetworkKey}:${wallet.address.toLowerCase()}`;
+    const prev = lastBalancesRef.current;
+    const since = prev && prev.key === key ? prev.since : Date.now();
+    lastBalancesRef.current = { key, since, native: balance, tokens: { ...tokenBalances } };
+
+    if (!prev || prev.key !== key) return;
+    // just switched network or address: the first reads are still settling
+    if (Date.now() - since < 20000) return;
+    // the wallet's own swap, withdrawal, bridge... also raise a balance
+    if (Date.now() - ownActivityAtRef.current < 90000) return;
+    const rises = balanceRises(prev.native, prev.tokens);
+    if (rises.length) announceReceipt(rises[0], key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [balance, tokenBalances]);
   useEffect(() => {
     if (!incoming) return;
-    // 3 s on screen
-    const t = setTimeout(() => setIncoming(null), 3000);
+    // 6 s on screen
+    const t = setTimeout(() => setIncoming(null), 6000);
     return () => clearTimeout(t);
   }, [incoming?.id]);
 
@@ -5501,6 +5574,8 @@ async function executeUnstakeTicket(signer, ticket) {
     if (!multiTicket || !multiTicket.steps?.length) {
       throw new Error("No plan pending.");
     }
+    // in one transaction, prepared while the plan was on screen
+    if (await runOwnBatch()) return;
 
     setBusy(true);
     beginExecutionTimer();
@@ -8051,6 +8126,104 @@ function handleHoldEnd() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planSimKey]);
 
+  // A plan signed with the wallet's own key runs as ONE transaction (an
+  // EIP-7702 batch, the same delegate as Ledger plans): all or nothing. Routes,
+  // quotes, nonce and gas are read while the plan is on screen (again every
+  // 20 s), so confirming only signs and broadcasts. Step by step instead when
+  // the network has no delegate, a step can't be built ahead (a Polymarket
+  // bet, a step after a bridge), or something fails before broadcasting.
+  const preparedPlanRef = useRef(null);
+  async function prepareOwnPlan(steps) {
+    const unsupported = { unsupported: true, at: Date.now() };
+    if (!unlockedPrivateKey || !steps?.length) return unsupported;
+    if (steps.some((st, i) => st.kind === "predict" || (st.kind === "bridge" && i < steps.length - 1))) return unsupported;
+    if (!(await batchSupported(RPC))) return unsupported;
+    const from = new ethers.Wallet(unlockedPrivateKey).address;
+    const { calls, skipped } = await buildPlanBatch(steps, from);
+    if (skipped.length || !calls.length) return unsupported;
+    return prepareOwnBatch({ provider: RPC, address: from, calls });
+  }
+  const ownBatchKey = multiTicket && !ledgerActive && unlockedPrivateKey && planSimKey ? planSimKey : null;
+  useEffect(() => {
+    if (!ownBatchKey) return;
+    let alive = true;
+    const steps = multiTicket.steps;
+    const run = () => prepareOwnPlan(steps)
+      .then(p => { if (alive) preparedPlanRef.current = { ...p, key: ownBatchKey }; })
+      .catch(e => { if (alive) preparedPlanRef.current = { key: ownBatchKey, error: e, at: Date.now() }; });
+    run();
+    const every = setInterval(run, 20000);
+    return () => { alive = false; clearInterval(every); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownBatchKey]);
+
+  // true when the plan was run here (or failed after leaving the wallet)
+  async function runOwnBatch() {
+    const steps = multiTicket.steps;
+    const wouldFail = (e) => ["CALL_EXCEPTION", "INSUFFICIENT_FUNDS"].includes(e?.code);
+    const failMessage = (e) => (e?.code === "INSUFFICIENT_FUNDS"
+      ? "Nothing was sent. Not enough funds for this plan, including the network fee."
+      : "Nothing was sent. This plan would fail on-chain right now (a balance, an allowance or a quote that moved). Try again in a moment.");
+    let p = preparedPlanRef.current;
+    preparedPlanRef.current = null; // one use
+    if (!p || p.key !== planSimKey || p.error || Date.now() - p.at > 30000) {
+      try {
+        p = await prepareOwnPlan(steps);
+      } catch (e) {
+        if (wouldFail(e)) throw new Error(failMessage(e));
+        console.warn("Plan not prepared in one transaction, step by step instead:", e);
+        return false;
+      }
+    }
+    if (p.unsupported) return false;
+
+    setBusy(true);
+    setExecutionLabel("Plan");
+    setExecutionSteps(["Sign the plan", "Confirm on-chain"]);
+    setExecutionStepIndex(-1);
+    setPlanStepIndex(0);
+    beginExecutionTimer();
+    const signer = new ethers.Wallet(unlockedPrivateKey, RPC);
+    let tx;
+    try {
+      try {
+        tx = await sendOwnBatch({ wallet: signer, prepared: p });
+      } catch (e) {
+        if (!/nonce/i.test(`${e?.code} ${e?.shortMessage || e?.message}`)) throw e;
+        // something else left this address meanwhile: read again, once
+        tx = await sendOwnBatch({ wallet: signer, prepared: await prepareOwnPlan(steps) });
+      }
+    } catch (e) {
+      // nothing left the wallet
+      if (wouldFail(e)) { await finishExecution(); throw new Error(failMessage(e)); }
+      console.warn("Plan not sent in one transaction, step by step instead:", e);
+      resetExecutionProgress();
+      return false;
+    }
+    try {
+      advanceExecutionTo(0);
+      setTxHash(tx.hash);
+      setStepTxHashes(steps.map(() => tx.hash));
+      setStatus("Confirming…");
+      const receipt = await tx.wait();
+      if (!receipt || receipt.status !== 1) throw new Error("The plan was rejected on-chain. Nothing moved.");
+      setPlanStepIndex(steps.length);
+      advanceExecutionTo(1);
+      setMessages(m => [...m, { role: "ai", text: `✅ ${steps.length > 1 ? `All ${steps.length} steps` : "Done"} on ${activeNetwork.name}, in one transaction.\n\n[View on Explorer Here](${explorerTx(tx.hash, activeNetwork)})` }]);
+      refreshBalance(signer.address);
+      refreshTokenBalances(signer.address);
+      // the last check is seen for a moment, then the recap
+      await new Promise(resolve => setTimeout(resolve, DONE_TRANSITION_BEAT_MS));
+      advanceExecutionTo(2);
+      setStepSweepActive(true);
+      setTimeout(() => setStepSweepActive(false), 2400);
+      setMultiTicketDone(true);
+      return true;
+    } finally {
+      await finishExecution();
+    }
+  }
+
   useEffect(() => {
     // the plan's rows, or while Lyra reads the request, the steps read from the sentence
     const rows = planRows || (pendingPlan?.steps || []).map(st => ({ kind: st.kind, asset: st.asset, toAsset: st.toAsset, amount: /^d/.test(st.amount || "") ? st.amount : null }));
@@ -8320,18 +8493,18 @@ function handleHoldEnd() {
                 />
               )}
               <div className="plan-sheet-body">
+                {/* Lyra's work log for this request, at the top: live phase + seconds, then "Worked for…" */}
+                {(() => {
+                  const run = activityRuns[activityRuns.length - 1];
+                  return run && run.t0 >= planStartedAtRef.current - 1000 ? <ActivityBlock key={run.id} run={run} /> : null;
+                })()}
                 {planRequest && <FlyingRequest text={planRequest} origin={planScene ? null : o} />}
-                {/* Lyra's work log for this request: live phase + seconds, then "Worked for…" */}
                 <motion.div
                   className="plan-sheet-content"
                   initial={o ? { opacity: 0 } : false}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3, delay: o ? 0.45 : 0 }}
                 >
-                {(() => {
-                  const run = activityRuns[activityRuns.length - 1];
-                  return run && run.t0 >= planStartedAtRef.current - 1000 ? <ActivityBlock key={run.id} run={run} /> : null;
-                })()}
                 <PlanCard
                   key={planView.key}
                   {...planView}

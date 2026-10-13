@@ -98,7 +98,7 @@ export function PlanScene3D({ request, steps: liveSteps, ready, settled, leaving
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const trackRef = useRef(null);
-  const st = useRef({ alive: true, queue: Promise.resolve(), items: [], shown: 0, checked: 0, cam: 0, camNow: 0, settling: false, settled: false });
+  const st = useRef({ alive: true, queue: Promise.resolve(), items: [], shown: 0, checked: 0, cam: 0, camNow: 0, movingUntil: 0, settling: false, settled: false });
   const props = useRef({ ready, settled, steps, onSettled });
   props.current = { ready, settled, steps, onSettled };
 
@@ -154,25 +154,42 @@ export function PlanScene3D({ request, steps: liveSteps, ready, settled, leaving
   }, []);
 
   // the camera flies forward through the stars during a step back, only then
-  function moveCamera() {
+  function moveCamera(duration) {
     const s = st.current;
     const from = s.cam, to = s.cam + STARS.step, t0 = performance.now();
     s.cam = to;
     const tick = (now) => {
       if (!s.alive) return;
-      const p = Math.min(1, (now - t0) / MOVE.duration);
+      const p = Math.min(1, (now - t0) / duration);
       s.camNow = from + (to - from) * moveEase(p);
       if (p < 1) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   }
-  // every item one slot further back, the stars rush past
-  function stepBack() {
-    for (const it of st.current.items) {
-      it.el.animate([pose(it.slot), pose(it.slot + 1)], MOVE);
+  // every item one slot further back, the stars rush past. A move never
+  // starts before the previous one has landed: starting from the end pose of
+  // a move still running would make the boxes jump.
+  async function stepBack(duration = MOVE.duration) {
+    const s = st.current;
+    const wait = s.movingUntil - performance.now();
+    if (wait > 0) await sleep(wait);
+    for (const it of s.items) {
+      it.el.animate([pose(it.slot), pose(it.slot + 1)], { ...MOVE, duration });
       it.slot += 1;
     }
-    moveCamera();
+    moveCamera(duration);
+    s.movingUntil = performance.now() + duration;
+  }
+  // a step comes from the camera while the others step back, all together
+  async function bringStep(i, duration = MOVE.duration) {
+    const s = st.current;
+    const el = trackRef.current?.querySelector(`.ps3d-step[data-i="${i}"]`);
+    if (!el) return;
+    await stepBack(duration);
+    el.animate([pose(-1), pose(0)], { ...MOVE, duration });
+    s.items.push({ el, slot: 0 });
+    s.shown = i + 1;
+    await sleep(duration);
   }
   const enqueue = (fn) => { const s = st.current; s.queue = s.queue.then(() => (s.alive ? fn() : null)).catch(() => {}); return s.queue; };
 
@@ -198,14 +215,8 @@ export function PlanScene3D({ request, steps: liveSteps, ready, settled, leaving
   }, []);
 
   async function enterStep(i) {
-    const s = st.current;
-    const el = trackRef.current?.querySelector(`.ps3d-step[data-i="${i}"]`);
-    if (!el || s.settling) return;
-    stepBack();
-    el.animate([pose(-1), pose(0)], MOVE);
-    s.items.push({ el, slot: 0 });
-    s.shown = i + 1;
-    await sleep(MOVE.duration);
+    if (st.current.settling) return;
+    await bringStep(i);
   }
   async function checkStep(i, quick = false) {
     const s = st.current;
@@ -244,26 +255,24 @@ export function PlanScene3D({ request, steps: liveSteps, ready, settled, leaving
     enqueue(async () => {
       const n = props.current.steps.length;
       for (let i = s.checked; i < n; i++) {
-        if (s.shown <= i) {
-          // not shown yet: a short pass, so every step was seen once
-          const el = trackRef.current?.querySelector(`.ps3d-step[data-i="${i}"]`);
-          if (el) {
-            stepBack();
-            el.animate([pose(-1), pose(0)], { ...MOVE, duration: 600 });
-            s.items.push({ el, slot: 0 });
-            s.shown = i + 1;
-            await sleep(450);
-          }
-        }
+        // not shown yet: a shorter pass (the same for every box), so every step was seen once
+        if (s.shown <= i) await bringStep(i, 850);
         await checkStep(i, true);
       }
       // the last step stays on screen a moment, checked, before the recap
-      await sleep(800);
+      await sleep(900);
       s.settling = true;
-      stepBack();
-      for (const it of s.items) it.el.animate([{ opacity: pose(it.slot).opacity }, { opacity: 0 }], { duration: 650, delay: 250, fill: "forwards" });
-      canvasRef.current?.animate([{ opacity: 1 }, { opacity: 0.3 }], { duration: 900, fill: "forwards" });
-      await sleep(550);
+      await stepBack();
+      for (const it of s.items) it.el.animate([{ opacity: pose(it.slot).opacity }, { opacity: 0 }], { duration: 700, delay: 200, easing: "ease-in-out", fill: "forwards" });
+      canvasRef.current?.animate([{ opacity: 1 }, { opacity: 0.3 }], { duration: 1000, easing: "ease-in-out", fill: "forwards" });
+      await sleep(650);
+      // the recap fades in as the scene goes: its boxes start invisible
+      // (before the sheet shows them), then come up together
+      const sheet = rootRef.current?.closest(".plan-sheet");
+      const parts = sheet ? [...sheet.querySelectorAll(".plan-sheet-request, .plan-card")] : [];
+      parts.forEach((el, k) => el.animate(
+        [{ opacity: 0, transform: "translateY(18px)" }, { opacity: 1, transform: "none" }],
+        { duration: 750, delay: 120 + k * 90, easing: EASE, fill: "backwards" }));
       s.settled = true;
       props.current.onSettled?.();
     });
