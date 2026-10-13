@@ -3,8 +3,8 @@
 // app. It never touches anything else: balances, prices, Lyra's answers and
 // transactions always come live from the network (other origins are not
 // even looked at). vite.app.config.js fills in the build stamp and the list.
-const CACHE = "lyra-app-mv6i6ydj";
-const SHELL = ["./","./index.html","./manifest.webmanifest","./logo.svg","./favicon.svg","./assets/ApplicationChecker-ABjCXvhF.js","./assets/BufferGeometryUtils-DjsgMeey.js","./assets/ccip-CFzHpaKI.js","./assets/DefaultTransportService-oK0O0k0G.js","./assets/GLTFLoader-OVlyQfqU.js","./assets/index-Bmdew5NO.js","./assets/index-BSH7an0w.js","./assets/index-BYzR2Vdc.js","./assets/index-Cjuiyuqi.js","./assets/index-ClrJGKiE.js","./assets/index-eZ-_X_jh.css","./assets/p256-BGoaO-kt.js","./assets/three.module-BT1pP-6r.js","./assets/TransportConnectedDevice-Cly9kjIR.js"];
+const CACHE = "lyra-app-mv6p3wsx";
+const SHELL = ["./","./index.html","./manifest.webmanifest","./logo.svg","./favicon.svg","./assets/ApplicationChecker-BZCOihU_.js","./assets/BufferGeometryUtils-DjsgMeey.js","./assets/ccip-CqJi7nSL.js","./assets/DefaultTransportService-CaVlchRU.js","./assets/GLTFLoader-OVlyQfqU.js","./assets/index-B6nYdENz.js","./assets/index-BAzxpTrf.js","./assets/index-C8DnhBGA.js","./assets/index-ClF2Se8K.css","./assets/index-DqKRGWfd.js","./assets/index-DTAHrmph.js","./assets/p256-CO1YXyrY.js","./assets/three.module-BT1pP-6r.js","./assets/TransportConnectedDevice-B3ehiuvk.js"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

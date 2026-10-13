@@ -282,6 +282,7 @@ export function PlanCard({
   onConfirm,           // async () => void, after the biometric / hold passed
   onCancel,
   onDone,
+  children,            // shown right under the warning (e.g. a contact to add)
 }) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
@@ -382,6 +383,7 @@ export function PlanCard({
       </motion.div>
 
       {warning && phase === "review" && <div className="plan-warning">{warning}</div>}
+      {children}
 
       {/* what the plan really does, simulated on-chain right before confirming */}
       {phase === "review" && simulation && simulation.state !== "off" && (

@@ -638,3 +638,11 @@
 .plan-txlinks-step { font-weight: 700; }
 .plan-txlinks-label { color: var(--muted); }
 .plan-txlinks-hash { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+/* a send to a name that isn't a contact yet: its address, saved as a contact (App.jsx AddMissingContact) */
+.plan-missing-contact { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
+.plan-missing-title { font-size: 13.5px; font-weight: 600; color: var(--beige); }
+.plan-missing-desc { font-size: 12px; color: var(--muted-dim); line-height: 1.4; }
+.plan-missing-row { display: flex; gap: 8px; margin-top: 4px; }
+.plan-missing-row .contact-input { flex: 1; min-width: 0; margin: 0; font-family: var(--mono, ui-monospace, monospace); font-size: 12.5px; }
+.plan-missing-row .contact-save { flex: 0 0 auto; height: 40px; }
