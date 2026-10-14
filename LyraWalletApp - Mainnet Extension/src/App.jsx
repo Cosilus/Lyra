@@ -76,6 +76,7 @@ import { CircleMenu } from "./CircleMenu";
 import { RewardsPanel } from "./Rewards.jsx";
 import { createPortal } from "react-dom";
 import { AskLyra } from "./AskLyra.jsx";
+import { AskDock, AskSheet } from "./AskDock.jsx";
 import { StatusBadge } from "./StatusBadge.jsx";
 import { FillButton } from "./FillButton.jsx";
 import { buildIdeas } from "./askLyraIdeas.js";
@@ -1034,6 +1035,8 @@ export default function App() {
   }
   const [balanceReady, setBalanceReady] = useState(false);
   const [showReceiveQr, setShowReceiveQr] = useState(false);
+  // mobile app, 3D: the Ask Lyra sheet opened from the bottom dock ({ voice } or null)
+  const [askSheet, setAskSheet] = useState(null);
   const [receiveQrSrc, setReceiveQrSrc] = useState("");
   useEffect(() => {
     if (!showReceiveQr || !wallet?.address) return;
@@ -7851,6 +7854,16 @@ function handleHoldEnd() {
       .filter(a => a.balance > 0),
   ];
 
+  // Mobile app in 3D: Ask Lyra moves to the bottom (thumb zone) and opens as a sheet
+  const dockAsk = IS_APP && uiMode === "3d" && !!wallet && !locked;
+  const openAskSheet = (how = {}, prefill = null) => {
+    if (prefill != null) setInput(prefill);
+    setAskSheet({ voice: !!how.voice, at: Date.now() });
+  };
+  const quickAction = (key) => {
+    if (key === "receive") { setShowReceiveQr(true); return; }
+    openAskSheet({}, { send: "Send ", swap: "Swap ", stake: "Stake " }[key] ?? "");
+  };
   const anyOverlayOpen =
     showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showRewards || showReceiveQr || showTxHistory || showUnlock || showWallet || showWelcome ||
     showPasswordSetup || showSend || !!defiTicket || !!multiTicket;
@@ -8524,7 +8537,7 @@ function handleHoldEnd() {
   })();
 
   const frame = (
-      <main className="frame frame--ask">
+      <main className={`frame frame--ask${dockAsk ? " has-ask-dock" : ""}`}>
         {ledgerGuide && (
           <LedgerSetup
             model={ledgerGuide.model}
@@ -8878,7 +8891,7 @@ function handleHoldEnd() {
             </AnimatePresence>
             </div>
 
-            {wallet && (
+            {wallet && !dockAsk && (
               <AskLyra
                 value={input}
                 onChange={setInput}
@@ -12427,6 +12440,39 @@ function handleHoldEnd() {
 )}
 </OverlayPortal>
 
+        {/* Mobile app, 3D: Ask Lyra at the bottom, and the sheet it opens */}
+        {dockAsk && (
+          <AskDock
+            hidden={!!planView || anyOverlayOpen || !!askSheet}
+            onOpen={(how) => openAskSheet(how)}
+            onQuick={quickAction}
+          />
+        )}
+        {dockAsk && (
+          <AskSheet open={!!askSheet} onClose={() => setAskSheet(null)}>
+            <AskLyra
+              key={askSheet?.at || "closed"}
+              value={input}
+              onChange={setInput}
+              onSubmit={(text, how) => { setAskSheet(null); voiceRequestRef.current = !!how?.voice; handleIntent(text); setInput(""); }}
+              busy={busy}
+              tokenSymbols={[activeNetwork.nativeSymbol, ...Object.keys(tokens)].sort((x, y) => Number((y === activeNetwork.nativeSymbol ? balance : tokenBalances[y] || 0n) > 0n) - Number((x === activeNetwork.nativeSymbol ? balance : tokenBalances[x] || 0n) > 0n))}
+              contacts={contacts}
+              networks={NETWORKS}
+              suggestions={askLyraSuggestions}
+              protocolLabel={protocolLabel}
+              language={lyraLanguage}
+              onLanguageChange={changeLyraLanguage}
+              pendingContactName={pendingContact?.name || null}
+              onSaveContact={saveContactFromChat}
+              autoFocus={!askSheet?.voice}
+              startVoice={!!askSheet?.voice}
+              highlight
+              placeholder="Send, swap, stake… just say it"
+              hint="Lyra shows you every step first"
+            />
+          </AskSheet>
+        )}
       </main>
   );
 
@@ -12472,7 +12518,7 @@ function handleHoldEnd() {
     return (
       <div className="page page--3d">
         {toastEl}
-        <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} paused={anyOverlayOpen} tourActive={tourOpen} onTourDone={finishTour}>
+        <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} paused={anyOverlayOpen || !!askSheet} tourActive={tourOpen} onTourDone={finishTour}>
           {frame}
         </Box3D>
       </div>

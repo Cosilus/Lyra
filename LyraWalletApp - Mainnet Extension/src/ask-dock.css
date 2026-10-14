@@ -1,0 +1,285 @@
+/* ================================
+   ASK DOCK + ASK SHEET (mobile app, 3D interface)
+   Ask Lyra at the bottom, in the thumb zone; tapping it opens a sheet from
+   the bottom and the wallet steps back behind it.
+================================ */
+
+/* ---- the highlight layer under the Ask Lyra text (everywhere it is on) */
+.ask-field { position: relative; }
+.ask-field .ask-input { position: relative; z-index: 1; }
+.ask-marks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font: 500 15px/1.5 var(--sans);
+  letter-spacing: 0;
+  color: transparent;
+}
+.ask-mark {
+  color: transparent;
+  background: rgba(var(--accent-rgb), 0.24);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.24);
+  border-radius: 6px;
+}
+.ask-mark--contact {
+  background: rgba(228, 120, 170, 0.24);
+  box-shadow: 0 0 0 3px rgba(228, 120, 170, 0.24);
+}
+
+/* ---- the dock: quick actions + the Ask Lyra bar */
+.ask-dock {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ask-dock-quick {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.ask-dock-quick::-webkit-scrollbar { display: none; }
+.ask-dock-chip {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  background: rgba(21, 14, 32, 0.86);
+  color: var(--beige);
+  font: 600 13.5px var(--sans);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+.ask-dock-chip svg { color: var(--accent-strong); }
+.ask-dock-chip:active { transform: scale(0.97); background: var(--accent-soft); }
+
+.ask-dock-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 64px;
+  padding: 0 10px 0 6px;
+  border-radius: 26px;
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
+  background:
+    radial-gradient(120% 140% at 50% 120%, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0) 70%),
+    rgba(21, 14, 32, 0.94);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.8), 0 0 40px -18px rgba(var(--accent-rgb), 0.55);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.ask-dock-open {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 0 0 14px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: 500 17px var(--sans);
+  text-align: left;
+  cursor: text;
+}
+.ask-dock-open .lyra-star { width: 15px; height: 15px; color: #fff; flex: 0 0 auto; }
+.ask-dock-mic,
+.ask-dock-send {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.ask-dock-mic {
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  background: rgba(34, 23, 51, 0.9);
+  color: var(--beige);
+}
+.ask-dock-send {
+  border: 0;
+  background: linear-gradient(135deg, #D3CCDD, #8E879C);
+  color: #1A1225;
+}
+
+/* the wallet's own content stays clear of the dock (app + 3D only) */
+html.lyra-app .frame.has-ask-dock .chat { padding-bottom: 150px; }
+html.lyra-app .frame.has-ask-dock .ask-lyra { display: none; }
+
+/* ---- the wallet steps back while the sheet is up */
+html.lyra-app .d3-stage {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease, filter 0.45s ease;
+  transform-origin: 50% 0%;
+}
+html.lyra-app.ask-sheet-open .d3-stage {
+  transform: translateY(14px) scale(0.92);
+  opacity: 0.5;
+  filter: saturate(0.8);
+  pointer-events: none;
+}
+
+/* ---- the sheet */
+.ask-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.ask-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 4, 12, 0.45);
+}
+.ask-sheet {
+  position: relative;
+  height: calc(100dvh - 72px - env(safe-area-inset-top, 0px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 32px 32px 0 0;
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  border-bottom: 0;
+  background: linear-gradient(180deg, #1B1430 0%, #140E22 40%, #110C1C 100%);
+  box-shadow: 0 -20px 60px -10px rgba(0, 0, 0, 0.7);
+  padding: 0 18px calc(14px + env(safe-area-inset-bottom, 0px));
+  touch-action: pan-y;
+}
+.ask-sheet-grip {
+  width: 42px;
+  height: 5px;
+  margin: 9px auto 4px;
+  border-radius: 3px;
+  background: rgba(var(--beige-rgb), 0.25);
+  cursor: grab;
+  touch-action: none;
+}
+.ask-sheet-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 58px;
+  margin-bottom: 14px;
+  touch-action: none;
+}
+.ask-sheet-close {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(var(--beige-rgb), 0.18);
+  background: rgba(34, 23, 51, 0.9);
+  color: var(--beige);
+  cursor: pointer;
+}
+.ask-sheet-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font: 600 19px var(--sans);
+  color: var(--beige);
+}
+.ask-sheet-title .lyra-star { width: 17px; height: 17px; color: #fff; }
+.ask-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 4px 8px;
+  margin: -18px -4px 0;
+}
+
+/* the Ask Lyra box, sheet version: bigger words, glowing pearl-to-violet edge */
+.ask-sheet .ask-lyra { margin-top: 0; gap: 18px; }
+.ask-sheet .ask-divider { display: none; }
+.ask-sheet .ask-box {
+  border-radius: 24px;
+  padding: 18px 12px 12px 20px;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(#120D1E, #120D1E) padding-box,
+    linear-gradient(135deg, #BFE3FF, #C4B0FF 35%, #A78BFA 70%, #E07BFF) border-box;
+  box-shadow: 0 0 34px -6px rgba(167, 139, 250, 0.55), 0 0 70px -20px rgba(191, 227, 255, 0.45);
+}
+.ask-sheet .ask-lyra.is-focused .ask-box {
+  box-shadow: 0 0 40px -4px rgba(167, 139, 250, 0.7), 0 0 80px -18px rgba(191, 227, 255, 0.55);
+}
+.ask-sheet .ask-input,
+.ask-sheet .ask-marks,
+.ask-sheet .ask-placeholder {
+  font-size: 20px;
+  line-height: 1.55;
+}
+.ask-sheet .ask-input { min-height: 96px; max-height: 210px; scrollbar-width: none; }
+.ask-sheet .ask-input::-webkit-scrollbar { display: none; }
+.ask-sheet .ask-placeholder .lyra-star { width: 15px; height: 15px; }
+.ask-sheet .ask-foot { margin-top: 10px; flex-wrap: wrap; row-gap: 10px; }
+/* "Lyra shows you every step first" on its own line, under the words */
+.ask-sheet .ask-hint { order: -1; flex: 1 0 100%; font-size: 13px; white-space: normal; }
+
+/* "You can try something like this :" as one card of rows */
+.ask-sheet .ask-try { gap: 0; }
+.ask-sheet .ask-try-title { margin: 0 0 10px 2px; font-size: 14px; }
+.ask-sheet .ask-try-item {
+  min-height: 56px;
+  padding: 0 16px;
+  gap: 14px;
+  font-size: 16px;
+  border-radius: 0;
+  background: rgba(21, 14, 32, 0.9);
+  border: 1px solid rgba(var(--accent-rgb), 0.14);
+  border-top-width: 0;
+}
+.ask-sheet .ask-try-item:first-of-type { border-top-width: 1px; border-radius: 20px 20px 0 0; }
+.ask-sheet .ask-try-item:last-child { border-radius: 0 0 20px 20px; }
+.ask-sheet .ask-try-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  flex: 0 0 auto;
+}
+
+/* "Understanding…": dashed boxes, like the plan being drawn */
+.ask-sheet .ask-steps { gap: 10px; }
+.ask-sheet .ask-step {
+  border-style: dashed;
+  border-color: rgba(var(--beige-rgb), 0.16);
+  background: rgba(var(--beige-rgb), 0.02);
+  border-radius: 18px;
+  padding: 12px 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.lyra-app .d3-stage { transition: none; }
+}
+
+/* mic and send together on the right of the sheet's box */
+.ask-sheet .ask-mic { margin-left: auto; }
+.ask-sheet .ask-save-contact + .ask-mic { margin-left: 0; }
