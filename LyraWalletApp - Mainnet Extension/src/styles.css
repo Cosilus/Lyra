@@ -4666,6 +4666,10 @@ html.lyra-app body {
   -webkit-text-size-adjust: 100%;
 }
 html.lyra-app body { min-height: 100dvh; }
+/* nothing may widen the page: on a phone the whole layout would grow with it */
+html.lyra-app,
+html.lyra-app body { overflow-x: hidden; max-width: 100%; }
+html.lyra-app .d3-scene { overflow: clip; width: 100%; }
 html.lyra-app .frame {
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -4917,4 +4921,13 @@ html.lyra-app .header-actions { top: calc(env(safe-area-inset-top, 0px) + 56px);
   color: #B9AECB;
   font-size: 18px;
   line-height: 1;
+}
+
+/* Web app: every control big enough for a finger (44pt on iOS, 48dp on
+   Android; 44px is the floor here, the icons themselves keep their size) */
+@media (pointer: coarse) {
+  html.lyra-app :is(.ask-mic, .ask-send) { width: 44px; height: 44px; }
+  html.lyra-app .ask-lang { min-height: 36px; padding-inline: 12px; }
+  html.lyra-app .balance-qr { width: 44px; height: 44px; }
+  html.lyra-app .d3-side-item { width: 48px; height: 48px; }
 }

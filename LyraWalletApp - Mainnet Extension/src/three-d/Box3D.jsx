@@ -21,8 +21,11 @@ const MIN_VIEW_W = 240, MIN_VIEW_H = 320, FALLBACK_VIEW_W = 360, FALLBACK_VIEW_H
 
 function viewportSize() {
   const el = document.documentElement;
-  let vw = window.innerWidth || el.clientWidth;
-  let vh = window.innerHeight || el.clientHeight;
+  // The web app on a phone: the screen itself (the initial containing block).
+  // innerWidth grows when anything overflows the page, and a box sized from
+  // it overflows in turn: the wallet ended up wider than the phone, shifted.
+  let vw = (IS_APP ? el.clientWidth : 0) || window.innerWidth || el.clientWidth;
+  let vh = (IS_APP ? el.clientHeight : 0) || window.innerHeight || el.clientHeight;
   if (!(vw >= MIN_VIEW_W)) vw = FALLBACK_VIEW_W;
   if (!(vh >= MIN_VIEW_H)) vh = FALLBACK_VIEW_H;
   return { vw, vh };
