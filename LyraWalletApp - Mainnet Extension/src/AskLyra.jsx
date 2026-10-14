@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MousePointer2, Mic, Globe, Check, Square, UserPlus } from "lucide-react";
 import { motion } from "framer-motion";
 import { drawIdeas } from "./askLyraIdeas.js";
@@ -6,6 +6,7 @@ import { LYRA_LANGUAGES, speechLangFor } from "./lyraLanguages.js";
 import { useVoiceInput } from "./useVoiceInput.js";
 import { LyraStar, StepIcon, withTokenLogos } from "./PlanCard.jsx";
 import { parseAskLyra } from "./askLyraParse.js";
+import { highlightRanges, highlightSegments } from "./askHighlight.js";
 import { fixTranscript } from "./voiceFix.js";
 import "./ask-lyra.css";
 
@@ -100,7 +101,11 @@ function StepPreview({ step, index, previous, via }) {
   );
 }
 
-export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols, contacts, networks, suggestions = [], protocolLabel, language = "auto", onLanguageChange, pendingContactName = null, onSaveContact }) {
+// Extra props for the mobile Ask Lyra sheet (AskDock): `autoFocus` opens the
+// keyboard, `startVoice` starts listening at once (the dock's mic), `highlight`
+// tints what Lyra recognised as the user types, `placeholder` / `hint` are the
+// sheet's own words. All off by default: the extension is unchanged.
+export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols, contacts, networks, suggestions = [], protocolLabel, language = "auto", onLanguageChange, pendingContactName = null, onSaveContact, autoFocus = false, startVoice = false, highlight = false, placeholder = "Ask Lyra", hint = "" }) {
   // a 0x address typed or pasted that isn't a contact yet: "Save as contact"
   const newAddress = (() => {
     const a = String(value || "").match(/0x[0-9a-fA-F]{40}/)?.[0];
@@ -135,6 +140,29 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
     onText: text => { spokenRef.current = true; onChange(text); },
     onDone: text => { if (!busy) { spokenRef.current = false; onSubmit(text, { voice: true }); } },
     fix: text => fixTranscript(text, { symbols: tokenSymbols || [], contacts: contacts || [] }),
+  });
+
+  // opened from the dock: keyboard up (after the sheet has slid in), or straight to the mic
+  useEffect(() => {
+    if (startVoice && voice.supported) { voice.start(); return; }
+    if (!autoFocus) return;
+    const t = setTimeout(() => {
+      const el = inputRef.current;
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    }, 380);
+    return () => clearTimeout(t);
+    // only when the box opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const marks = useMemo(
+    () => (highlight ? highlightSegments(value, highlightRanges(value, { tokenSymbols, contacts, networks })) : null),
+    [highlight, value, tokenSymbols, contacts, networks]
+  );
+  const marksRef = useRef(null);
+  // the tinted layer follows the box when it scrolls (typing past its height)
+  useLayoutEffect(() => {
+    if (marksRef.current && inputRef.current) marksRef.current.scrollTop = inputRef.current.scrollTop;
   });
 
   const { steps } = useMemo(
@@ -173,12 +201,20 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
           {!value && !voice.listening && (
             <div className="ask-placeholder" aria-hidden="true">
               <LyraStar />
-              <span>Ask Lyra</span>
+              <span>{placeholder}</span>
             </div>
           )}
+        {marks && value && (
+          // same text, same box as the textarea, under it: only the tinted pieces show
+          <div className="ask-marks" ref={marksRef} aria-hidden="true">
+            {marks.map((m, i) => m.kind ? <mark key={i} className={`ask-mark ask-mark--${m.kind}`}>{m.text}</mark> : <span key={i}>{m.text}</span>)}
+            {"\u200b"}
+          </div>
+        )}
         <textarea
           ref={inputRef}
           className="ask-input"
+          onScroll={e => { if (marksRef.current) marksRef.current.scrollTop = e.currentTarget.scrollTop; }}
           rows={2}
           value={value}
           aria-label="Ask Lyra"
@@ -268,7 +304,7 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
               </button>
             )
           )}
-          {!voice.listening && <span className="ask-hint">{voice.voiceNote}</span>}
+          {!voice.listening && <span className="ask-hint">{voice.voiceNote || hint}</span>}
           {voice.supported && (
             <button
               type="button"
