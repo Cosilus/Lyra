@@ -91,6 +91,7 @@ import { ActivityBlock } from "./three-d/ActivityBlock.jsx";
 import { HelpFaq } from "./three-d/HelpFaq.jsx";
 import { TokenLogo } from "./tokenLogo.jsx";
 import { IS_CARD, reportCardBusy } from "./cardBridge.js";
+import { installState, onInstallChange, installLyra } from "./platform.js";
 
 // In the 3D interface the wallet frame lives inside a perspective +
 // transform context, which turns every `position: fixed` modal inside
@@ -1257,6 +1258,9 @@ export default function App() {
   // this address on this network: { status: "none" | "lyra" | "other" | "error", busy, confirm, error }
   const [delegationState, setDelegationState] = useState(null);
   const [plan3dPref, setPlan3dPref] = useState(plan3dEnabled);
+  // the web app opened in a browser: Settings can always install it
+  const [installMode, setInstallMode] = useState(installState);
+  useEffect(() => onInstallChange(() => setInstallMode(installState())), []);
   const [planRequest, setPlanRequest] = useState("");
   // a request held back because it sends to a name that isn't a contact yet:
   // Lyra asked for that address, the request runs again once it is saved
@@ -10880,6 +10884,22 @@ function handleHoldEnd() {
             <button type="button" role="radio" aria-checked={pillMode === "3d"} className={pillMode === "3d" ? "active" : ""} onClick={() => changeUiMode("3d")}>3D</button>
           </div>
         </div>
+
+        {installMode && (
+          <div className="settings-row">
+            <div className="settings-row-info">
+              <div className="settings-row-title">Install Lyra on this phone</div>
+              <div className="settings-row-desc">
+                {installMode === "prompt" ? "Opens full screen from your home screen, like any app."
+                  : installMode === "ios" ? "In Safari, tap Share, then Add to Home Screen."
+                  : "Open the browser menu ⋮, then Install app (or Add to Home screen)."}
+              </div>
+            </div>
+            {installMode === "prompt" && (
+              <button type="button" className="contact-save" onClick={() => installLyra()}>Install</button>
+            )}
+          </div>
+        )}
 
         <div className="settings-row">
           <div className="settings-row-info">
