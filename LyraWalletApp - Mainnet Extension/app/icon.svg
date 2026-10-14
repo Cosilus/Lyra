@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- The web app's icon: full bleed (Android masks it to its own shape), the
+       pearl white star inside the maskable safe zone, a soft violet glow. -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0" stop-color="#231841"/>
+      <stop offset="0.55" stop-color="#120C22"/>
+      <stop offset="1" stop-color="#0B0814"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#C4B0FF" stop-opacity="0.3"/><stop offset="0.45" stop-color="#C4B0FF" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#C4B0FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pearl" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E4DAF7"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="200" fill="url(#glow)"/>
+  <g transform="translate(256 256) scale(2.1) translate(-197.386719 -187.5)">
+    <path fill="url(#pearl)" fill-rule="evenodd" d="M 197.386719 112.5 L 198.328125 161.070312 C 198.464844 167.78125 201.101562 174.179688 205.683594 178.925781 C 210.289062 183.671875 216.476562 186.398438 222.984375 186.53125 L 270.011719 187.5 L 222.984375 188.472656 C 216.476562 188.605469 210.289062 191.332031 205.683594 196.078125 C 201.101562 200.824219 198.464844 207.222656 198.328125 213.933594 L 197.386719 262.503906 L 196.449219 213.933594 C 196.3125 207.222656 193.675781 200.824219 189.070312 196.078125 C 184.484375 191.332031 178.296875 188.605469 171.789062 188.472656 L 124.765625 187.5 L 171.789062 186.53125 C 178.296875 186.398438 184.484375 183.671875 189.070312 178.925781 C 193.675781 174.179688 196.3125 167.78125 196.449219 161.070312 Z"/>
+  </g>
+</svg>
