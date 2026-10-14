@@ -9,7 +9,7 @@ import { qrStyledDataUrl } from "./qrStyled.js";
 import { LYRA_TREASURY, LYRA_FEE_PERCENT_LABEL, feeOf, splitOnTop, splitIncluded, toRaw, isFeeExempt, assetInfo, usdPerUnit, feeIsWorthCharging, includedFeePreview, collectLyraFee, runWithLyraFee, estimateAfterFee } from "./fees.js";
 import { parseUiModeCommand } from "./uiModeCommand.js";
 import { parseNetworkCommand } from "./networkCommand.js";
-import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiometricPresence, encryptWithKey, decryptWithKey } from "./Biometric";
+import { isWebAuthnAvailable, registerBiometric, getBiometricAesKey, confirmBiometricPresence, encryptWithKey, decryptWithKey, createDeviceKey, loadDeviceKey, clearDeviceKey } from "./Biometric";
 import { splitPrivateKey, combineFragments, registerMpcWallet, getMpcStatus, setMpcDailyLimit, releaseFragment2, recoverFragment2 } from "./mpc";
 import { loadSavedWallet, encryptPrivateKey, decryptPrivateKey, reconstructPrivateKey } from "./walletVault.js";
 import { syncAddress } from "./providerSync.js";
@@ -91,7 +91,7 @@ import { ActivityBlock } from "./three-d/ActivityBlock.jsx";
 import { HelpFaq } from "./three-d/HelpFaq.jsx";
 import { TokenLogo } from "./tokenLogo.jsx";
 import { IS_CARD, reportCardBusy } from "./cardBridge.js";
-import { installState, onInstallChange, installLyra } from "./platform.js";
+import { installState, onInstallChange, installLyra, IS_APP } from "./platform.js";
 
 // In the 3D interface the wallet frame lives inside a perspective +
 // transform context, which turns every `position: fixed` modal inside
@@ -1119,6 +1119,10 @@ export default function App() {
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricError, setBiometricError] = useState("");
   const sessionKeyCacheRef = useRef(null);
+  // web app: after the password, "unlock with your fingerprint next time?"
+  const [bioOffer, setBioOffer] = useState(false);
+  const bioOfferedRef = useRef(false);
+  const bioAutoRef = useRef(false);
 
   // MPC (2-of-2 key split): fragment1 lives on this device, fragment2
   // on the backend. localSecretRef holds "whatever should be
@@ -2638,28 +2642,50 @@ function resetWallet() {
   setActivityRuns([]);
   sessionKeyCacheRef.current = null;
   clearBiometricRecord();
+  clearDeviceKey();
   setBiometricEnabled(false);
 }
+
+// The record kept for biometric unlock, from a fresh registration:
+// - "prf": the fingerprint itself derives the key (best, no password again);
+// - "device" (web app only): when the phone's passkey provider has no PRF, a
+//   non-extractable key kept by this browser, used once the fingerprint is
+//   confirmed (no password again either);
+// - "gate": the extension without PRF, the password once per session.
+// PRF is tried once more at sign-in when creation didn't report it (some
+// authenticators only answer then).
+async function biometricRecordFor(reg, secretToEncrypt) {
+  const { credentialId, prfSalt } = reg;
+  let aesKey = reg.aesKey || null;
+  // (the extension only when creation reported PRF: no needless second prompt)
+  if (!aesKey && (reg.supportsPrf || IS_APP)) {
+    try { aesKey = await getBiometricAesKey(credentialId, prfSalt); } catch (e) { if (e?.name === "NotAllowedError") throw e; aesKey = null; }
+  }
+  if (aesKey) {
+    const { iv, ciphertext } = await encryptWithKey(aesKey, secretToEncrypt);
+    return { tier: "prf", credentialId, prfSalt, iv, ciphertext, address: wallet.address };
+  }
+  if (IS_APP) {
+    const deviceKey = await createDeviceKey();
+    const { iv, ciphertext } = await encryptWithKey(deviceKey, secretToEncrypt);
+    return { tier: "device", credentialId, iv, ciphertext, address: wallet.address };
+  }
+  return { tier: "gate", credentialId, address: wallet.address };
+}
+const biometricToast = (tier) => (tier === "gate"
+  ? "Biometric shortcut enabled. Still needs your password after the extension fully closes."
+  : "Biometric unlock enabled. No password needed on this device.");
 
 // Registers this device's biometrics for the wallet (one OS prompt) and
 // stores the record. Throws if cancelled. `quiet` skips the toast.
 async function enrollBiometric({ quiet = false } = {}) {
   if (!unlockedPrivateKey) throw new Error("Unlock your wallet with your password first.");
   const secretToEncrypt = localSecretRef.current || unlockedPrivateKey;
-  const { credentialId, supportsPrf, prfSalt } = await registerBiometric(wallet.address);
-  let record;
-  if (supportsPrf) {
-    const aesKey = await getBiometricAesKey(credentialId, prfSalt);
-    if (!aesKey) throw new Error("Couldn't derive a biometric key, try again.");
-    const { iv, ciphertext } = await encryptWithKey(aesKey, secretToEncrypt);
-    record = { tier: "prf", credentialId, prfSalt, iv, ciphertext, address: wallet.address };
-  } else {
-    record = { tier: "gate", credentialId, address: wallet.address };
-  }
+  const record = await biometricRecordFor(await registerBiometric(wallet.address), secretToEncrypt);
   saveBiometricRecord(record);
   try { localStorage.removeItem("lyra_biometric_optout_v1"); } catch {}
   setBiometricEnabled(true);
-  if (!quiet) setToast(supportsPrf ? "Biometric unlock enabled. No password needed on this device." : "Biometric shortcut enabled. Still needs your password after the extension fully closes.");
+  if (!quiet) setToast(biometricToast(record.tier));
   return record;
 }
 
@@ -2673,19 +2699,10 @@ async function enableBiometric() {
     // for fragment2, same as a password unlock does.
     const secretToEncrypt = localSecretRef.current || unlockedPrivateKey;
 
-    const { credentialId, supportsPrf, prfSalt } = await registerBiometric(wallet.address);
-
-    if (supportsPrf) {
-      const aesKey = await getBiometricAesKey(credentialId, prfSalt);
-      if (!aesKey) throw new Error("Couldn't derive a biometric key, try again.");
-      const { iv, ciphertext } = await encryptWithKey(aesKey, secretToEncrypt);
-      saveBiometricRecord({ tier: "prf", credentialId, prfSalt, iv, ciphertext, address: wallet.address });
-      setToast("Biometric unlock enabled. No password needed on this device.");
-    } else {
-      saveBiometricRecord({ tier: "gate", credentialId, address: wallet.address });
-      setToast("Biometric shortcut enabled. Still needs your password after the extension fully closes.");
-    }
-
+    const record = await biometricRecordFor(await registerBiometric(wallet.address), secretToEncrypt);
+    saveBiometricRecord(record);
+    try { localStorage.removeItem("lyra_biometric_optout_v1"); } catch {}
+    setToast(biometricToast(record.tier));
     setBiometricEnabled(true);
   } catch (e) {
     console.error(e);
@@ -2697,6 +2714,7 @@ async function enableBiometric() {
 
 function disableBiometric() {
   clearBiometricRecord();
+  clearDeviceKey();
   try { localStorage.setItem("lyra_biometric_optout_v1", "1"); } catch {}
   setBiometricEnabled(false);
   sessionKeyCacheRef.current = null;
@@ -2713,15 +2731,23 @@ async function unlockWithBiometric() {
     let privateKey;
     const saved = loadSavedWallet();
 
-    if (record.tier === "prf") {
-      const aesKey = await getBiometricAesKey(record.credentialId, record.prfSalt);
-      if (!aesKey) throw new Error("Biometric key unavailable. Use your password instead.");
+    if (record.tier === "prf" || record.tier === "device") {
+      let aesKey;
+      if (record.tier === "prf") {
+        aesKey = await getBiometricAesKey(record.credentialId, record.prfSalt);
+      } else {
+        await confirmBiometricPresence(record.credentialId);
+        aesKey = await loadDeviceKey();
+      }
+      if (!aesKey) throw new Error("Biometric key unavailable. Use your password once: fingerprint unlock is then set up again.");
       const localSecret = await decryptWithKey(aesKey, record.iv, record.ciphertext);
       privateKey = await reconstructPrivateKey(localSecret, record.address, saved?.mpcEnabled);
       localSecretRef.current = localSecret;
     } else {
       if (!sessionKeyCacheRef.current) {
-        throw new Error("Your session expired. Enter your password once to continue.");
+        throw new Error(IS_APP
+          ? "Enter your password once: Lyra then sets up fingerprint unlock that works every time."
+          : "Your session expired. Enter your password once to continue.");
       }
       await confirmBiometricPresence(record.credentialId);
       privateKey = sessionKeyCacheRef.current;
@@ -8323,6 +8349,31 @@ function handleHoldEnd() {
     return ready;
   })();
 
+  // Web app: like a phone wallet, the fingerprint is asked as soon as the lock
+  // screen shows (once per lock; the button stays for a retry), and after a
+  // password unlock Lyra offers to set it up (or to replace a session-only one).
+  useEffect(() => {
+    if (!showUnlock) { bioAutoRef.current = false; return; }
+    if (!IS_APP || !biometricEnabled || bioAutoRef.current) return;
+    const record = loadBiometricRecord();
+    if (!record || record.tier === "gate") return;
+    bioAutoRef.current = true;
+    const t = setTimeout(() => { unlockWithBiometric(); }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showUnlock, biometricEnabled]);
+  useEffect(() => {
+    if (!IS_APP || !unlockedPrivateKey || !platformBiometric || bioOfferedRef.current) return;
+    const record = loadBiometricRecord();
+    if (record && record.tier !== "gate") return;
+    let optedOut = false;
+    try { optedOut = localStorage.getItem("lyra_biometric_optout_v1") === "1"; } catch {}
+    if (optedOut && !record) return;
+    bioOfferedRef.current = true;
+    const t = setTimeout(() => setBioOffer(true), 900);
+    return () => clearTimeout(t);
+  }, [unlockedPrivateKey, platformBiometric]);
+
   const planBiometric = ledgerActive ? null : (() => {
     const ua = navigator.userAgent || "";
     const label = /Mac|iPhone|iPad/.test(ua) ? "Touch ID" : /Windows/.test(ua) ? "Windows Hello" : "biometrics";
@@ -10261,7 +10312,7 @@ function handleHoldEnd() {
           }}
           placeholder="Enter your password"
           autoComplete="current-password"
-          autoFocus
+          autoFocus={!(IS_APP && biometricEnabled)}
         />
         <button
           type="button"
@@ -12382,6 +12433,37 @@ function handleHoldEnd() {
   const toastEl = (
     <>
       {toast ? <div className="toast">{toast}</div> : null}
+      {bioOffer && !showUnlock && (
+        <div className="bio-offer" role="dialog" aria-label="Fingerprint unlock">
+          <span className="bio-offer-icon"><Fingerprint size={22} strokeWidth={1.8} /></span>
+          <div className="bio-offer-text">
+            <b>Unlock with your fingerprint?</b>
+            <span>No password next time, on this phone.</span>
+          </div>
+          <div className="bio-offer-actions">
+            <button
+              type="button"
+              className="bio-offer-yes"
+              disabled={biometricBusy}
+              onClick={async () => {
+                setBiometricBusy(true);
+                try { await enrollBiometric(); setBioOffer(false); }
+                catch (e) { console.error(e); setToast(e?.name === "NotAllowedError" ? "Fingerprint not set up. You can turn it on in Settings." : (e.message || "Couldn't set up fingerprint unlock.")); setBioOffer(false); }
+                finally { setBiometricBusy(false); }
+              }}
+            >
+              {biometricBusy ? "…" : "Turn on"}
+            </button>
+            <button
+              type="button"
+              className="bio-offer-no"
+              onClick={() => { try { localStorage.setItem("lyra_biometric_optout_v1", "1"); } catch {} setBioOffer(false); }}
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
       {showInterfaceChoice && <InterfaceChooser onChoose={chooseInterface} />}
     </>
   );

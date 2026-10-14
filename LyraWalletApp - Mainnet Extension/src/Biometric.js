@@ -78,6 +78,7 @@ export async function registerBiometric(address) {
       pubKeyCredParams: [{ type: "public-key", alg: -7 }],
       authenticatorSelection: {
         authenticatorAttachment: "platform",
+        residentKey: "preferred",
         userVerification: "required"
       },
       extensions: { prf: { eval: { first: prfSalt } } }
@@ -85,12 +86,17 @@ export async function registerBiometric(address) {
   });
 
   const extResults = credential.getClientExtensionResults();
-  const supportsPrf = !!(extResults?.prf?.enabled || extResults?.prf?.results);
+  // some authenticators only answer PRF at the first sign-in, not at creation:
+  // the caller then tries once (enrollBiometric in App.jsx)
+  const supportsPrf = extResults?.prf?.enabled === true || !!extResults?.prf?.results?.first;
+  const prfOnCreate = extResults?.prf?.results?.first || null;
 
   return {
     credentialId: toBase64(credential.rawId),
     prfSalt: toBase64(prfSalt),
-    supportsPrf
+    supportsPrf,
+    // the key straight away when the authenticator gave it at creation (no second prompt)
+    aesKey: prfOnCreate ? await deriveAesKeyFromPrf(prfOnCreate) : null
   };
 }
 
@@ -146,4 +152,40 @@ export async function decryptWithKey(key, ivB64, ciphertextB64) {
     fromBase64(ciphertextB64)
   );
   return new TextDecoder().decode(decrypted);
+}
+// "device" tier, for the web app on a phone whose passkey provider has no
+// PRF (some Android makers' own password managers): an AES key generated
+// here, NON-EXTRACTABLE (the browser keeps it, no code can read its bytes),
+// stored in this origin's IndexedDB. It encrypts the second copy of the key,
+// and the app only uses it after the fingerprint was confirmed. Weaker than
+// PRF (the fingerprint gates its use, it doesn't derive the secret), but bound
+// to this device and this browser, and erased with the app's data.
+const DB = "lyra-device-keys";
+function idb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("keys");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbDo(mode, fn) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("keys", mode);
+    const req = fn(tx.objectStore("keys"));
+    tx.oncomplete = () => { db.close(); resolve(req?.result); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+export async function createDeviceKey() {
+  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  await idbDo("readwrite", (store) => store.put(key, "biometric"));
+  return key;
+}
+export async function loadDeviceKey() {
+  try { return (await idbDo("readonly", (store) => store.get("biometric"))) || null; } catch { return null; }
+}
+export async function clearDeviceKey() {
+  try { await idbDo("readwrite", (store) => store.delete("biometric")); } catch { /* nothing kept */ }
 }
