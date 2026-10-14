@@ -1,16 +1,21 @@
 // Makes the images the Chrome Web Store asks for, from the real extension:
-//   screenshots 1280x800 (the side panel inside a browser-looking window), a 440x280 small promo tile
-//   and a 1400x560 marquee.
+//   5 screenshots 1280x800 (the side panel inside a browser-looking window), a 440x280 small promo
+//   tile and a 1400x560 marquee.
 //
 // How: starts a headless Chrome, opens the built extension (served by `npm run serve:ext` on :5195),
-// creates a throwaway wallet, talks to Lyra, hovers the 3D edges, then draws each panel capture into
-// a 1280x800 "browser window" and screenshots that.
+// creates a throwaway wallet, asks Lyra for a plan of three steps, opens the 3D menus and the 2D
+// menu, then draws each panel capture into a 1280x800 "browser window" and screenshots that.
+//
+// A fresh wallet holds nothing, and a plan with an empty wallet only shows "not enough funds". For the
+// pictures only, the page sees demo balances (1250 XPL, 250 USDT0) and a demo simulation result:
+// the Plasma RPC answers for the balance reads and /api/simulate/plan are replaced inside this
+// headless page. Nothing is signed or sent; Lyra's answer and the plan come from the live backend.
 //
 //   npm run build && npm run serve:ext      (in another terminal)
 //   node scripts/make-store-assets.mjs "<output folder>"
 //
 // Needs Chrome (set CHROME to its path if it is not in the default place) and the live backend
-// (VITE_API_URL) for the chat answer.
+// (VITE_API_URL) for Lyra's answers.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -27,6 +32,7 @@ const CHROME = process.env.CHROME || [
 if (!CHROME) throw new Error("Chrome not found: set the CHROME environment variable.");
 const PASSWORD = "Store-Shots-9f3kQ!";   // throwaway wallet, local headless profile only
 const PORT = 9333;
+const REQUEST = "swap 1 XPL to USDT0, stake 20 USDT0 and send 2 XPL to Alice";
 
 fs.mkdirSync(path.join(OUT, "screenshots"), { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -66,12 +72,61 @@ const go = async (url) => { await cdp.send("Page.navigate", { url }); await slee
 const viewport = (w, h, dpr = 1) => cdp.send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: dpr, mobile: false });
 const shot = async (clip) => Buffer.from((await cdp.send("Page.captureScreenshot", { format: "png", ...(clip ? { clip: { ...clip, scale: 1 } } : {}) })).data, "base64");
 const press = async (key, code) => { for (const type of ["keyDown", "keyUp"]) await cdp.send("Input.dispatchKeyEvent", { type, key, code, windowsVirtualKeyCode: key === "Enter" ? 13 : 0 }); };
+const until = async (expr, maxMs, label) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < maxMs) { if (await ev(expr)) return true; await sleep(250); }
+  console.warn("  (gave up waiting for " + label + ")");
+  return false;
+};
+
+// ------------------------------------------------------------ demo balances, for the pictures only
+const DEMO = `(() => {
+  if (window.__lyraDemo) return; window.__lyraDemo = true;
+  if (!localStorage.getItem("plasma_contacts_v1")) localStorage.setItem("plasma_contacts_v1", JSON.stringify([{ name: "Alice", address: "0x8ba1f109551bD432803012645Ac136ddd64DBA72" }]));
+  const realFetch = window.fetch.bind(window);
+  const USDT0 = "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb";
+  const NATIVE = "0x" + (1250n * 10n ** 18n).toString(16);
+  const TOKEN = "0x" + (250n * 10n ** 6n).toString(16).padStart(64, "0");
+  const json = (o) => new Response(JSON.stringify(o), { headers: { "content-type": "application/json" } });
+  const fake = (m) => {
+    if (m.method === "eth_getBalance") return NATIVE;
+    const call = m.method === "eth_call" ? m.params?.[0] : null;
+    if (call && String(call.to || "").toLowerCase() === USDT0 && String(call.data || call.input || "").startsWith("0x70a08231")) return TOKEN;
+    return undefined;
+  };
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === "string" ? input : input.url;
+    if (url.includes("/api/simulate/plan")) {
+      return json({ available: true, reverted: false, fee: "0.00004", feeSymbol: "XPL", changes: [
+        { symbol: "XPL", amount: "3", direction: "out" },
+        { symbol: "USDT0", amount: "19.9176", direction: "out" },
+        { symbol: "aPlaUSDT0", amount: "20", direction: "in" },
+      ] });
+    }
+    if (url.startsWith("https://rpc.plasma.to") && init.body) {
+      let body;
+      try { body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body)); } catch { return realFetch(input, init); }
+      const list = Array.isArray(body) ? body : [body];
+      const answers = new Map(); const rest = [];
+      for (const m of list) { const v = fake(m); if (v !== undefined) answers.set(m.id, { jsonrpc: "2.0", id: m.id, result: v }); else rest.push(m); }
+      if (!answers.size) return realFetch(input, init);
+      let restRes = [];
+      if (rest.length) { const r = await realFetch(url, { ...init, body: JSON.stringify(rest) }); const j = await r.json(); restRes = Array.isArray(j) ? j : [j]; }
+      const out = list.map((m) => answers.get(m.id) || restRes.find((x) => x.id === m.id));
+      return json(Array.isArray(body) ? out : out[0]);
+    }
+    return realFetch(input, init);
+  };
+})();`;
+await cdp.send("Page.enable");
+await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: DEMO });
 
 const PAGE_HELPERS = `
   window.__sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   window.__set = (el, v) => { const proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     Object.getOwnPropertyDescriptor(proto, "value").set.call(el, v); el.dispatchEvent(new Event("input", { bubbles: true })); };
   window.__btn = (t) => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === t);
+  window.__any = (t) => [...document.querySelectorAll("button, [role=button], div, span")].find((b) => b.children.length === 0 && b.textContent.trim() === t);
   window.__move = (nx, ny) => window.dispatchEvent(new PointerEvent("pointermove", { clientX: (nx + 1) / 2 * innerWidth, clientY: (ny + 1) / 2 * innerHeight, bubbles: true }));
 `;
 
@@ -90,7 +145,7 @@ async function dismissExtras(mode) {
   // After a wallet is created or unlocked: pick the view on the chooser, skip the 3D tour.
   await ev(`(async () => { await __sleep(700);
     if (document.body.innerText.includes("Choose your wallet experience")) {
-      const el = [...document.querySelectorAll("*")].find((e) => e.children.length === 0 && e.textContent.trim() === ${JSON.stringify(mode === "3d" ? "Choose 3D" : "Choose 2D")});
+      const el = __any(${JSON.stringify(mode === "3d" ? "Choose 3D" : "Choose 2D")});
       el && el.click(); await __sleep(2500);
     }
     const skip = __btn("Skip tour"); if (skip) { skip.click(); await __sleep(900); }
@@ -99,9 +154,11 @@ async function dismissExtras(mode) {
 async function createWalletIfNeeded(mode) {
   const state = await ev(`(async () => { await __sleep(1200);
     if (!localStorage.getItem("plasma_wallet_v2")) return "create";
-    return document.body.innerText.includes("Locked Wallet") ? "unlock" : "ready"; })()`);
+    return document.querySelector("input[type=password]") ? "unlock" : "ready"; })()`);
   if (state === "create") {
-    await ev(`(async () => { __btn("Create wallet").click(); await __sleep(800);
+    await ev(`(async () => {
+      const start = __any("Get started"); if (start) { start.click(); await __sleep(900); }
+      __btn("Create wallet").click(); await __sleep(900);
       const pw = document.querySelectorAll("input[type=password]"); __set(pw[0], "${PASSWORD}"); __set(pw[1], "${PASSWORD}"); await __sleep(300);
       __btn("Secure the wallet").click(); await __sleep(5000); 1 })()`);
   } else if (state === "unlock") {
@@ -109,37 +166,44 @@ async function createWalletIfNeeded(mode) {
     await press("Enter", "Enter"); await sleep(4000);
   }
   await dismissExtras(mode);
+  // the balances are read
+  await until(`document.body.innerText.includes("1,250") || document.body.innerText.includes("1250")`, 15000, "the demo balance");
+  await sleep(1200);
 }
-async function ask(text, maxMs = 60000) {
-  await ev(`(async () => { const i = document.querySelector('input[placeholder^="Message Lyra"], textarea[placeholder^="Message Lyra"]'); i.focus(); __set(i, ${JSON.stringify(text)}); 1 })()`);
+async function ask(text) {
+  await ev(`(async () => { const i = document.querySelector("textarea.ask-input"); i.focus(); __set(i, ${JSON.stringify(text)}); 1 })()`);
   await press("Enter", "Enter");
-  const t0 = Date.now(); let last = "", stable = 0;
-  while (Date.now() - t0 < maxMs) {
-    await sleep(1500);
-    const txt = await ev(`document.body.innerText`);
-    stable = txt === last ? stable + 1 : 0; last = txt;
-    if (stable >= 4 && txt.length > 0 && !/working|thinking|reading/i.test(txt.slice(-400))) break;
-  }
-  await sleep(800);
 }
 
-console.log("1/ 3D view, chat");
+console.log("3D view: wallet created");
 await openApp("3d");
 await createWalletIfNeeded("3d");
 await ev(`__move(0, 0); 1`);
-await ask("What is a stablecoin, and why do people use them?");
-panel.chat3d = await shot();
 
-console.log("2/ 3D view, side menu open");
+console.log("3/ 3D view, side menu open");
 await ev(`__move(0.92, 0); 1`); await sleep(1600);
 panel.menu3d = await shot();
 
-console.log("3/ 3D view, assets menu open");
+console.log("4/ 3D view, assets menu open");
+await ev(`__move(0, 0); 1`); await sleep(900);
 await ev(`__move(0, -0.97); 1`); await sleep(1600);
 panel.assets3d = await shot();
 await ev(`__move(0, 0); 1`); await sleep(800);
 
-console.log("4/ 2D view with the menu");
+console.log("1-2/ 3D view: the plan coming together, then the recap");
+await ev(`__move(0, 0); 1`); await sleep(800);
+await ask(REQUEST);
+// the scene: at least two step boxes in, stars faded in
+await until(`document.querySelectorAll(".ps3d-step").length > 0 && [...document.querySelectorAll(".ps3d-step")].filter(e => +getComputedStyle(e).opacity > 0.5).length >= 2`, 90000, "two steps in the 3D scene");
+await sleep(700);
+panel.scene = await shot();
+// the recap: the scene has handed over and the hold button is there
+await until(`!document.querySelector(".plan-sheet.scene-playing") && !!document.querySelector(".plan-confirm")`, 90000, "the plan recap");
+await sleep(2500);
+panel.plan = await shot();
+await ev(`(async () => { const c = [...document.querySelectorAll("button")].find(b => b.textContent.trim() === "Cancel"); c && c.click(); await __sleep(1200); 1 })()`);
+
+console.log("5/ 2D view with the menu");
 await openApp("2d");
 await createWalletIfNeeded("2d");
 await ev(`document.querySelector(".circle-menu-trigger")?.click(); 1`); await sleep(1500);
@@ -174,23 +238,25 @@ const compose = async (html, w, h) => {
 };
 
 const shots = [
-  ["01-chat", panel.chat3d, "Say what you want.<br>Lyra handles the chain.", "Ask questions about Web3, or tell Lyra what to do. You confirm every transaction."],
-  ["02-3d-menu", panel.menu3d, "Move your mouse.<br>The wallet moves with you.", "An immersive 3D view: the actions open on the side as you reach the edge."],
-  ["03-assets", panel.assets3d, "Your assets,<br>at a glance.", "Reach the top edge to see the tokens you hold, each with its logo."],
-  ["04-2d-menu", panel.menu2d, "Prefer it flat?<br>Switch to the classic view.", "The same wallet, the same Lyra: choose 2D or 3D any time, even by asking."],
+  ["01-plan", panel.plan, "Say it in one sentence.<br>Lyra makes the plan.", "Swap, stake and send at once: every step with its real amounts, simulated before you confirm."],
+  ["02-plan-3d", panel.scene, "Watch your plan<br>come together.", "Each step is prepared live and checked off as Lyra gets it ready."],
+  ["03-3d-menu", panel.menu3d, "Move your mouse.<br>The wallet moves with you.", "An immersive 3D view: the actions open on the side as you reach the edge."],
+  ["04-assets", panel.assets3d, "Your assets,<br>at a glance.", "Reach the top edge to see what you hold on Plasma, Ethereum, Base, Polygon, Arc and Hyperliquid."],
+  ["05-2d-menu", panel.menu2d, "Prefer it flat?<br>Switch to the classic view.", "The same wallet, the same Lyra: choose 2D or 3D any time, even by asking."],
 ];
 for (const [name, img, h, s] of shots) {
+  if (!img) { console.warn("skipped " + name); continue; }
   fs.writeFileSync(path.join(OUT, "screenshots", name + ".png"), await compose(frame(b64(img), h, s), 1280, 800));
   console.log("wrote screenshots/" + name + ".png");
 }
 
 const tile = (w, h) => `<!doctype html><meta charset="utf-8"><style>
   * { margin: 0; box-sizing: border-box; } body { width: ${w}px; height: ${h}px; overflow: hidden; font-family: "Segoe UI", system-ui, sans-serif; color: #F3EBFF;
-  background: radial-gradient(${w}px ${h}px at 22% 30%, #3a2a66 0%, #150e26 55%, #0D0916 100%); display: flex; align-items: center; justify-content: center; gap: ${Math.round(h * .08)}px; }
+  background: radial-gradient(${w}px ${h}px at 22% 30%, #3a2a66 0%, #150e26 55%, #0D0916 100%); display: flex; align-items: center; justify-content: center; gap: ${Math.round(h * .07)}px; padding: 0 ${Math.round(h * .08)}px; }
   img { width: ${Math.round(h * .42)}px; height: ${Math.round(h * .42)}px; border-radius: ${Math.round(h * .08)}px; }
   b { display: block; font-size: ${Math.round(h * .24)}px; line-height: 1; letter-spacing: -.01em; }
-  span { display: block; margin-top: ${Math.round(h * .04)}px; font-size: ${Math.round(h * .075)}px; color: #C4B0FF; letter-spacing: .08em; text-transform: uppercase; }
-  small { display: block; margin-top: ${Math.round(h * .03)}px; font-size: ${Math.round(h * .062)}px; color: #b4a7cc; }
+  span { display: block; margin-top: ${Math.round(h * .04)}px; font-size: ${Math.round(h * .058)}px; color: #C4B0FF; letter-spacing: .06em; text-transform: uppercase; }
+  small { display: block; margin-top: ${Math.round(h * .03)}px; font-size: ${Math.round(h * .056)}px; color: #b4a7cc; }
 </style><img src="${icon}"><div><b>Lyra</b><span>The wallet you talk to</span><small>Non-custodial · real networks</small></div>`;
 fs.writeFileSync(path.join(OUT, "promo-tile-440x280.png"), await compose(tile(440, 280), 440, 280));
 fs.writeFileSync(path.join(OUT, "marquee-1400x560.png"), await compose(tile(1400, 560), 1400, 560));

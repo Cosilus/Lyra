@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="only dark">
+<meta name="theme-color" content="#0B0814">
+<title>Lyra on your phone</title>
+<meta name="description" content="Lyra, the AI crypto wallet, on your phone: open it in your browser and add it to your home screen. No store needed.">
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="app/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap">
+<style>
+/* Lyra's web app (the PWA in app/, built from the mainnet extension with
+   `npm run build:app`). On a computer: the real wallet inside a phone, and a
+   QR code to open it on yours. On a phone: how to install it, and the button. */
+:root {
+  --void: #0B0814;
+  --panel: #150F22;
+  --line: rgba(196, 176, 255, 0.16);
+  --ink: #F3EEFA;
+  --muted: #A99DBB;
+  --dim: #7A7090;
+  --accent: #C4B0FF;
+  --sans: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  color-scheme: only dark;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  background: radial-gradient(1200px 640px at 15% -10%, rgba(167, 139, 250, 0.16), transparent 60%), var(--void);
+  color: var(--ink);
+  font: 15px/1.55 var(--sans);
+  padding: 28px 24px 48px;
+}
+a { color: inherit; }
+.top { max-width: 1180px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: space-between; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; text-decoration: none; }
+.brand img { width: 28px; height: 28px; }
+.back { color: var(--muted); font-size: 14px; text-decoration: none; }
+.back:hover { color: var(--ink); }
+
+.page { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 64px; align-items: start; }
+
+/* the device (computer only) */
+.stage { display: flex; justify-content: center; }
+.device {
+  --w: 390px; --h: 844px; --bezel: 12px; --radius: 52px;
+  position: relative;
+  width: calc(var(--w) + var(--bezel) * 2);
+  height: calc(var(--h) + var(--bezel) * 2);
+  padding: var(--bezel);
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, #2A2140, #120D1D);
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06) inset, 0 0 80px -30px rgba(167, 139, 250, 0.35);
+  transform-origin: top center;
+}
+.device::before { content: ""; position: absolute; z-index: 2; top: calc(var(--bezel) + 11px); left: 50%; width: 112px; height: 32px; translate: -50% 0; border-radius: 999px; background: #000; pointer-events: none; }
+.device iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: calc(var(--radius) - var(--bezel)); background: var(--void); }
+
+/* the text */
+.side { display: flex; flex-direction: column; gap: 22px; min-width: 0; max-width: 560px; padding-top: 12px; }
+.kicker { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+h1 { font-size: 44px; line-height: 1.08; margin: 0; letter-spacing: -0.015em; text-wrap: balance; }
+.lede { color: var(--muted); margin: 0; font-size: 17px; max-width: 480px; }
+.box { border-radius: 22px; padding: 20px; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
+.box h2 { margin: 0; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+
+.scan { display: grid; grid-template-columns: 148px 1fr; gap: 20px; align-items: center; }
+.scan img { width: 148px; height: 148px; border-radius: 14px; display: block; }
+.scan p { margin: 0; color: var(--muted); }
+.scan b { color: var(--ink); }
+.url { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; color: var(--accent); }
+
+.os { display: flex; flex-direction: column; gap: 10px; }
+.os-row { display: grid; grid-template-columns: 92px 1fr; gap: 10px; font-size: 14px; }
+.os-row dt { color: var(--muted); }
+.os-row dd { margin: 0; }
+.os-row svg { vertical-align: -3px; color: var(--accent); }
+
+.btn {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 999px; padding: 13px 24px;
+  font: 700 15px var(--sans);
+  color: #1A1028;
+  background: linear-gradient(135deg, #FBF8FF, #D6CEE6);
+  text-decoration: none;
+  box-shadow: 0 10px 30px -12px rgba(214, 206, 230, 0.6);
+}
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14px; margin: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+
+.phone-only { display: none; }
+@media (max-width: 900px) { .page { grid-template-columns: minmax(0, 1fr); gap: 36px; justify-items: center; } h1 { font-size: 36px; } }
+
+/* a phone: no drawn device, no QR code; the button and the steps for this phone */
+@media (max-width: 600px), (pointer: coarse) and (max-width: 1024px) {
+  body { padding: calc(env(safe-area-inset-top, 0px) + 20px) 18px calc(env(safe-area-inset-bottom, 0px) + 40px); }
+  .stage, .computer-only { display: none; }
+  .phone-only { display: flex; }
+  .page { grid-template-columns: minmax(0, 1fr); }
+  .side { padding-top: 24px; gap: 20px; }
+  h1 { font-size: 34px; }
+  .btn { align-self: stretch; padding: 16px 24px; font-size: 16px; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="./"><img src="logo.svg" alt="">Lyra</a>
+  <a class="back" href="./">← Back to the site</a>
+</header>
+
+<div class="page">
+  <div class="stage">
+    <div class="device" id="device">
+      <iframe src="app/" title="Lyra wallet" loading="lazy" allow="clipboard-read; clipboard-write; microphone; camera"></iframe>
+    </div>
+  </div>
+
+  <div class="side">
+    <span class="kicker">Lyra on your phone</span>
+    <h1>Your wallet, in your pocket.</h1>
+    <p class="lede">The same Lyra as the Chrome extension, made for touch. It installs straight from your browser: no store, nothing to download.</p>
+
+    <!-- computer: scan to open it on the phone -->
+    <div class="box computer-only">
+      <h2>Scan with your phone</h2>
+      <div class="scan">
+        <img src="app-qr.svg" alt="QR code to lyrapp.to/app" width="148" height="148">
+        <p>Point your phone's camera at the code to open Lyra, then add it to your home screen.<br><span class="url">lyrapp.to/app</span></p>
+      </div>
+    </div>
+
+    <!-- phone: open it -->
+    <a class="btn phone-only" href="app/">Open Lyra</a>
+
+    <div class="box">
+      <h2>Install it</h2>
+      <dl class="os" id="os">
+        <div class="os-row" data-os="ios"><dt>iPhone</dt><dd>In Safari, tap <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Share"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> <b>Share</b>, then <b>Add to Home Screen</b>.</dd></div>
+        <div class="os-row" data-os="android"><dt>Android</dt><dd>Lyra offers <b>Install</b> itself. Otherwise: browser menu <b>⋮</b>, then <b>Install app</b>.</dd></div>
+      </dl>
+      <p style="margin:0;color:var(--dim);font-size:13px">Lyra then opens full screen from its icon, like any app.</p>
+    </div>
+
+    <div class="box">
+      <h2>Good to know</h2>
+      <dl class="facts">
+        <dt>Keys</dt><dd>Encrypted on your phone, never sent anywhere</dd>
+        <dt>Backup</dt><dd>Write down your recovery phrase: a phone short on space may clear a web app's data</dd>
+        <dt>Menus</dt><dd>Swipe from the sides and from the top</dd>
+        <dt>Ledger</dt><dd>On a computer for now (USB, from Chrome)</dd>
+      </dl>
+    </div>
+
+    <a class="btn computer-only" href="app/" target="_blank" rel="noopener">Open in this browser</a>
+  </div>
+</div>
+
+<script>
+// the phone scaled down to fit the window's height (computer)
+(() => {
+  const device = document.getElementById("device");
+  const fit = () => {
+    if (!device.offsetHeight) return;
+    const h = device.offsetHeight, w = device.offsetWidth;
+    const s = Math.min(1, (window.innerHeight - 120) / h);
+    device.style.transform = s < 1 ? `scale(${s})` : "";
+    device.style.marginBottom = s < 1 ? `${-(1 - s) * h}px` : "";
+    device.style.marginInline = s < 1 ? `${-(1 - s) * w / 2}px` : "";
+  };
+  window.addEventListener("resize", fit);
+  fit();
+})();
+// this phone's steps first
+(() => {
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const mine = ios ? "ios" : /Android/.test(ua) ? "android" : null;
+  const list = document.getElementById("os");
+  const row = mine && list.querySelector(`[data-os="${mine}"]`);
+  if (row) list.prepend(row);
+})();
+</script>
+</body>
+</html>

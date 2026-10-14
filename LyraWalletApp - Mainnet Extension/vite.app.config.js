@@ -25,6 +25,8 @@ function lyraApp() {
           '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />')
         .replace('<meta name="theme-color" content="#080D0B" />', [
           '<meta name="theme-color" content="#0B0814" />',
+          // already dark: no browser may recolour it (Chrome's auto dark mode, Samsung Internet's dark mode)
+          '<meta name="color-scheme" content="only dark" />',
           '<meta name="description" content="Lyra, the AI crypto wallet: say what you want, Lyra handles the chain." />',
           '<link rel="manifest" href="./manifest.webmanifest" />',
           '<link rel="icon" href="./favicon.svg" type="image/svg+xml" />',
