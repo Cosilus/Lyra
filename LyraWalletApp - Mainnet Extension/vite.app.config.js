@@ -42,12 +42,13 @@ function lyraApp() {
     closeBundle() {
       for (const f of EXTENSION_ONLY) fs.rmSync(path.join(outDir, f), { force: true });
       fs.copyFileSync(path.join(here, "app", "manifest.webmanifest"), path.join(outDir, "manifest.webmanifest"));
-      fs.copyFileSync(path.join(here, "app", "apple-touch-icon.png"), path.join(outDir, "apple-touch-icon.png"));
+      // the app's own icons (app/icon.svg): the pearl white star on the dark background
+      for (const f of ["apple-touch-icon.png", "icon-192.png", "icon-512.png"]) fs.copyFileSync(path.join(here, "app", f), path.join(outDir, f));
       // the service worker, stamped with this build so a new version replaces the old cache
       const assets = fs.readdirSync(path.join(outDir, "assets")).map(f => `./assets/${f}`);
       const sw = fs.readFileSync(path.join(here, "app", "sw.js"), "utf8")
         .replace("__BUILD__", Date.now().toString(36))
-        .replace("__SHELL__", JSON.stringify(["./", "./index.html", "./manifest.webmanifest", "./logo.svg", "./favicon.svg", ...assets]));
+        .replace("__SHELL__", JSON.stringify(["./", "./index.html", "./manifest.webmanifest", "./logo.svg", "./favicon.svg", "./icon-192.png", "./icon-512.png", ...assets]));
       fs.writeFileSync(path.join(outDir, "sw.js"), sw);
     },
   };
