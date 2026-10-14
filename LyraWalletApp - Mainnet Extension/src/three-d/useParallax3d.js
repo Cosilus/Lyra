@@ -207,15 +207,18 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
     } else {
       // Phones, tablets and the web app: the menus open only with a swipe.
       // From the left edge toward the middle opens the left menu, from the
-      // right the right one, down from the upper part of the screen the
-      // assets. Swiping back, or tapping the wallet, closes it. A finger
+      // right the right one, down from anywhere on the screen the assets
+      // (unless a list under the finger is scrolled down and just scrolls back
+      // up). Swiping back (up for the assets, from anywhere), or tapping the
+      // wallet, closes it. A finger
       // (touch events, which the browser doesn't cancel when it scrolls) or,
       // in the web app on a computer, a mouse drag.
       const close = () => { releaseDock(); resetFlat(); };
-      const scrollsVertically = (el) => {
+      // a list under the finger that is not at its top: a swipe down scrolls it
+      const scrolledDown = (el) => {
         for (let n = el; n && n !== document.body; n = n.parentElement) {
           const oy = getComputedStyle(n).overflowY;
-          if ((oy === "auto" || oy === "scroll") && n.scrollHeight > n.clientHeight + 1) return true;
+          if ((oy === "auto" || oy === "scroll") && n.scrollHeight > n.clientHeight + 1 && n.scrollTop > 2) return true;
         }
         return false;
       };
@@ -237,14 +240,14 @@ export function useParallax3d(paused = false, isTopMenuHovered, forcedDock = nul
         }
         if (target?.closest("input, textarea, [contenteditable='true']")) return;
         const horizontal = Math.abs(dx) > 48 && Math.abs(dx) > 1.4 * Math.abs(dy);
-        const vertical = Math.abs(dy) > 56 && Math.abs(dy) > 1.4 * Math.abs(dx);
+        const vertical = Math.abs(dy) > 44 && Math.abs(dy) > 1.3 * Math.abs(dx);
         if (docked) {
           if ((docked === "left" && horizontal && dx < 0) || (docked === "right" && horizontal && dx > 0) || (docked === "top" && vertical && dy < 0)) close();
           return;
         }
         if (inMenu) return;
         if (horizontal) handlePosition(dx > 0 ? -1 : 1, 0);
-        else if (vertical && dy > 0 && s.y < window.innerHeight * 0.4 && !scrollsVertically(target)) handlePosition(0, -1);
+        else if (vertical && dy > 0 && !scrolledDown(target)) handlePosition(0, -1);
       };
       const onTouchStart = (e) => {
         if (e.touches.length !== 1) { start = null; return; }
