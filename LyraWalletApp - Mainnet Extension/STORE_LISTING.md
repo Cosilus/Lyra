@@ -19,8 +19,8 @@ This is a NEW item, separate from "Lyra Wallet (Testnet)": in the dashboard, cli
 Lyra is an Intelligent Conversational Wallet: say what you want to do, in your own words or by voice, and Lyra checks the rate, the route and the risk, then prepares a plan for you to confirm.
 
 WHAT YOU CAN DO
-• Send, receive and track your assets on Plasma, Ethereum, Base, Polygon, Arc and Hyperliquid.
-• Swap (KyberSwap, Circle), bridge (Circle CCTP and others) and stake (Aave) by asking: "swap 10 USDT to XPL and send 5 to Alice".
+• Send, receive and track your assets on several networks, and switch between them in one tap.
+• Swap, bridge and stake by simply asking: "swap 10 USDT to XPL and send 5 to Alice".
 • Several actions in one sentence become one plan: every step shown with its real amounts, simulated before you confirm, then sent as a single transaction when the network allows it (all or nothing).
 • Ask questions about your wallet, Web3 and crypto: "Is this contract safe?", "What does this rate mean?"
 • Connect to websites (dApps): every signature they ask for is explained in plain words, and dangerous ones are blocked.
@@ -48,7 +48,7 @@ Privacy policy: https://lyrapp.to/privacy-wallet.html
 2. The 3D plan animation (the steps arriving among the stars).
 3. The 3D view with a side menu open (Send, Receive, Swap, Bridge, Stake).
 4. A website asking to sign, with Lyra's plain-words explanation.
-5. The network switcher showing Plasma, Ethereum, Base, Polygon, Arc and Hyperliquid.
+5. The network switcher (keep the caption short, no list of names in the image text).
 
 **Small promo tile** (440 × 280, optional but recommended): the star icon, centered on the dark background, with the name "Lyra" next to it.
 
