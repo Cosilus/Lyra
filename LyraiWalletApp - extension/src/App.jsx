@@ -23,7 +23,8 @@ import { PlanScene3D, plan3dEnabled, setPlan3d } from "./three-d/PlanScene3D.jsx
 import { HoldSquares } from "./HoldSquares.jsx";
 import { ledgerAddress, ledgerSupported, connectLedger, ledgerSettings, LEDGER_DEFAULT_PATH } from "./ledger.js";
 import { LedgerSetup } from "./LedgerSetup.jsx";
-import { batchSupported, isDelegated, activateBatching, sendLedgerBatch, prepareOwnBatch, sendOwnBatch, delegationOf, removeOwnDelegation } from "./ledgerBatch.js";
+import { batchSupported, isDelegated, activateBatching, sendLedgerBatch, prepareOwnBatch, sendOwnBatch, delegationOf, removeOwnDelegation, BATCH_DELEGATOR, encodeBatch } from "./ledgerBatch.js";
+import { verifyBatch } from "./intentGuard.js";
 import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodePaymentResponseHeader, decodePaymentRequiredHeader, findEip3009SettlementTx, selectGatewayOptions, signGatewayPayment, fetchGatewayBalances, GATEWAY_NETWORKS, GATEWAY_WALLET_MAINNET, GATEWAY_WALLET_ABI } from "./x402";
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
 import { DEMO_A2A_AGENT_URL, sendA2ATask, fetchAgentCard } from "./a2a";
@@ -2514,6 +2515,10 @@ async function executeLedgerPlan() {
     const { calls, skipped, adjusted } = await buildPlanBatch(steps, from);
     if (skipped.length) {
       throw new Error(`Nothing was sent. ${skipped.map(i => planStepFrom(adjusted[i].kind, {}).label).join(", ")} can't be signed with a Ledger yet (Polymarket bets, or a token Circle doesn't bridge).`);
+    }
+    {
+      const g = await guardBatch(steps, calls, from, await isDelegated(RPC, from));
+      if (!g.ok) throw new Error(`Nothing was sent. ${g.problems[0]}`);
     }
     advanceExecutionTo(0);
 
@@ -8169,6 +8174,15 @@ function handleHoldEnd() {
   // the network has no delegate, a step can't be built ahead (a Polymarket
   // bet, a step after a bridge), or something fails before broadcasting.
   const preparedPlanRef = useRef(null);
+  // "Intention vs reality" (src/intentGuard.js): what the batch really does,
+  // checked against the plan's steps, while the plan is on screen and again
+  // right before signing. A failed check blocks the signature, no way around it.
+  const [planGuard, setPlanGuard] = useState(null); // { key, ok, problems }
+  const guardLang = () => (lyraLanguage === "fr" || (lyraLanguage === "auto" && /^fr/i.test(navigator.language || "")) ? "fr" : "en");
+  const guardCtx = (from) => ({ from, nativeSymbol: activeNetwork.nativeSymbol, tokens, defi, treasury: LYRA_TREASURY, delegator: BATCH_DELEGATOR, feeBps: 25, slippage: DEFAULT_SLIPPAGE });
+  async function guardBatch(steps, calls, from, delegated) {
+    return verifyBatch({ provider: RPC, steps, calls, data: encodeBatch(calls), ctx: guardCtx(from), authorization: delegated ? null : BATCH_DELEGATOR, lang: guardLang() });
+  }
   async function prepareOwnPlan(steps) {
     const unsupported = { unsupported: true, at: Date.now() };
     if (!oneTxPlans || !unlockedPrivateKey || !steps?.length) return unsupported;
@@ -8179,7 +8193,9 @@ function handleHoldEnd() {
     if (skipped.length || !calls.length) return unsupported;
     const prepared = await prepareOwnBatch({ provider: RPC, address: from, calls });
     // delegated to another wallet's contract: step by step, that delegation is left alone
-    return prepared.foreign ? unsupported : prepared;
+    if (prepared.foreign) return unsupported;
+    prepared.guard = await guardBatch(steps, calls, from, prepared.delegated);
+    return prepared;
   }
   const ownBatchKey = oneTxPlans && multiTicket && !ledgerActive && unlockedPrivateKey && planSimKey ? planSimKey : null;
   useEffect(() => {
@@ -8187,7 +8203,11 @@ function handleHoldEnd() {
     let alive = true;
     const steps = multiTicket.steps;
     const run = () => prepareOwnPlan(steps)
-      .then(p => { if (alive) preparedPlanRef.current = { ...p, key: ownBatchKey }; })
+      .then(p => {
+        if (!alive) return;
+        preparedPlanRef.current = { ...p, key: ownBatchKey };
+        if (p.guard) setPlanGuard({ key: ownBatchKey, ok: p.guard.ok, problems: p.guard.problems });
+      })
       .catch(e => { if (alive) preparedPlanRef.current = { key: ownBatchKey, error: e, at: Date.now() }; });
     run();
     const every = setInterval(run, 20000);
@@ -8214,6 +8234,11 @@ function handleHoldEnd() {
       }
     }
     if (p.unsupported) return false;
+    if (!p.guard?.ok) {
+      const g = p.guard || { problems: ["The plan couldn't be checked before signing."] };
+      setPlanGuard({ key: planSimKey, ok: false, problems: g.problems });
+      throw new Error(`Nothing was sent. ${g.problems[0]}`);
+    }
 
     setBusy(true);
     setExecutionLabel("Plan");
@@ -8286,7 +8311,8 @@ function handleHoldEnd() {
         ? (sendFeeEstimate !== null ? `${fmtXpl(sendFeeEstimate, 6)} ${activeNetwork.nativeSymbol}` : null)
         : planRows.map(r => r.fees).filter(x => x && !/^(n\/?a|unknown|none|—|-)$/i.test(String(x).trim()))[0] || null;
       // anything that would make the plan stop halfway blocks it before confirming
-      const shortfall = (multiTicket ? planBlocker(multiTicket.steps) : null) || planShortfall(planRows);
+      const guardBlock = multiTicket && planGuard && !planGuard.ok && planGuard.key === planSimKey ? planGuard.problems[0] : null;
+      const shortfall = (multiTicket ? planBlocker(multiTicket.steps) : null) || guardBlock || planShortfall(planRows);
       return {
         key: "plan",
         phase: planError ? "failed" : done ? "done" : running ? "running" : "review",

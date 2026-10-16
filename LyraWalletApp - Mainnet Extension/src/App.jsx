@@ -23,7 +23,8 @@ import { PlanScene3D, plan3dEnabled, setPlan3d } from "./three-d/PlanScene3D.jsx
 import { HoldSquares } from "./HoldSquares.jsx";
 import { ledgerAddress, ledgerSupported, connectLedger, ledgerSettings, LEDGER_DEFAULT_PATH } from "./ledger.js";
 import { LedgerSetup } from "./LedgerSetup.jsx";
-import { batchSupported, isDelegated, activateBatching, sendLedgerBatch, prepareOwnBatch, sendOwnBatch, delegationOf, removeOwnDelegation } from "./ledgerBatch.js";
+import { batchSupported, isDelegated, activateBatching, sendLedgerBatch, prepareOwnBatch, sendOwnBatch, delegationOf, removeOwnDelegation, BATCH_DELEGATOR, encodeBatch } from "./ledgerBatch.js";
+import { verifyBatch } from "./intentGuard.js";
 import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodePaymentResponseHeader, decodePaymentRequiredHeader, findEip3009SettlementTx, selectGatewayOptions, signGatewayPayment, fetchGatewayBalances, GATEWAY_NETWORKS, GATEWAY_WALLET_MAINNET, GATEWAY_WALLET_ABI } from "./x402";
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
 import { DEMO_A2A_AGENT_URL, sendA2ATask, fetchAgentCard } from "./a2a";
@@ -2522,6 +2523,10 @@ async function executeLedgerPlan() {
     const { calls, skipped, adjusted } = await buildPlanBatch(steps, from);
     if (skipped.length) {
       throw new Error(`Nothing was sent. ${skipped.map(i => planStepFrom(adjusted[i].kind, {}).label).join(", ")} can't be signed with a Ledger yet (Polymarket bets, or a token Circle doesn't bridge).`);
+    }
+    {
+      const g = await guardBatch(steps, calls, from, await isDelegated(RPC, from));
+      if (!g.ok) throw new Error(`Nothing was sent. ${g.problems[0]}`);
     }
     advanceExecutionTo(0);
 
@@ -5676,12 +5681,19 @@ function decimalsOfAsset(asset) {
         const blocker = planBlocker(multiTicket.steps);
         if (blocker) throw new Error(`Nothing was sent. ${blocker}`);
         const need = {};
+        const made = {}; // what a swap earlier in the plan brings (its quote, 1% under)
         for (const st of multiTicket.steps) {
+          if (st.kind === "swap" && st.tokenOutSymbol) {
+            const out = Number(String(st.ticket?.estimatedReceive || "").replace(/[^d.]/g, ""));
+            if (out > 0) made[st.tokenOutSymbol] = (made[st.tokenOutSymbol] || 0) + out * 0.99;
+          }
           if (!["send", "swap", "bridge", "stake"].includes(st.kind) || st.amountIsEstimate || !st.asset) continue;
           const amt = Number(st.amount);
           if (Number.isFinite(amt) && amt > 0) need[st.asset] = (need[st.asset] || 0) + amt;
         }
-        for (const [asset, amt] of Object.entries(need)) {
+        for (const [asset, total] of Object.entries(need)) {
+          const amt = Math.max(0, total - (made[asset] || 0));
+          if (amt === 0) continue;
           const have = await balanceOfAsset(asset);
           if (have < ethers.parseUnits(amt.toFixed(decimalsOfAsset(asset) > 6 ? 6 : decimalsOfAsset(asset)), decimalsOfAsset(asset))) {
             throw new Error(`Nothing was sent. You have ${ethers.formatUnits(have, decimalsOfAsset(asset))} ${asset}, this plan needs ${amt} ${asset}.`);
@@ -5695,6 +5707,18 @@ function decimalsOfAsset(asset) {
             for (let i = 0; i < multiTicket.steps.length; i++) {
         const step = multiTicket.steps[i];
         const stepLabel = `Step ${i + 1}/${multiTicket.steps.length}`;
+        // "all of it": the real balance now (what earlier steps brought
+        // included); the native coin keeps what the fees need
+        let allAmount = null;
+        if (step.amountAll && step.asset) {
+          let live = await balanceOfAsset(step.asset);
+          if (step.asset === activeNetwork.nativeSymbol) {
+            const fd = await RPC.getFeeData();
+            const reserve = (fd.maxFeePerGas ?? fd.gasPrice ?? 0n) * 400000n;
+            live = live > reserve ? live - reserve : 0n;
+          }
+          if (live > 0n) allAmount = ethers.formatUnits(live, decimalsOfAsset(step.asset));
+        }
         setStatus(`${stepLabel}…`);
 
         if (i === 0) {
@@ -5729,7 +5753,7 @@ function decimalsOfAsset(asset) {
             throw new Error(`${stepLabel}: missing or invalid recipient.`);
           }
 
-          const amountToUse = (carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount;
+          const amountToUse = allAmount ?? ((carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount);
           if (!amountToUse || Number(amountToUse) <= 0) {
             throw new Error(`${stepLabel}: no amount to send.`);
           }
@@ -5768,7 +5792,7 @@ function decimalsOfAsset(asset) {
           carriedAmount = null;
 
         } else if (step.kind === "swap") {
-          const stepTicket = { ...step.ticket, amount: (carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount, asset: step.asset, tokenOutSymbol: step.tokenOutSymbol };
+          const stepTicket = { ...step.ticket, amount: allAmount ?? ((carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount), asset: step.asset, tokenOutSymbol: step.tokenOutSymbol };
           const before = await balanceOfAsset(step.tokenOutSymbol);
 
           const tx = await executeSwapTicket(signer, stepTicket);
@@ -5798,7 +5822,7 @@ function decimalsOfAsset(asset) {
           setMessages(m => [...m, { role: "ai", text: `✅ ${stepLabel} confirmed and received ${carriedAmount} ${step.tokenOutSymbol}.\n\n[View on Explorer Here](${explorerTx(tx.hash, activeNetwork)})` }]);
 
         } else if (step.kind === "stake" || step.kind === "unstake") {
-          const stepTicket = { ...step.ticket, amount: (carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount, asset: step.asset, intent: step.intent };
+          const stepTicket = { ...step.ticket, amount: allAmount ?? ((carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount), asset: step.asset, intent: step.intent };
           const tx = step.kind === "unstake"
             ? await executeUnstakeTicket(signer, stepTicket)
             : await executeStakeTicket(signer, stepTicket);
@@ -5824,7 +5848,7 @@ function decimalsOfAsset(asset) {
           setMessages(m => [...m, { role: "ai", text: `✅ ${stepLabel} confirmed.\n\n[View on Explorer Here](${explorerTx(tx.hash, activeNetwork)})` }]);
 
                 } else if (step.kind === "bridge") {
-          const stepTicket = { ...step.ticket, amount: (carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount, asset: step.asset, destinationChainKey: step.destinationChainKey, tokenOutSymbol: step.tokenOutSymbol };
+          const stepTicket = { ...step.ticket, amount: allAmount ?? ((carriedAmount !== null && step.amountIsEstimate) ? carriedAmount : step.amount), asset: step.asset, destinationChainKey: step.destinationChainKey, tokenOutSymbol: step.tokenOutSymbol };
           const tx = await executeBridgeTicket(signer, stepTicket);
 
           setTxHash(tx.hash);
@@ -8011,17 +8035,29 @@ function handleHoldEnd() {
   }
 
   // "You have 0 USDC, this needs 1 USDC", only when the amounts are exact
+  // (in the plan's order: what a swap or a withdrawal earlier in the plan
+  // brings counts for the steps after it)
   function planShortfall(rows) {
     const spent = {};
+    const made = {}; // what earlier steps of the plan add (a swap: its quote, 1% under)
     for (const r of rows) {
       const amt = Number(r.amount);
-      if (!["send", "swap", "bridge", "stake"].includes(r.kind) || !r.asset) continue;
-      if (!Number.isFinite(amt) || r.estimate) return null;
-      spent[r.asset] = (spent[r.asset] || 0) + amt;
-    }
-    for (const [sym, need] of Object.entries(spent)) {
-      const held = heldAmount(sym);
-      if (held !== null && held + 1e-9 < need) return `You have ${fmtAmt(held)} ${sym}, this needs ${fmtAmt(need)} ${sym}. Add funds first, or lower the amount.`;
+      if (["send", "swap", "bridge", "stake"].includes(r.kind) && r.asset) {
+        if (!Number.isFinite(amt) || r.estimate) return null;
+        spent[r.asset] = (spent[r.asset] || 0) + amt;
+        const held = heldAmount(r.asset);
+        const coming = made[r.asset] || 0;
+        if (held !== null && held + coming + 1e-9 < spent[r.asset]) {
+          return `You have ${fmtAmt(held)} ${r.asset}${coming ? ` (+ ≈${fmtAmt(coming)} from this plan)` : ""}, this needs ${fmtAmt(spent[r.asset])} ${r.asset}. Add funds first, or lower the amount.`;
+        }
+      }
+      if (r.kind === "swap" && r.toAsset) {
+        const out = Number(String(r.receive || "").replace(/[^d.]/g, ""));
+        if (!(out > 0)) return null; // no quote yet: nothing to judge
+        made[r.toAsset] = (made[r.toAsset] || 0) + out * 0.99;
+      } else if (r.kind === "unstake" && r.asset && amt > 0) {
+        made[r.asset] = (made[r.asset] || 0) + amt;
+      }
     }
     return null;
   }
@@ -8218,6 +8254,15 @@ function handleHoldEnd() {
   // the network has no delegate, a step can't be built ahead (a Polymarket
   // bet, a step after a bridge), or something fails before broadcasting.
   const preparedPlanRef = useRef(null);
+  // "Intention vs reality" (src/intentGuard.js): what the batch really does,
+  // checked against the plan's steps, while the plan is on screen and again
+  // right before signing. A failed check blocks the signature, no way around it.
+  const [planGuard, setPlanGuard] = useState(null); // { key, ok, problems }
+  const guardLang = () => (lyraLanguage === "fr" || (lyraLanguage === "auto" && /^fr/i.test(navigator.language || "")) ? "fr" : "en");
+  const guardCtx = (from) => ({ from, nativeSymbol: activeNetwork.nativeSymbol, tokens, defi, treasury: LYRA_TREASURY, delegator: BATCH_DELEGATOR, feeBps: 25, slippage: DEFAULT_SLIPPAGE });
+  async function guardBatch(steps, calls, from, delegated) {
+    return verifyBatch({ provider: RPC, steps, calls, data: encodeBatch(calls), ctx: guardCtx(from), authorization: delegated ? null : BATCH_DELEGATOR, lang: guardLang() });
+  }
   async function prepareOwnPlan(steps) {
     const unsupported = { unsupported: true, at: Date.now() };
     if (!oneTxPlans || !unlockedPrivateKey || !steps?.length) return unsupported;
@@ -8228,7 +8273,9 @@ function handleHoldEnd() {
     if (skipped.length || !calls.length) return unsupported;
     const prepared = await prepareOwnBatch({ provider: RPC, address: from, calls });
     // delegated to another wallet's contract: step by step, that delegation is left alone
-    return prepared.foreign ? unsupported : prepared;
+    if (prepared.foreign) return unsupported;
+    prepared.guard = await guardBatch(steps, calls, from, prepared.delegated);
+    return prepared;
   }
   const ownBatchKey = oneTxPlans && multiTicket && !ledgerActive && unlockedPrivateKey && planSimKey ? planSimKey : null;
   useEffect(() => {
@@ -8236,7 +8283,11 @@ function handleHoldEnd() {
     let alive = true;
     const steps = multiTicket.steps;
     const run = () => prepareOwnPlan(steps)
-      .then(p => { if (alive) preparedPlanRef.current = { ...p, key: ownBatchKey }; })
+      .then(p => {
+        if (!alive) return;
+        preparedPlanRef.current = { ...p, key: ownBatchKey };
+        if (p.guard) setPlanGuard({ key: ownBatchKey, ok: p.guard.ok, problems: p.guard.problems });
+      })
       .catch(e => { if (alive) preparedPlanRef.current = { key: ownBatchKey, error: e, at: Date.now() }; });
     run();
     const every = setInterval(run, 20000);
@@ -8263,6 +8314,11 @@ function handleHoldEnd() {
       }
     }
     if (p.unsupported) return false;
+    if (!p.guard?.ok) {
+      const g = p.guard || { problems: ["The plan couldn't be checked before signing."] };
+      setPlanGuard({ key: planSimKey, ok: false, problems: g.problems });
+      throw new Error(`Nothing was sent. ${g.problems[0]}`);
+    }
 
     setBusy(true);
     setExecutionLabel("Plan");
@@ -8335,7 +8391,8 @@ function handleHoldEnd() {
         ? (sendFeeEstimate !== null ? `${fmtXpl(sendFeeEstimate, 6)} ${activeNetwork.nativeSymbol}` : null)
         : planRows.map(r => r.fees).filter(x => x && !/^(n\/?a|unknown|none|—|-)$/i.test(String(x).trim()))[0] || null;
       // anything that would make the plan stop halfway blocks it before confirming
-      const shortfall = (multiTicket ? planBlocker(multiTicket.steps) : null) || planShortfall(planRows);
+      const guardBlock = multiTicket && planGuard && !planGuard.ok && planGuard.key === planSimKey ? planGuard.problems[0] : null;
+      const shortfall = (multiTicket ? planBlocker(multiTicket.steps) : null) || guardBlock || planShortfall(planRows);
       return {
         key: "plan",
         phase: planError ? "failed" : done ? "done" : running ? "running" : "review",
@@ -8357,10 +8414,32 @@ function handleHoldEnd() {
       };
     }
     if (pendingPlan) {
+      // already in the order the backend's planner gives: what produces a
+      // token the wallet lacks runs before what uses it, a bridge last
+      const held = (sym) => {
+        if (!sym) return 0;
+        if (sym === activeNetwork.nativeSymbol) return Number(ethers.formatEther(balance || 0n));
+        const t = tokens[sym];
+        return t ? Number(ethers.formatUnits(tokenBalances[sym] || 0n, t.decimals)) : 0;
+      };
+      const output = (st) => (st.kind === "swap" ? st.toAsset : st.kind === "unstake" ? st.asset : null);
+      const rank = { unstake: 0, swap: 0, send: 1, stake: 1, bridge: 2 };
+      const preds = pendingPlan.steps.map((b, j) => {
+        if (b.kind === "unstake") return [];
+        const lacking = !(Number(b.amount) > 0) || held(b.asset) < Number(b.amount);
+        return lacking ? pendingPlan.steps.map((x, i) => (i !== j && output(x) && output(x) === b.asset ? i : -1)).filter(i => i >= 0) : [];
+      });
+      const order = [];
+      while (order.length < pendingPlan.steps.length) {
+        const ready = pendingPlan.steps.map((_, i) => i).filter(i => !order.includes(i) && preds[i].every(p => order.includes(p)));
+        if (!ready.length) { order.splice(0, order.length, ...pendingPlan.steps.map((_, i) => i)); break; } // a loop: as written
+        ready.sort((x, y) => (rank[pendingPlan.steps[x].kind] ?? 1) - (rank[pendingPlan.steps[y].kind] ?? 1) || x - y);
+        order.push(ready[0]);
+      }
       return {
         key: "plan",
         phase: "thinking",
-        steps: pendingPlan.steps.map((st, i) => planStepFrom(st.kind, {
+        steps: order.map(k => pendingPlan.steps[k]).map((st, i) => planStepFrom(st.kind, {
           amount: /^\d/.test(st.amount || "") ? st.amount : null,
           asset: st.asset, toAsset: st.toAsset,
           recipient: ethers.isAddress(st.recipient || "") ? st.recipient : null,

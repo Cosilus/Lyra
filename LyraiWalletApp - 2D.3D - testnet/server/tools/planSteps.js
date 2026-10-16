@@ -25,7 +25,9 @@ export function orderMultiSteps(steps, { network, networks, tokensByNetwork, hol
   if (!Array.isArray(steps) || steps.length < 2) return untouched;
   if (steps.some(s => !["send", "swap", "bridge", "stake", "unstake"].includes(s.kind))) return untouched;
   if (steps.some(s => s.amountUSD && !s.amount)) return untouched; // a USD amount: the ticket research converts it
-  if (steps.some(s => s.kind === "swap" && !s.tokenOutSymbol)) return untouched;
+  // a swap with no target token: never guessed
+  const blind = steps.find(s => s.kind === "swap" && !s.tokenOutSymbol);
+  if (blind) return { question: `Swap the ${blind.asset || network.nativeSymbol} to which token?` };
   if (steps.some(s => s.kind === "bridge" && s.tokenOutSymbol && s.tokenOutSymbol !== s.asset)) return untouched; // swap+bridge in one route
 
   const chain = network.key;
@@ -128,5 +130,29 @@ export function orderMultiSteps(steps, { network, networks, tokensByNetwork, hol
     }).join(", then ");
     after = `Once the funds arrive on ${where}, ask me to ${what} there.`;
   }
-  return { steps: ordered, notes, after, reordered: order.some((v, k) => v !== k) };
+  const reordered = order.some((v, k) => v !== k);
+  // the plan in words, in the order it will run (replaces the model's own
+  // sentence, which follows the user's order)
+  const summary = reordered || later.length ? `I'll ${joinSteps(ordered.map(s => stepWords(s, chain)))}.` : null;
+  return { steps: ordered, notes, after, reordered, summary };
+}
+
+const shortAddr = (a) => (isAddress(a) ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
+// the plan as one sentence, for the steps as they are now ("all your USDT0" for MAX)
+export function planSentence(steps) {
+  return `I'll ${joinSteps(steps.map(s => stepWords(s)))}.`;
+}
+function stepWords(s, chain) {
+  const all = /^(max|all)$/i.test(String(s.amount || ""));
+  const what = all ? `all your ${s.asset || ""}`.trim() : s.amount ? `${s.amount} ${s.asset || ""}`.trim() : s.asset ? `the ${s.asset}` : "it";
+  if (s.kind === "swap") return `swap ${what} to ${s.tokenOutSymbol}`;
+  if (s.kind === "send") return `send ${s.amount || all ? what : "it"} to ${s.contactName || shortAddr(s.recipient)}`;
+  if (s.kind === "bridge") return `bridge ${what} to ${NAME[LIFI_TO_NETWORK[String(s.destinationChainKey || "").toLowerCase()]] || s.destinationChainKey}`;
+  if (s.kind === "stake") return `stake ${what}`;
+  if (s.kind === "unstake") return `withdraw ${what} from staking`;
+  return s.kind;
+}
+function joinSteps(parts) {
+  if (parts.length <= 1) return parts.join("");
+  return parts.slice(0, -1).join(", ") + ", then " + parts[parts.length - 1];
 }

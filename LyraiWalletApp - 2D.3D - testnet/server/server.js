@@ -5,6 +5,7 @@ import dns from "node:dns";
 import net from "node:net";
 import { Agent, setGlobalDispatcher } from "undici";
 import { ethers } from "ethers";
+import { KYBERSWAP_API_BASE, KYBERSWAP_CLIENT_ID } from "../src/config.js";
 import { IS_TESTNET, getNetworkByKey, DEFAULT_NETWORK, NETWORKS, TOKENS_BY_NETWORK, WNATIVE_BY_NETWORK, NATIVE_PSEUDO_ADDRESS, getDefiContracts, UNISWAP_V3_FEE_TIERS, UNISWAP_V3_FACTORY_ABI, UNISWAP_V3_QUOTER_ABI } from "../src/config.js";
 import { getBalance, getAddress } from "./tools/walletTools.js";
 import { isDefiFeatureEnabled, getDefiFeatureInfo } from "./tools/defiProtocols.js";
@@ -14,7 +15,7 @@ import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { registerSafeRoutes } from "./routes/safe.js";
 import { registerDappRoutes } from "./routes/dapp.js";
-import { orderMultiSteps } from "./tools/planSteps.js";
+import { orderMultiSteps, planSentence } from "./tools/planSteps.js";
 
 dotenv.config();
 
@@ -2708,6 +2709,19 @@ depends on the swap's output. The backend fills it in with the
 swap's real result once that step actually runs. Never guess a
 number for a step that depends on a previous one.
 
+"ALL" AND "THE REST" IN A CHAINED STEP:
+- "all", "all funds", "everything", "all of it", "tout", "tous mes ..." on
+  a later step means the WHOLE balance of that token at that moment (what
+  the wallet already held plus what earlier steps produce): amount = "MAX".
+  Never a number you computed. Example: "swap all my XPL to USDT0 then
+  bridge all funds to Ethereum" -> step 1 swap amount "MAX" asset XPL,
+  step 2 bridge amount "MAX" asset USDT0.
+- "the rest", "what's left", "the remainder", "le reste", "them", "it"
+  right after a step that produces that token means what that step
+  produced, minus what the steps in between already used: amount = null.
+  The backend computes it. Example: "swap 100 XPL to USDT0, send 5 USDT0
+  to Papa and stake the rest" -> stake amount null.
+
 If steps are independent (no shared asset dependency), keep the
 user's original order.
 
@@ -2723,6 +2737,28 @@ IMPORTANT:
   the combined ticket itself, exactly like single actions.
 
 ---
+
+## GOAL: WHAT THE USER WANTS TO END UP WITH
+
+When the user states the RESULT they want rather than what to sell ("I
+want 100 USDC on Ethereum and take my XPL", "get me 50 USDT0 with my XPL",
+"je veux 100 USDC sur Base, prends mes XPL", "I need 0.01 ETH on Base"),
+the number is what must ARRIVE, never the amount to sell. Return
+intent = "MULTI_ACTION" with ONE step:
+- kind: "bridge" when the wanted chain differs from the current network
+  (destinationChainKey = its LI.FI key), "swap" when it is this network;
+- asset: the token to pay with (the one the user names: "take my XPL"
+  -> "XPL"; if none is named, the native coin of this network);
+- tokenOutSymbol: the token they want ("USDC");
+- amount: null;
+- targetAmount: the number they want to receive, as a string ("100").
+The backend computes how much to sell, fees included, and checks the
+balance. Never put the wanted number in "amount".
+Example: "I want 100 usdc on ETH and take my xpl" (on Plasma) ->
+{ "intent": "MULTI_ACTION", "steps": [ { "kind": "bridge", "asset": "XPL",
+  "tokenOutSymbol": "USDC", "destinationChainKey": "eth", "amount": null,
+  "targetAmount": "100", "recipient": null, "contactName": null,
+  "auto": false, "reason": null } ], "message": "..." }
 
 ## SMART FUNDING
 
@@ -3033,6 +3069,105 @@ async function getRealSwapQuote(network, assetInSymbol, assetOutSymbol, amount) 
 // chain+token (Polymarket: USDC.e on Polygon) or a small native-gas
 // top-up on the destination chain. Defaults to fromTokenSymbol, i.e.
 // today's plain same-token bridge, unchanged.
+// "I want 100 USDC on Ethereum, take my XPL": how much XPL to sell so that
+// at least that much arrives, fees included (LI.FI's exact-output quote,
+// same-chain swaps too). { amount, minReceive, route } or { reason }.
+async function quoteForGoal(network, fromTokenSymbol, toChainKey, toTokenSymbol, targetAmount, fromAddress) {
+  const isNative = fromTokenSymbol === network.nativeSymbol;
+  const token = isNative ? { address: NATIVE_PSEUDO_ADDRESS, decimals: 18 } : (TOKENS_BY_NETWORK[network.key] || {})[fromTokenSymbol];
+  if (!token?.address) return { reason: `${fromTokenSymbol} isn't available on ${network.name}.` };
+  const sameChain = !toChainKey;
+  const outToken = sameChain ? (toTokenSymbol === network.nativeSymbol ? { address: NATIVE_PSEUDO_ADDRESS, decimals: 18 } : (TOKENS_BY_NETWORK[network.key] || {})[toTokenSymbol]) : null;
+  if (sameChain && !outToken?.address) return { reason: `${toTokenSymbol} isn't available on ${network.name}.` };
+  // the wanted amount in the destination token's units (LI.FI tells its decimals)
+  const decimalsOut = outToken?.decimals ?? (/^(USDC|USDT|USDT0|USDC\.e|EURC)$/i.test(toTokenSymbol) ? 6 : 18);
+  try {
+    const url = new URL("https://li.quest/v1/quote/toAmount");
+    url.searchParams.set("fromChain", String(network.chainId));
+    url.searchParams.set("toChain", sameChain ? String(network.chainId) : toChainKey);
+    url.searchParams.set("fromToken", token.address);
+    url.searchParams.set("toToken", sameChain ? outToken.address : toTokenSymbol);
+    url.searchParams.set("toAmount", ethers.parseUnits(String(targetAmount), decimalsOut).toString());
+    url.searchParams.set("fromAddress", fromAddress || "0x0000000000000000000000000000000000000001");
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok || !data.estimate?.fromAmount) return { reason: data?.message || "No route for this right now." };
+    const realOutDecimals = data.action?.toToken?.decimals ?? decimalsOut;
+    // a little room for the price to move between this quote and the signature
+    const fromRaw = (BigInt(data.estimate.fromAmount) * 1005n) / 1000n;
+    return {
+      amount: Number(ethers.formatUnits(fromRaw, token.decimals)).toFixed(token.decimals > 6 ? 6 : token.decimals).replace(/\.?0+$/, ""),
+      minReceive: Number(ethers.formatUnits(data.estimate.toAmountMin || data.estimate.toAmount, realOutDecimals)).toFixed(4).replace(/\.?0+$/, ""),
+      route: data.toolDetails?.name || "LI.FI",
+    };
+  } catch (e) {
+    console.error("Goal quote error:", e?.message || e);
+    return { reason: "Couldn't reach the route service for a quote." };
+  }
+}
+
+// The swap's output token is the one the user asked for whenever it exists on
+// this network. The research looks at Uniswap pools only and may answer "USDC
+// unavailable" and switch to USDT0, while KyberSwap (what the wallet really
+// swaps with) routes it fine: quoted again there, the asked token is kept.
+async function kyberQuote(network, assetIn, assetOut, amount) {
+  if (!network.kyberSlug) return null;
+  const meta = (sym) => (sym === network.nativeSymbol ? { address: NATIVE_PSEUDO_ADDRESS, decimals: 18 } : (TOKENS_BY_NETWORK[network.key] || {})[sym]);
+  const a = meta(assetIn), b = meta(assetOut);
+  if (!a?.address || !b?.address || !(Number(amount) > 0)) return null;
+  try {
+    const url = new URL(`${KYBERSWAP_API_BASE(network.kyberSlug)}/routes`);
+    url.searchParams.set("tokenIn", a.address);
+    url.searchParams.set("tokenOut", b.address);
+    url.searchParams.set("amountIn", ethers.parseUnits(Number(amount).toFixed(Math.min(a.decimals, 8)), a.decimals).toString());
+    const r = await fetch(url, { headers: { "X-Client-Id": KYBERSWAP_CLIENT_ID } });
+    const d = await r.json();
+    const out = d?.data?.routeSummary?.amountOut;
+    if (!r.ok || !out) return null;
+    const received = Number(ethers.formatUnits(out, b.decimals));
+    return { estimatedReceive: `${received.toFixed(6)} ${assetOut}`, rate: `1 ${assetIn} = ${(received / Number(amount)).toFixed(6)} ${assetOut}` };
+  } catch { return null; }
+}
+// The research sometimes writes the received amount as a bare number
+// ("102.57"): the output token is added so the card reads "102.57 USDC".
+function receiveWithUnit(ticket) {
+  const r = ticket?.estimatedReceive;
+  if (r == null || !ticket.tokenOutSymbol) return;
+  if (/^\s*[\d.,]+\s*$/.test(String(r))) ticket.estimatedReceive = `${String(r).trim()} ${ticket.tokenOutSymbol}`;
+}
+
+async function keepAskedToken(network, assetIn, askedOut, amount, ticket) {
+  if (!askedOut || !ticket || ticket.tokenOutSymbol === askedOut) return;
+  const exists = askedOut === network.nativeSymbol || (TOKENS_BY_NETWORK[network.key] || {})[askedOut];
+  if (!exists) return; // "USDT" on Plasma is USDT0: the research's symbol stands
+  const q = (await kyberQuote(network, assetIn, askedOut, amount)) || (await getRealSwapQuote(network, assetIn, askedOut, amount).then(x => (x?.found ? x : null)).catch(() => null));
+  ticket.tokenOutSymbol = askedOut;
+  ticket.estimatedReceive = q?.estimatedReceive ?? null;
+  if (q?.rate) ticket.rate = q.rate;
+  if (q) ticket.platform = "KyberSwap";
+  if (ticket.summary) ticket.summary = `Swap ${amount} ${assetIn} to ${askedOut}.`;
+}
+
+// "swap 100 XPL to USDC, bridge them to Base and swap them to ETH" as ONE
+// LI.FI route (XPL on this network -> ETH on Base): its ticket comes from the
+// route's own quote, nothing guessed.
+async function fusedRouteTicket(network, step, fromAddress) {
+  const q = await getRealBridgeQuote(network, step.asset, step.destinationChainKey, step.amount, fromAddress, step.tokenOutSymbol);
+  return {
+    amount: step.amount,
+    platform: q.found ? q.route : "LI.FI",
+    rate: null,
+    estimatedReceive: q.found ? q.estimatedReceive : null,
+    tokenOutSymbol: step.tokenOutSymbol,
+    destinationChainKey: step.destinationChainKey,
+    fees: q.found ? q.fees : "included in route",
+    riskLevel: "low",
+    riskReason: "One aggregated route",
+    summary: `${step.amount} ${step.asset} to ${step.tokenOutSymbol} on ${progressNetworkName(step.destinationChainKey)}, one route.`,
+    dataFound: !!q.found,
+  };
+}
+
 async function getRealBridgeQuote(network, fromTokenSymbol, toChainKey, amount, fromAddress, toTokenSymbol) {
   // LI.FI has no testnets: every testnet bridge is Circle's Bridge Kit, client-side.
   if (IS_TESTNET) {
@@ -7133,6 +7268,8 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
         message,
         walletContext
       );
+      if (feature === "swap") await keepAskedToken(network, assetSymbol, action.tokenOutSymbol, ticket.amount || action.amount, ticket);
+      receiveWithUnit(ticket);
 
       return res.json({
         intent: action.intent,
@@ -7292,6 +7429,62 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
     }
 
     if (action.intent === "MULTI_ACTION" && Array.isArray(action.steps) && action.steps.length > 0) {
+      // A goal ("I want 100 USDC on Ethereum, take my XPL"): the amount to
+      // sell is computed here, fees included, and checked against the balance
+      for (const st of action.steps) {
+        const target = Number(String(st.targetAmount ?? "").replace(/,/g, ""));
+        if (!(target > 0) || !["bridge", "swap"].includes(st.kind) || !st.tokenOutSymbol) continue;
+        const from = st.asset || network.nativeSymbol;
+        const toKey = st.kind === "bridge" ? String(st.destinationChainKey || "").toLowerCase() || null : null;
+        aiProgress("Working out how much to use", `${target} ${st.tokenOutSymbol}`);
+        const goal = await quoteForGoal(network, from, toKey, st.tokenOutSymbol, target, walletAddress);
+        const where = toKey ? ` on ${progressNetworkName(toKey)}` : "";
+        if (goal.reason) {
+          return res.json({ intent: "CHAT", amount: null, amountUSD: null, recipient: null, asset: from, requires_confirmation: false, message: `I couldn't work out how much ${from} gets you ${target} ${st.tokenOutSymbol}${where}: ${goal.reason}` });
+        }
+        const held = Number((Array.isArray(holdings) ? holdings : []).find(h => h?.symbol === from)?.amount);
+        if (Number.isFinite(held) && held < Number(goal.amount)) {
+          return res.json({ intent: "CHAT", amount: null, amountUSD: null, recipient: null, asset: from, requires_confirmation: false, message: `To get ${target} ${st.tokenOutSymbol}${where} you'd need about ${Number(goal.amount).toLocaleString("en-US", { maximumFractionDigits: 2 })} ${from} (fees included), and you have ${held}. Want less, or another token to pay with?` });
+        }
+        st.amount = goal.amount;
+        st.goal = { target: String(target), minReceive: goal.minReceive, route: goal.route };
+        action.message = `I'll use about ${Number(goal.amount).toLocaleString("en-US", { maximumFractionDigits: 2 })} ${from} to get ${target} ${st.tokenOutSymbol}${where} (at least ${goal.minReceive}, fees included). Check the details, then confirm.`;
+      }
+
+      // swap -> bridge -> swap whose token in between serves nothing else:
+      // one LI.FI route, one confirmation, nothing to ask again on arrival
+      // ("swap 100 XPL to USDC, bridge them to Base and swap them to ETH").
+      if (network.key !== "arc") {
+        const st = action.steps;
+        const lifiKey = (k) => ["pla", "eth", "bas", "pol", "hyp"].includes(String(k || "").toLowerCase());
+        for (let i = 0; i < st.length; i++) {
+          const b = st[i];
+          if (b?.kind !== "bridge" || !lifiKey(b.destinationChainKey)) continue;
+          const prev = st[i - 1];
+          const next = st[i + 1];
+          const before = prev?.kind === "swap" && prev.amount && prev.tokenOutSymbol && !b.amount && (!b.asset || b.asset === prev.tokenOutSymbol) ? prev : null;
+          const after = next?.kind === "swap" && !next.amount && next.tokenOutSymbol ? next : null;
+          if (!before && !after) continue;
+          const mid = before ? before.tokenOutSymbol : (b.asset || network.nativeSymbol);
+          if (after && after.asset && after.asset !== mid && after.asset !== b.tokenOutSymbol) continue;
+          // the token in between must serve nothing else in the request
+          if (st.some(x => x !== b && x !== before && x !== after && (x.asset === mid || x.tokenOutSymbol === mid))) continue;
+          const fused = {
+            kind: "bridge",
+            asset: before ? (before.asset || network.nativeSymbol) : (b.asset || network.nativeSymbol),
+            amount: before ? before.amount : b.amount,
+            tokenOutSymbol: after ? after.tokenOutSymbol : (b.tokenOutSymbol || mid),
+            destinationChainKey: String(b.destinationChainKey).toLowerCase(),
+            recipient: null, contactName: null, auto: false, reason: null,
+            fused: true,
+          };
+          if (!fused.amount || fused.asset === fused.tokenOutSymbol && !after) continue;
+          st.splice(before ? i - 1 : i, (before ? 1 : 0) + 1 + (after ? 1 : 0), fused);
+          action.message = `I'll turn ${fused.amount} ${fused.asset} into ${fused.tokenOutSymbol} on ${progressNetworkName(fused.destinationChainKey)} in one route (${[before && "swap", "bridge", after && "swap"].filter(Boolean).join(", ")} together), one confirmation. Check the details, then confirm.`;
+          break;
+        }
+      }
+
       // The order is computed by code, not left to the model; a real
       // ambiguity becomes a question (tools/planSteps.js, tools/intentPlanner.js)
       {
@@ -7312,6 +7505,8 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
           return res.json({ intent: "CHAT", amount: null, amountUSD: null, recipient: null, asset: network.nativeSymbol, requires_confirmation: false, message: ordered.question });
         }
         action.steps = ordered.steps;
+        // the text follows the order the plan really runs in
+        if (ordered.summary) action.message = `${ordered.summary} Check the details, then confirm.`;
         const extra = [...(ordered.notes || []), ordered.after].filter(Boolean).join(" ");
         if (extra) action.message = [action.message || "Here's the plan, check each step, then confirm.", extra].join(" ");
       }
@@ -7326,9 +7521,26 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
         unstake: "staking"
       };
 
+      {
+        const KIND_VERB = { send: "send|envoie|envoyer|transfer", swap: "swap|convert|échange|convertis", bridge: "bridge|bridger|move", stake: "stake|staker|deposit|dépose" };
+        const ALL = "(?:everything|all(?:\\s+(?:my|the|of\\s+(?:it|them|my|the)))?(?:\\s+funds)?|tout(?:es|s)?(?:\\s+(?:mes|les))?|le\\s+tout)";
+        let forced = false;
+        for (const st of action.steps) {
+          const verbs = KIND_VERB[st.kind];
+          if (!verbs || (st.amount && !/^(max|all)$/i.test(String(st.amount)))) continue;
+          if (new RegExp(`\\b(?:${verbs})\\s+${ALL}\\b`, "i").test(String(message))) { forced = forced || !st.amount; st.amount = "MAX"; }
+        }
+        // the model's sentence said "the rest": say what will really happen
+        if (forced) action.message = `${planSentence(action.steps)} Check the details, then confirm.`;
+      }
       let previousOutputEstimate = null;
       let previousOutputSymbol = null;
-      const outputBySymbol = new Map(); // token -> estimated output of the step that produced it
+      const outputBySymbol = new Map(); // token -> estimated output of the step that produced it, minus what later steps used
+      const heldNow = (sym) => {
+        const h = (Array.isArray(holdings) ? holdings : []).find(x => x?.symbol === sym);
+        const n = Number(h?.amount);
+        return Number.isFinite(n) ? n : 0;
+      };
       const resolvedSteps = [];
 
       aiProgress(`Planning ${action.steps.length} steps`);
@@ -7345,9 +7557,19 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
         }
         // the step that produced this token (the planner may have put another
         // step in between), else the one right before, as before
+        // "all of it" on a chained step: what the wallet holds plus what earlier
+        // steps produce, read again by the wallet when it runs (amountAll)
+        const wantsAll = /^(max|all|everything|tout)$/i.test(String(step.amount || "").trim());
+        if (wantsAll) {
+          const asset = step.asset || network.nativeSymbol;
+          const total = heldNow(asset) + (outputBySymbol.get(asset) || 0);
+          step.amount = total > 0 ? String(Number(total.toFixed(6))) : null;
+          step.amountAll = true;
+          outputBySymbol.delete(asset);
+        }
         const producedEstimate = !step.amount && step.asset && outputBySymbol.has(step.asset) ? outputBySymbol.get(step.asset) : null;
         const dependsOnPrevious = !step.amount && (producedEstimate !== null || previousOutputEstimate !== null);
-        const effectiveAmount = step.amount || (dependsOnPrevious ? String(producedEstimate ?? previousOutputEstimate) : null);
+        const effectiveAmount = step.amount || (dependsOnPrevious ? String(Number(Number(producedEstimate ?? previousOutputEstimate).toFixed(6))) : null);
         // When this step depends on the previous one's output, the asset
         // it actually receives can differ from what the user originally
         // named (e.g. "swap to USDT" on a network where only USDC is
@@ -7359,11 +7581,16 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
           ? previousOutputSymbol
           : (step.asset || previousOutputSymbol || network.nativeSymbol);
 
+        if (step.asset && outputBySymbol.has(step.asset)) {
+          if (producedEstimate !== null) outputBySymbol.delete(step.asset); // it took all of it
+          else if (Number(step.amount) > 0) outputBySymbol.set(step.asset, Math.max(0, outputBySymbol.get(step.asset) - Number(step.amount)));
+        }
         if (kind === "send") {
           resolvedSteps.push({
             kind: "send",
             amount: effectiveAmount,
-            amountIsEstimate: dependsOnPrevious,
+            amountIsEstimate: dependsOnPrevious || !!step.amountAll,
+            amountAll: !!step.amountAll,
             asset: effectiveAsset,
             recipient: step.recipient || null,
             contactName: step.contactName || null,
@@ -7418,7 +7645,7 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
         const enabled = isDefiFeatureEnabled(network.key, feature);
         const info = getDefiFeatureInfo(network.key, feature);
 
-        const ticket = await prepareDefiTicket(
+        const ticket = step.fused ? await fusedRouteTicket(network, { ...step, amount: effectiveAmount }, walletAddress) : await prepareDefiTicket(
           network,
           feature,
           effectiveAmount,
@@ -7433,6 +7660,9 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
           kind === "bridge" ? (step.tokenOutSymbol || undefined) : undefined
         );
 
+        // the research may pick another token than the one asked for (USDT0
+        // for "USDC"): when the asked one exists here, it is quoted and used
+        if (kind === "swap") await keepAskedToken(network, effectiveAsset, step.tokenOutSymbol, ticket.amount || effectiveAmount, ticket);
         resolvedSteps.push({
           kind,
           feature,
@@ -7442,7 +7672,8 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
           // like "$1" converts via the real quote), effectiveAmount is
           // often null for a USD-denominated step.
           amount: ticket.amount || effectiveAmount,
-          amountIsEstimate: dependsOnPrevious,
+          amountIsEstimate: dependsOnPrevious || !!step.amountAll,
+          amountAll: !!step.amountAll,
           asset: effectiveAsset,
           // Same reasoning as amount: the fast routing step guesses a
           // "default" stablecoin (often USDT) without checking which
@@ -7464,6 +7695,7 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
           ticket
         });
 
+        receiveWithUnit(ticket);
         // Feed this step's estimated output to the next one, if any.
         // Same amount/tokenOutSymbol priority as above: chain forward the
         // ticket-prep's corrected symbol, not the routing step's guess,

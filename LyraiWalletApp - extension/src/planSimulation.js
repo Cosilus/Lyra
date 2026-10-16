@@ -51,6 +51,8 @@ export async function buildPlanCalls(steps, ctx) {
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const push = (tx) => calls.push({ ...tx, value: tx.value ? tx.value.toString() : "0", step: i });
+    // "disposable" approvals: exact amount, the action, then back to 0 in the same batch
+    const reset = (token, spender) => push({ to: token, data: ERC20.encodeFunctionData("approve", [spender, 0n]) });
 
     if (step.kind === "send") {
       const amount = rawAmount(step);
@@ -96,6 +98,7 @@ export async function buildPlanCalls(steps, ctx) {
           q.transaction.signature,
         ]),
       });
+      reset(tIn.address, CIRCLE_ADAPTER[kind]);
       let min = BigInt(q.stopLimit || 0);
       if (step.tokenOutSymbol === ctx.nativeSymbol && ctx.networkKey === "arc") min = min * 10n ** 12n;
       carried = min > 0n ? { symbol: step.tokenOutSymbol, raw: min } : null;
@@ -122,6 +125,7 @@ export async function buildPlanCalls(steps, ctx) {
       if (!built.data?.data) throw new Error("The swap couldn't be prepared.");
       if (!isNativeIn) push({ to: tokenIn, data: ERC20.encodeFunctionData("approve", [built.data.routerAddress, amountIn]) });
       push({ to: built.data.routerAddress, data: built.data.data, value: isNativeIn ? amountIn : 0n });
+      if (!isNativeIn) reset(tokenIn, built.data.routerAddress);
       const out = BigInt(built.data.amountOut || route.data.routeSummary.amountOut || 0);
       carried = out > 0n ? { symbol: step.tokenOutSymbol, raw: (out * BigInt(Math.round((1 - slippage) * 10000))) / 10000n } : null;
 
@@ -132,11 +136,13 @@ export async function buildPlanCalls(steps, ctx) {
       if (v4) {
         push({ to: v4.address, data: ERC20.encodeFunctionData("approve", [ctx.defi.aaveV4.spoke, amount]) });
         push({ to: ctx.defi.aaveV4.spoke, data: AAVE_V4_SPOKE.encodeFunctionData("supply", [v4.id, amount, ctx.from]) });
+        reset(v4.address, ctx.defi.aaveV4.spoke);
       } else {
         const token = ctx.tokens[step.asset];
         if (!token?.address || !ctx.defi.aave?.pool) { skipped.push(i); carried = null; continue; }
         push({ to: token.address, data: ERC20.encodeFunctionData("approve", [ctx.defi.aave.pool, amount]) });
         push({ to: ctx.defi.aave.pool, data: AAVE_POOL.encodeFunctionData("supply", [token.address, amount, ctx.from, 0]) });
+        reset(token.address, ctx.defi.aave.pool);
       }
       carried = null;
 
@@ -173,6 +179,7 @@ export async function buildPlanCalls(steps, ctx) {
         to: CCTP_TOKEN_MESSENGER[kind],
         data: TOKEN_MESSENGER_I.encodeFunctionData("depositForBurnWithHook", [amount, dstDomain, ethers.zeroPadValue(ctx.from, 32), usdc, ethers.ZeroHash, maxFee, tier.finalityThreshold, CCTP_FORWARD_HOOK]),
       });
+      reset(usdc, CCTP_TOKEN_MESSENGER[kind]);
       carried = null;
 
     } else if (step.kind === "bridge") {
@@ -192,6 +199,7 @@ export async function buildPlanCalls(steps, ctx) {
       if (!quote.transactionRequest) throw new Error("No bridge route right now.");
       if (!isNative) push({ to: fromToken, data: ERC20.encodeFunctionData("approve", [quote.estimate?.approvalAddress || ctx.defi.lifi.diamond, amount]) });
       push({ to: quote.transactionRequest.to, data: quote.transactionRequest.data, value: quote.transactionRequest.value ? BigInt(quote.transactionRequest.value) : 0n });
+      if (!isNative) reset(fromToken, quote.estimate?.approvalAddress || ctx.defi.lifi.diamond);
       carried = null;
 
     } else {
