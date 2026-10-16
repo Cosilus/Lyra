@@ -3,7 +3,7 @@ import Spinner from "./Spinner.jsx";
 import { AnimatePresence, motion, LayoutGroup } from "framer-motion";
 import { ethers } from "ethers";
 import { gsap } from "gsap";
-import { Check, Copy, ExternalLink, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUpFromDot, ArrowDownToDot, ArrowLeftRight, MoveHorizontal, Vault, ChevronDown, QrCode, Sparkles, HelpCircle, Gift , ArrowDownLeft, UserPlus, Send as SendIcon } from "lucide-react";
+import { Check, Copy, ExternalLink, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUpFromDot, ArrowDownToDot, ArrowLeftRight, MoveHorizontal, Vault, ChevronDown, QrCode, Sparkles, HelpCircle, Gift , ArrowDownLeft, UserPlus, Send as SendIcon, ArrowLeft, ChevronRight, Wallet as WalletIcon, AlertTriangle } from "lucide-react";
 import { IS_TESTNET, API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx, KYBERSWAP_API_BASE, NATIVE_PSEUDO_ADDRESS, KYBERSWAP_CLIENT_ID, POLYMARKET_ORDER_DOMAIN_NAME, POLYMARKET_ORDER_DOMAIN_VERSION, POLYMARKET_ORDER_TYPES, POLYMARKET_ORDER_SIDE_BUY, POLYMARKET_ORDER_SIDE_SELL, POLYMARKET_BYTES32_ZERO, POLYMARKET_SIGNATURE_TYPE_EOA, POLYMARKET_SIGNATURE_TYPE_GNOSIS_SAFE, POLYMARKET_SIGNATURE_TYPE_POLY_1271, POLYMARKET_DEPOSIT_WALLET_DOMAIN_NAME, POLYMARKET_DEPOSIT_WALLET_DOMAIN_VERSION, POLYMARKET_PUSD_COLLATERAL, AAVE_V4_SPOKE_ABI } from "./config";
 import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
@@ -95,6 +95,7 @@ import { TokenLogo } from "./tokenLogo.jsx";
 import { haptic, Skel, SkeletonRows, EmptyWallet, usePullToRefresh } from "./uiPolish.jsx";
 import { PlanDoneSheet } from "./PlanDone.jsx";
 import { PanelHead, SettingIcon, Avatar } from "./menuParts.jsx";
+import { WelcomeDemo } from "./WelcomeDemo.jsx";
 import { IS_CARD, reportCardBusy } from "./cardBridge.js";
 import { TiltActivation, isTouchOnly, needsMotionPermission, rememberTilt, tiltRemembered } from "./three-d/TiltActivation.jsx";
 
@@ -1123,6 +1124,9 @@ export default function App() {
   const [biometricEnabled, setBiometricEnabled] = useState(() => !!loadBiometricRecord());
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricError, setBiometricError] = useState("");
+  // lock screen: which address unlocks (the last one used, until another is picked)
+  const [lockMenuOpen, setLockMenuOpen] = useState(false);
+  const [lockPick, setLockPick] = useState(0); // re-reads the address in use after a switch
   const sessionKeyCacheRef = useRef(null);
 
   // MPC (2-of-2 key split): fragment1 lives on this device, fragment2
@@ -3188,6 +3192,18 @@ useEffect(() => {
   setShowWallet(false);
   setShowPasswordSetup(true);
 }
+
+  // One address from its private key (no recovery phrase): straight to the password step.
+  function importPrivateKey(raw) {
+    const hex = String(raw || "").trim().replace(/^0x/i, "");
+    if (!/^[0-9a-fA-F]{64}$/.test(hex)) throw new Error("A private key is 64 hexadecimal characters (with or without 0x).");
+    const w = new ethers.Wallet("0x" + hex);
+    setPendingPrivateKey(w.privateKey);
+    setPendingMnemonic(null);
+    setPasswordSetupMode("import");
+    setShowWallet(false);
+    setShowPasswordSetup(true);
+  }
 
   function openForgotPassword() {
   setForgotWordCount(12);
@@ -7908,7 +7924,7 @@ function handleHoldEnd() {
     // Circle's kit on Arc (it answers "Live quote at swap confirmation") the
     // kit's own estimate, fetched below, "… EURC" until it arrives
     if (kind === "swap") {
-      const quoted = receive && /d/.test(String(receive)) ? receive : null;
+      const quoted = receive && /\d/.test(String(receive)) ? receive : null;
       const est = swapEstimates[`${asset}>${toAsset}:${amount}`];
       const to = quoted || (toAsset ? (est ? `≈ ${fmtAmt(est)} ${toAsset}` : `… ${toAsset}`) : null);
       return { kind, label: "Swap", sub, via, from, to };
@@ -8315,7 +8331,7 @@ function handleHoldEnd() {
     // the plan's rows, or while Lyra reads the request, the steps read from the sentence
     const rows = planRows || (pendingPlan?.steps || []).map(st => ({ kind: st.kind, asset: st.asset, toAsset: st.toAsset, amount: /^d/.test(st.amount || "") ? st.amount : null }));
     for (const r of rows) {
-      if (r.kind === "swap" && r.asset && r.toAsset && Number(r.amount) > 0 && !(r.receive && /d/.test(String(r.receive)))) {
+      if (r.kind === "swap" && r.asset && r.toAsset && Number(r.amount) > 0 && !(r.receive && /\d/.test(String(r.receive)))) {
         estimateArcSwap(r.asset, r.toAsset, r.amount);
       }
     }
@@ -9103,6 +9119,7 @@ function handleHoldEnd() {
             onBack={wallet ? null : () => { setShowWallet(false); setShowWelcome(true); }}
             onCreate={createWallet}
             onImport={importWallet}
+            onImportKey={importPrivateKey}
           />
         </div>
 
@@ -10270,12 +10287,14 @@ function handleHoldEnd() {
       <div className="entry-wordmark">Lyra</div>
       <div className="entry-tagline">Your AI-powered wallet. Just ask.</div>
 
+      <WelcomeDemo />
+
       <div className="unlock-actions entry-actions">
         <FillButton
           className="unlock-btn-gradient"
           icon={ArrowRight}
           onClick={() => {
-            setWalletPanelMode("create");
+            setWalletPanelMode("choose");
             setShowWelcome(false);
             setShowWallet(true);
           }}
@@ -10288,7 +10307,7 @@ function handleHoldEnd() {
         type="button"
         className="forgot-password-link"
         onClick={() => {
-          setWalletPanelMode("import");
+          setWalletPanelMode("choose");
           setShowWelcome(false);
           setShowWallet(true);
         }}
@@ -10310,6 +10329,50 @@ function handleHoldEnd() {
     exit={{ opacity: 0, scale: 1.015 }}
     transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
   >
+    {(() => {
+      const list = loadAccounts();
+      const current = loadSavedWallet()?.address || "";
+      const me = list.find(a => a.address?.toLowerCase() === current.toLowerCase());
+      if (!current || list.length < 1) return null;
+      return (
+        <div className="lock-account" key={lockPick}>
+          <button type="button" className="lock-account-btn" onClick={() => setLockMenuOpen(o => !o)} aria-expanded={lockMenuOpen} aria-label="Choose the address to unlock">
+            <Avatar name={me?.name || "Main account"} size={24} />
+            <span>{me?.name || "Main account"}</span>
+            {list.length > 1 && <ChevronDown size={14} />}
+          </button>
+          {lockMenuOpen && list.length > 1 && (
+            <div className="lock-account-menu" role="menu">
+              {list.map(a => {
+                const on = a.address?.toLowerCase() === current.toLowerCase();
+                return (
+                  <button
+                    key={a.address}
+                    type="button"
+                    role="menuitem"
+                    className="lock-account-item"
+                    onClick={() => {
+                      if (!on) {
+                        try { activateAccount(a.address); } catch (e) { setUnlockError(e.message); }
+                        setUnlockPassword("");
+                        setUnlockError("");
+                        setBiometricError("");
+                      }
+                      setLockMenuOpen(false);
+                      setLockPick(n => n + 1);
+                    }}
+                  >
+                    <Avatar name={a.name} size={28} />
+                    <span><b>{a.name}</b><span className="mono">{shortAddress(a.address)}</span></span>
+                    {on && <Check size={15} className="menu-account-check" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    })()}
     <div className="entry-panel">
       <Logo3D className="entry-logo" />
       <div className="entry-wordmark">Lyra</div>
@@ -10352,22 +10415,29 @@ function handleHoldEnd() {
           Unlock Wallet
         </FillButton>
 
-        {biometricEnabled && (
-          <>
-            <div className="biometric-divider">or</div>
-            <FillButton
-              className="biometric-outline-btn"
-              icon={biometricBusy ? Spinner : Fingerprint}
-              iconSide="left"
-              iconSpin={biometricBusy}
-              onClick={unlockWithBiometric}
-              disabled={biometricBusy}
-            >
-              Use Biometrics
-            </FillButton>
-            {biometricError && <div className="seed-error">{biometricError}</div>}
-          </>
-        )}
+        {(biometricEnabled || platformBiometric) && (() => {
+          // the fingerprint opens the address it was set up on: offered for that one,
+          // and for the others it says how to turn it on
+          const rec = loadBiometricRecord();
+          const current = (loadSavedWallet()?.address || "").toLowerCase();
+          const ready = !!rec && String(rec.address || "").toLowerCase() === current;
+          return (
+            <>
+              <div className="biometric-divider">or</div>
+              <FillButton
+                className="biometric-outline-btn"
+                icon={biometricBusy ? Spinner : Fingerprint}
+                iconSide="left"
+                iconSpin={biometricBusy}
+                onClick={ready ? unlockWithBiometric : () => setBiometricError("Unlock once with your password, then turn on Fingerprint unlock in Settings for this address.")}
+                disabled={biometricBusy}
+              >
+                Use Biometrics
+              </FillButton>
+              {biometricError && <div className="seed-error">{biometricError}</div>}
+            </>
+          );
+        })()}
       </div>
 
       <button
@@ -10496,22 +10566,19 @@ function handleHoldEnd() {
 {showPasswordSetup && (
   <div className="backup-overlay">
 
-    <div className="backup-panel">
+    <div className="backup-panel onb-card">
 
-      <div className="backup-header">
-        <div>
-          <div className="backup-title">
-            {passwordSetupMode === "reset"
-              ? "Choose a new password"
-              : "Secure your wallet"}
-          </div>
-
-          <div className="backup-subtitle">
+      {passwordSetupMode !== "reset" && <OnboardSteps at={2} />}
+      <div className="panel-head">
+        <span className="panel-head-icon tone-t" aria-hidden="true"><Lock size={18} strokeWidth={1.9} /></span>
+        <div className="panel-head-text">
+          <div className="panel-head-title">{passwordSetupMode === "reset" ? "Choose a new password" : "Secure your wallet"}</div>
+          <div className="panel-head-sub">
             {passwordSetupMode === "reset"
               ? "Your phrase was successfully verified"
               : passwordSetupMode === "import"
-              ? "Create your Lyra password for this imported wallet"
-              : "Create your Lyra password"}
+              ? "Your password for this imported wallet"
+              : "You'll use it to open Lyra"}
           </div>
         </div>
       </div>
@@ -10522,11 +10589,6 @@ function handleHoldEnd() {
         </div>
       )}
 
-      <div className="backup-warning">
-        This password will be required to open your wallet.
-        Lyra cannot recover it if lost. Only your recovery
-        phrase can.
-      </div>
 
       <div className="password-field">
         <label>Password</label>
@@ -10543,6 +10605,18 @@ function handleHoldEnd() {
         />
       </div>
 
+      {newPassword && (() => {
+        const p = newPassword;
+        const score = (p.length >= 8) + (p.length >= 12) + (/[a-z]/.test(p) && /[A-Z]/.test(p)) + /\d/.test(p) + /[^A-Za-z0-9]/.test(p);
+        const [label, color] = p.length < 8 ? ["Too short (8 characters minimum)", "#F2A0A0"] : score >= 4 ? ["Strong password", "#5DCAA5"] : score >= 3 ? ["Good password", "#FAC775"] : ["Weak password", "#F0997B"];
+        return (
+          <>
+            <div className="onb-strength"><i style={{ width: `${Math.max(12, Math.min(100, score * 20))}%`, background: color }} /></div>
+            <div className="onb-strength-label" style={{ color }}>{label}</div>
+          </>
+        );
+      })()}
+
       <div className="password-field">
         <label>Confirm password</label>
 
@@ -10558,6 +10632,11 @@ function handleHoldEnd() {
         />
       </div>
 
+      <div className="onb-warn">
+        <AlertTriangle size={15} />
+        <span>Lyra can't recover this password. Only your recovery phrase{passwordSetupMode === "import" && !pendingMnemonic ? " or private key" : ""} can.</span>
+      </div>
+
       {passwordSetupMode !== "reset" && (
         <div className={`mpc-option-card${IS_TESTNET ? " is-soon" : ""}`}>
           <StatusBadge status={IS_TESTNET ? "submitted" : "progress"} className="mpc-status-badge">{IS_TESTNET ? "Soon" : "Early access"}</StatusBadge>
@@ -10571,7 +10650,7 @@ function handleHoldEnd() {
             Extra protection
           </label>
           <div className="seed-import-description">
-            Your key is split in two: one half stays on this device, the other is kept safe by Lyra and only released when you unlock. Neither half alone can move your funds.
+            Your key is split in two: one half stays on this device, the other is saved in a protected storage and only released when you unlock. Neither half alone can move your funds.
           </div>
         </div>
       )}
@@ -12477,7 +12556,7 @@ function handleHoldEnd() {
     return (
       <div className="page page--3d">
         {toastEl}
-        <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} networkName={activeNetwork.name} nativeSymbol={activeNetwork.nativeSymbol} onReceive={() => setShowReceiveQr(true)} paused={anyOverlayOpen} tourActive={tourOpen} onTourDone={finishTour} tiltEnabled={tiltEnabled}>
+        <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} networkName={activeNetwork.name} networkKey={activeNetworkKey} nativeSymbol={activeNetwork.nativeSymbol} onReceive={() => setShowReceiveQr(true)} paused={anyOverlayOpen} tourActive={tourOpen} onTourDone={finishTour} tiltEnabled={tiltEnabled}>
           {frame}
         </Box3D>
       </div>
@@ -13078,165 +13157,109 @@ function PieChartView({ holdings }) {
   );
 }
 
-function WalletPanel({ existing, initialMode = "create", onClose, onBack, onCreate, onImport }) {
-  const [mode, setMode] = useState(initialMode);
+// Creating or bringing a wallet: step 1 of 3 (then the password, then the
+// interface). Three ways in: a new wallet, a recovery phrase, a private key.
+function OnboardSteps({ at }) {
+  return (
+    <div className="onb-steps" aria-label={`Step ${at} of 3`}>
+      {[1, 2, 3].map(n => <span key={n} className={n === at ? "on" : n < at ? "done" : ""} />)}
+    </div>
+  );
+}
+
+function WalletPanel({ existing, initialMode = "choose", onClose, onBack, onCreate, onImport, onImportKey }) {
+  const [mode, setMode] = useState(initialMode === "create" || initialMode === "import" ? "choose" : initialMode);
   const [wordCount, setWordCount] = useState(12);
   const [words, setWords] = useState({});
+  const [privateKey, setPrivateKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState("");
 
   function handleImport() {
     try {
       setError("");
-
-      const missing = Array.from(
-        { length: wordCount },
-        (_, i) => i
-      ).filter(i => !words[i]?.trim());
-
+      const missing = Array.from({ length: wordCount }, (_, i) => i).filter(i => !words[i]?.trim());
       if (missing.length > 0) {
-        setError(
-          "Please fill in all " + wordCount + " words of your phrase."
-        );
+        setError("Please fill in all " + wordCount + " words of your phrase.");
         return;
       }
-
-      const phrase = Array.from(
-        { length: wordCount },
-        (_, i) => words[i].trim().toLowerCase()
-      ).join(" ");
-
+      const phrase = Array.from({ length: wordCount }, (_, i) => words[i].trim().toLowerCase()).join(" ");
       onImport(phrase);
-
     } catch (e) {
       console.error(e);
-
-      setError(
-        e.message || "Error while importing."
-      );
+      setError(e.message || "Error while importing.");
     }
   }
 
+  function handleImportKey() {
+    try {
+      setError("");
+      onImportKey(privateKey);
+    } catch (e) {
+      setError(e.message || "That private key isn't valid.");
+    }
+  }
+
+  const back = mode === "choose" ? (existing ? onClose : onBack) : () => { setMode("choose"); setError(""); };
+  const head = {
+    choose: [WalletIcon, "p", "Your wallet", "Start fresh or bring one you have"],
+    phrase: [KeyRound, "c", "Recovery phrase", "12 or 24 words, in order"],
+    key: [KeyRound, "c", "Private key", "From another wallet"],
+  }[mode];
+  const HeadIcon = head[0];
+
   return (
-    <div className="modal-card">
-
-      <div className="modal-head">
-
-        <h2>Wallet</h2>
-
-        {existing ? (
-          <button
-            type="button"
-            onClick={onClose}
-          >
-            ×
-          </button>
-        ) : onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Back"
-          >
-            ×
+    <div className="modal-card onb-card">
+      <OnboardSteps at={1} />
+      <div className="panel-head">
+        <span className={`panel-head-icon tone-${head[1]}`} aria-hidden="true"><HeadIcon size={18} strokeWidth={1.9} /></span>
+        <div className="panel-head-text">
+          <div className="panel-head-title">{head[2]}</div>
+          <div className="panel-head-sub">{head[3]}</div>
+        </div>
+        {back && (
+          <button type="button" className="contacts-close" onClick={back} aria-label={mode === "choose" ? "Close" : "Back"}>
+            {mode === "choose" ? <X size={18} /> : <ArrowLeft size={18} />}
           </button>
         )}
-
       </div>
 
-      <div className="tabs">
-
-        <button
-          type="button"
-          className={mode === "create" ? "active" : ""}
-          onClick={() => {
-            setMode("create");
-            setError("");
-          }}
-        >
-          Create
-        </button>
-
-        <button
-          type="button"
-          className={mode === "import" ? "active" : ""}
-          onClick={() => {
-            setMode("import");
-            setError("");
-            setWords({});
-          }}
-        >
-          Import
-        </button>
-
-      </div>
-
-      {mode === "create" && (
-        <button
-          type="button"
-          className="confirm"
-          onClick={async () => {
-            try {
-              await onCreate();
-            } catch (e) {
-              setError(e.message);
-            }
-          }}
-        >
-          Create wallet
-        </button>
+      {mode === "choose" && (
+        <div className="onb-choices">
+          <button
+            type="button"
+            className="onb-choice is-main"
+            onClick={async () => {
+              try { setError(""); await onCreate(); } catch (e) { setError(e.message); }
+            }}
+          >
+            <span className="settings-row-icon tone-p"><Sparkles size={16} strokeWidth={1.9} /></span>
+            <span className="onb-choice-text"><b>Create a new wallet</b><span>A new address, ready in seconds.</span></span>
+            <ChevronRight size={16} className="onb-chev" />
+          </button>
+          <button type="button" className="onb-choice" onClick={() => { setMode("phrase"); setError(""); setWords({}); }}>
+            <span className="settings-row-icon tone-c"><List size={16} strokeWidth={1.9} /></span>
+            <span className="onb-choice-text"><b>Import a recovery phrase</b><span>12 or 24 words from another wallet.</span></span>
+            <ChevronRight size={16} className="onb-chev" />
+          </button>
+          <button type="button" className="onb-choice" onClick={() => { setMode("key"); setError(""); setPrivateKey(""); }}>
+            <span className="settings-row-icon tone-c"><KeyRound size={16} strokeWidth={1.9} /></span>
+            <span className="onb-choice-text"><b>Import a private key</b><span>One address, from its private key.</span></span>
+            <ChevronRight size={16} className="onb-chev" />
+          </button>
+        </div>
       )}
 
-      {mode === "import" && (
+      {mode === "phrase" && (
         <div className="seed-import">
-
-          <div className="seed-import-title">
-            Import a wallet
-          </div>
-
-          <div className="seed-import-description">
-            Enter your full recovery phrase, in
-            the exact order.
-          </div>
-
           <div className="seed-length">
-
-            <button
-              type="button"
-              className={wordCount === 12 ? "active" : ""}
-              onClick={() => {
-                setWordCount(12);
-                setWords({});
-                setError("");
-              }}
-            >
-              12 words
-            </button>
-
-            <button
-              type="button"
-              className={wordCount === 24 ? "active" : ""}
-              onClick={() => {
-                setWordCount(24);
-                setWords({});
-                setError("");
-              }}
-            >
-              24 words
-            </button>
-
+            <button type="button" className={wordCount === 12 ? "active" : ""} onClick={() => { setWordCount(12); setWords({}); setError(""); }}>12 words</button>
+            <button type="button" className={wordCount === 24 ? "active" : ""} onClick={() => { setWordCount(24); setWords({}); setError(""); }}>24 words</button>
           </div>
-
-          <div className="seed-import-description">
-            ⚠️ Never share your recovery phrase
-            with anyone else. Lyra will never ask for it
-            anywhere else.
-          </div>
-
           <div className="seed-input-grid">
-
             {Array.from({ length: wordCount }, (_, i) => i).map(i => (
               <div className="seed-input-cell" key={i}>
                 <span>{i + 1}</span>
-
                 <input
                   type="text"
                   autoComplete="off"
@@ -13244,43 +13267,44 @@ function WalletPanel({ existing, initialMode = "create", onClose, onBack, onCrea
                   value={words[i] || ""}
                   onChange={e => {
                     const value = e.target.value.trim().toLowerCase();
-
-                    setWords(current => ({
-                      ...current,
-                      [i]: value
-                    }));
-
+                    setWords(current => ({ ...current, [i]: value }));
                     setError("");
                   }}
                 />
               </div>
             ))}
-
           </div>
-
-          <button
-            type="button"
-            className="confirm"
-            onClick={handleImport}
-          >
-            Import wallet
-          </button>
-
-          {error && (
-            <div className="seed-error">
-              {error}
-            </div>
-          )}
-
+          <button type="button" className="confirm" onClick={handleImport}>Import wallet</button>
         </div>
       )}
 
-      <p className="security">
-        The private key is encrypted locally
-        in this browser. Never share your recovery
-        phrase.
-      </p>
+      {mode === "key" && (
+        <div className="seed-import">
+          <div className="onb-key-field">
+            <input
+              type={showKey ? "text" : "password"}
+              autoComplete="off"
+              spellCheck="false"
+              value={privateKey}
+              onChange={e => { setPrivateKey(e.target.value.trim()); setError(""); }}
+              placeholder="0x… (64 hexadecimal characters)"
+              aria-label="Private key"
+            />
+            <button type="button" className="unlock-password-eye" onClick={() => setShowKey(v => !v)} aria-label={showKey ? "Hide the key" : "Show the key"}>
+              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          <div className="onb-note">A private key brings one address, without a recovery phrase. Keep a copy of it: Lyra can't recover it.</div>
+          <button type="button" className="confirm" onClick={handleImportKey}>Import wallet</button>
+        </div>
+      )}
 
+      {error && <div className="seed-error">{error}</div>}
+
+      <div className="onb-safe">
+        <span className="settings-row-icon tone-t"><ShieldCheck size={15} strokeWidth={1.9} /></span>
+        <span>Your key is encrypted on this device. Never share your recovery phrase or private key: Lyra will never ask for them.</span>
+      </div>
     </div>
   );
 }

@@ -81,7 +81,8 @@ export function EmptyWallet({ networkName, nativeSymbol, onReceive, compact = fa
     <div className={`lyra-empty${compact ? " is-compact" : ""}`}>
       <span className="lyra-empty-icon"><QrCode size={compact ? 18 : 22} strokeWidth={1.7} /></span>
       <strong>{plasma ? "Add your first USDT0" : `Add your first ${nativeSymbol || "funds"}`}</strong>
-      <span>{plasma ? "Transfers of USDT0 are free on Plasma." : `Send funds to this wallet on ${networkName}.`}</span>
+      <span>Send crypto to your address or top up to get started.</span>
+      <code className="menu-example">top up $50 of USDC with my card</code>
       <button type="button" className="lyra-empty-btn" onClick={() => { haptic("tap"); onReceive?.(); }}>Show my address</button>
     </div>
   );

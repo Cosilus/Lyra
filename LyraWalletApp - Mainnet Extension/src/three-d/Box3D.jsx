@@ -4,7 +4,7 @@ import { BOX, CARD_DOCK, DOCK } from "./config3d.js";
 import { useParallax3d } from "./useParallax3d.js";
 import { Tour3D, tourStepsHere } from "./Tour3D.jsx";
 import { TokenLogo } from "../tokenLogo.jsx";
-import { EmptyWallet } from "../uiPolish.jsx";
+import { EmptyWallet, TokenWithChain } from "../uiPolish.jsx";
 import { IS_CARD, reportCardDock } from "../cardBridge.js";
 import { IS_APP } from "../platform.js";
 import "./three-d.css";
@@ -108,7 +108,10 @@ function SideMenu({ side, items, position, spotIndex }) {
   );
 }
 
-function AssetsTopMenu({ show, spot, assets, networkName, nativeSymbol, onReceive, onMouseEnter, onMouseLeave }) {
+function AssetsTopMenu({ show, spot, assets, networkName, networkKey, nativeSymbol, onReceive, onMouseEnter, onMouseLeave }) {
+  const usd = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+  const held = assets.filter(a => a.balance > 0);
+  const total = held.reduce((t, a) => t + a.balance * a.usdPrice, 0);
   return (
     <div
       className={`d3-assets-menu${show ? " d3-assets-menu--show" : ""}${spot ? " d3-assets-menu--spot" : ""}`}
@@ -116,34 +119,33 @@ function AssetsTopMenu({ show, spot, assets, networkName, nativeSymbol, onReceiv
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <div className="d3-assets-label">Assets</div>
-      <div className="d3-assets-grid">
-        {!assets.some(a => a.balance > 0) && <EmptyWallet compact networkName={networkName} nativeSymbol={nativeSymbol} onReceive={onReceive} />}
-        {assets.map((a) => (
-          <div className="d3-atm-pill" key={a.symbol}>
-            <span className="d3-atm-left">
-              <span className="d3-atm-icon-wrap">
-                <TokenLogo
-                  symbol={a.symbol}
-                  size={20}
-                  className="d3-atm-logo"
-                  fallback={<span className="d3-atm-icon" style={{ background: a.color }}>{a.symbol[0]}</span>}
-                />
-                <span className="d3-atm-tooltip">{a.name}</span>
-              </span>
-              <span className="d3-atm-sym">{a.symbol}</span>
-            </span>
-            <span className="d3-atm-value-wrap">
-              <span className="d3-atm-usd">
-                {(a.balance * a.usdPrice).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 })}
-              </span>
-              <span className="d3-atm-tooltip">
-                {a.balance.toLocaleString("en-US", { maximumFractionDigits: 4 })} {a.symbol}
-              </span>
-            </span>
-          </div>
-        ))}
+      <div className="d3-assets-head">
+        <div className="d3-assets-label">Assets{networkName ? ` · ${networkName}` : ""}</div>
+        <div className="d3-assets-total">{usd(total)}</div>
       </div>
+      {!held.length ? (
+        <EmptyWallet compact networkName={networkName} nativeSymbol={nativeSymbol} onReceive={onReceive} />
+      ) : (
+        <div className="d3-assets-list">
+          {held.map((a) => {
+            const value = a.balance * a.usdPrice;
+            const share = total > 0 ? Math.round((value / total) * 100) : 0;
+            return (
+              <div className="d3-asset-row" key={a.symbol}>
+                <TokenWithChain symbol={a.symbol} networkKey={networkKey} size={30} fallbackColor={a.color} />
+                <span className="d3-asset-text">
+                  <b>{a.symbol}</b>
+                  <span>{a.name}{total > 0 ? ` · ${share}%` : ""}</span>
+                </span>
+                <span className="d3-asset-value">
+                  <b>{usd(value)}</b>
+                  <span>{a.balance.toLocaleString("en-US", { maximumFractionDigits: 4 })} {a.symbol}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -153,7 +155,7 @@ function AssetsTopMenu({ show, spot, assets, networkName, nativeSymbol, onReceiv
 // the box and opens a side menu (leftItems / rightItems), reaching the
 // top edge opens the assets menu. `paused` freezes it flat (e.g. while
 // a real modal is open on top).
-export function Box3D({ children, leftItems, rightItems, assets, networkName, nativeSymbol, onReceive, paused, tourActive = false, onTourDone }) {
+export function Box3D({ children, leftItems, rightItems, assets, networkName, networkKey, nativeSymbol, onReceive, paused, tourActive = false, onTourDone }) {
   const { width, height } = useBoxSize();
   const [tourStep, setTourStep] = useState(0);
   useEffect(() => {
@@ -188,6 +190,7 @@ export function Box3D({ children, leftItems, rightItems, assets, networkName, na
         spot={step?.dock === "top"}
         assets={assets}
         networkName={networkName}
+        networkKey={networkKey}
         nativeSymbol={nativeSymbol}
         onReceive={onReceive}
         onMouseEnter={() => { assetsMenuHoveredRef.current = true; }}

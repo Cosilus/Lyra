@@ -175,3 +175,76 @@
 .stake-tab { background: none !important; }
 .stake-tab-label { position: relative; z-index: 1; }
 @media (prefers-reduced-motion: reduce) { .stake-tabs > .stake-tab-pill { transition: none; } }
+
+/* ---------- entry screens: create / import, password, lock, welcome ---------- */
+.onb-steps { display: flex; justify-content: center; gap: 6px; margin: 0 0 14px; }
+.onb-steps span { width: 22px; height: 4px; border-radius: 4px; background: rgba(var(--beige-rgb), 0.12); transition: width 0.3s ease, background 0.3s ease; }
+.onb-steps span.on { width: 34px; background: var(--accent); }
+.onb-steps span.done { background: rgba(var(--accent-rgb), 0.5); }
+.onb-card { text-align: left; }
+.onb-choices { display: flex; flex-direction: column; gap: 10px; }
+.onb-choice {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
+  padding: 14px; border-radius: 16px; border: 1px solid rgba(var(--accent-rgb), 0.14);
+  background: var(--panel); color: var(--beige); font: inherit;
+}
+.onb-choice:hover { border-color: rgba(var(--accent-rgb), 0.4); }
+.onb-choice.is-main { border-color: rgba(var(--accent-rgb), 0.55); background: rgba(var(--accent-rgb), 0.1); }
+.onb-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.onb-choice-text b { font-size: 13.5px; font-weight: 600; }
+.onb-choice-text span { font-size: 11.5px; color: var(--muted-dim); }
+.onb-chev { color: var(--muted-dim); flex: 0 0 auto; }
+.onb-key-field { position: relative; display: flex; align-items: center; margin: 4px 0 8px; }
+.onb-key-field input { width: 100%; padding-right: 40px !important; font-family: var(--mono) !important; font-size: 12px !important; }
+.onb-key-field .unlock-password-eye { position: absolute; right: 8px; }
+.onb-note { font-size: 11.5px; color: var(--muted-dim); line-height: 1.4; margin-bottom: 12px; }
+.onb-safe { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 11px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-soft); font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.onb-safe .settings-row-icon { width: 28px; height: 28px; }
+.onb-warn { display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px; border-radius: 14px; background: rgba(239, 159, 39, 0.08); border: 1px solid rgba(239, 159, 39, 0.25); color: #FAC775; font-size: 12px; line-height: 1.4; margin: 4px 0 12px; }
+.onb-warn svg { flex: 0 0 auto; margin-top: 1px; }
+.onb-strength { height: 5px; border-radius: 5px; background: rgba(var(--beige-rgb), 0.08); overflow: hidden; margin: -4px 0 4px; }
+.onb-strength > i { display: block; height: 100%; border-radius: 5px; transition: width 0.25s ease, background 0.25s ease; }
+.onb-strength-label { font-size: 11px; margin-bottom: 10px; }
+.onb-card .mpc-option-card { border-radius: 16px; background: var(--panel); border: 1px solid rgba(var(--accent-rgb), 0.14); }
+.onb-card .backup-header { margin-bottom: 4px; }
+
+/* lock screen: the account in the top-right corner, the fingerprint */
+.lock-account { position: absolute; top: 14px; right: 14px; z-index: 3; }
+.lock-account-btn {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 5px 10px 5px 5px; border-radius: 999px; border: 1px solid var(--line-soft);
+  background: rgba(var(--beige-rgb), 0.06); color: var(--beige); font: 600 12px var(--sans);
+}
+.lock-account-btn .mono { font: 500 10.5px var(--mono); color: var(--muted-dim); }
+.lock-account-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); min-width: 230px; padding: 6px;
+  border-radius: 16px; border: 1px solid rgba(var(--accent-rgb), 0.2); background: #150E20;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+.lock-account-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: 12px;
+  background: none; color: var(--beige); font: inherit; text-align: left; cursor: pointer;
+}
+.lock-account-item:hover { background: rgba(var(--beige-rgb), 0.05); }
+.lock-account-item b { display: block; font-size: 12.5px; font-weight: 600; }
+.lock-account-item span.mono { font: 500 10.5px var(--mono); color: var(--muted-dim); }
+.lock-account-item .menu-account-check { margin-left: auto; color: var(--accent); }
+
+/* welcome: example sentences, as under Ask Lyra, renewed every 5 seconds */
+.wd { width: 100%; max-width: 340px; margin: 18px auto 4px; min-height: 150px; text-align: left; display: flex; flex-direction: column; gap: 6px; }
+.wd-list { display: flex; flex-direction: column; gap: 6px; }
+.wd-item { cursor: default; }
+
+/* assets menu: the total on top, one line per token */
+.d3-assets-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.d3-assets-head .d3-assets-label { margin: 0; }
+.d3-assets-total { font: 600 18px var(--mono); color: var(--beige); }
+.d3-assets-list { border: 1px solid rgba(var(--accent-rgb), 0.14); border-radius: 16px; background: var(--panel); overflow: hidden; }
+.d3-asset-row { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-top: 1px solid var(--line-soft); }
+.d3-asset-row:first-child { border-top: 0; }
+.d3-asset-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.d3-asset-text b { font-size: 13px; font-weight: 600; color: var(--beige); }
+.d3-asset-text span { font-size: 11px; color: var(--muted-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d3-asset-value { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.d3-asset-value b { font: 600 13px var(--mono); color: var(--beige); }
+.d3-asset-value span { font: 500 10.5px var(--mono); color: var(--muted-dim); }
