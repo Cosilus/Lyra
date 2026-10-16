@@ -10,7 +10,7 @@ const EXAMPLES = [
   { kind: "swap", text: "Swap 0.1 ETH to USDC" },
   { kind: "bridge", text: "Bridge 50 USDC to Base" },
   { kind: "stake", text: "Stake 100 USDC to earn yield" },
-  { kind: "receive", text: "Top up $50 of USDC with my card" },
+  { kind: "receive", text: "Top up $50 of USDC" },
   { kind: "multi", text: "Swap half my ETH, then send it to Marie" },
   { kind: "wallet", text: "Show my balance on every network" },
   { kind: "bridge", text: "I want 100 USDC on Ethereum, take my ETH" },
