@@ -1,8 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
+import Spinner from "./Spinner.jsx";
 import { AnimatePresence, motion, LayoutGroup } from "framer-motion";
 import { ethers } from "ethers";
 import { gsap } from "gsap";
-import { Check, Copy, ExternalLink, Loader2, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUpFromDot, ArrowDownToDot, ArrowLeftRight, MoveHorizontal, Vault, ChevronDown, QrCode, Sparkles, HelpCircle, Gift , ArrowDownLeft } from "lucide-react";
+import { Check, Copy, ExternalLink, RefreshCw, Play, MousePointer2, WalletCards, UserRound, Pencil, Plus, X, History, PieChart, LineChart, Coins, Settings, KeyRound, Trash2, Eye, EyeOff, Fingerprint, Lock, ArrowRight, RotateCcw, Info, Link, Search, Download, Upload, List, ShieldCheck, Users, ArrowUpFromDot, ArrowDownToDot, ArrowLeftRight, MoveHorizontal, Vault, ChevronDown, QrCode, Sparkles, HelpCircle, Gift , ArrowDownLeft, UserPlus, Send as SendIcon } from "lucide-react";
 import { IS_TESTNET, API_BASE_URL, NETWORKS, DEFAULT_NETWORK, getNetworkByKey, TOKENS_BY_NETWORK, getActiveTokens, ERC20_ABI, WNATIVE_BY_NETWORK, WETH9_ABI, getDefiContracts, LIFI_QUOTE_API_URL, AAVE_POOL_ABI, AAVE_DATA_PROVIDER_ABI, DEFAULT_SLIPPAGE, explorerTx, KYBERSWAP_API_BASE, NATIVE_PSEUDO_ADDRESS, KYBERSWAP_CLIENT_ID, POLYMARKET_ORDER_DOMAIN_NAME, POLYMARKET_ORDER_DOMAIN_VERSION, POLYMARKET_ORDER_TYPES, POLYMARKET_ORDER_SIDE_BUY, POLYMARKET_ORDER_SIDE_SELL, POLYMARKET_BYTES32_ZERO, POLYMARKET_SIGNATURE_TYPE_EOA, POLYMARKET_SIGNATURE_TYPE_GNOSIS_SAFE, POLYMARKET_SIGNATURE_TYPE_POLY_1271, POLYMARKET_DEPOSIT_WALLET_DOMAIN_NAME, POLYMARKET_DEPOSIT_WALLET_DOMAIN_VERSION, POLYMARKET_PUSD_COLLATERAL, AAVE_V4_SPOKE_ABI } from "./config";
 import QRCode from "qrcode";
 import { qrStyledDataUrl } from "./qrStyled.js";
@@ -91,6 +92,9 @@ import { InterfaceChooser } from "./three-d/InterfaceChooser.jsx";
 import { ActivityBlock } from "./three-d/ActivityBlock.jsx";
 import { HelpFaq } from "./three-d/HelpFaq.jsx";
 import { TokenLogo } from "./tokenLogo.jsx";
+import { haptic, Skel, SkeletonRows, EmptyWallet, usePullToRefresh } from "./uiPolish.jsx";
+import { PlanDoneSheet } from "./PlanDone.jsx";
+import { PanelHead, SettingIcon, Avatar } from "./menuParts.jsx";
 import { IS_CARD, reportCardBusy } from "./cardBridge.js";
 import { TiltActivation, isTouchOnly, needsMotionPermission, rememberTilt, tiltRemembered } from "./three-d/TiltActivation.jsx";
 
@@ -1302,10 +1306,14 @@ export default function App() {
     if (reqs.length <= before) return;
     const latest = reqs[reqs.length - 1];
     if (latest.status === "cancelled") return;
+    haptic(latest.status === "done" ? "success" : "error");
+    if (latest.status === "done") return;
     setCelebratingRequest(latest.n);
     const t = setTimeout(() => setCelebratingRequest(null), 2200);
     return () => clearTimeout(t);
   }, [messages]);
+  const [planDone, setPlanDone] = useState(null);   // { steps, txUrl, seconds }: the end-of-plan sheet
+  const planConfirmedAtRef = useRef(0);
   const [planBanner, setPlanBanner] = useState(null);   // { title, detail } on the home screen after a plan finished
   const biometricPassedAtRef = useRef(0);               // the plan's own biometric confirm covers the large-amount check
   // the home banner fades away on its own
@@ -1627,6 +1635,8 @@ useEffect(() => {
     return ((last - first) / first) * 100;
   }, [networkPortfolioHistory, chartRange]);
 
+  const txListRef = useRef(null);
+  const txPull = usePullToRefresh(txListRef, () => openTxHistory());
   async function openTxHistory() {
     if (!wallet?.address) return;
 
@@ -2282,6 +2292,7 @@ async function unlockWallet() {
       address: saved.address
     });
 
+    haptic("success");
     setLocked(false);
     setShowUnlock(false);
     setUnlockPassword("");
@@ -2740,6 +2751,7 @@ async function unlockWithBiometric() {
     setUnlockedPrivateKey(privateKey);
     setMpcEnabled(mpcFlag);
     setWallet({ address: w.address });
+    haptic("success");
     setLocked(false);
     setShowUnlock(false);
     await refreshBalance(w.address);
@@ -6116,8 +6128,16 @@ const signer = new ethers.Wallet(
         return "❌ Couldn't reach the network in time. Please try again in a moment.";
       default:
         // e.shortMessage (ethers v6) is already a clean one-liner when
-        // present, prefer it over the full e.message.
-        return `❌ ${e.shortMessage || e.message}`;
+        // present, prefer it over the full e.message. A raw node or
+        // contract dump (hex data, "action=", "code=") says nothing to a
+        // person: a plain sentence instead.
+        {
+          const raw = String(e.shortMessage || e.message || "");
+          if (!raw || /0x[0-9a-f]{16,}|action=|code=|reason=|\{"|transaction=/i.test(raw)) {
+            return "❌ This didn't go through and nothing was sent. Try again in a moment.";
+          }
+          return `❌ ${raw}`;
+        }
     }
   }
 
@@ -8378,6 +8398,7 @@ function handleHoldEnd() {
   })();
 
   async function confirmPlan() {
+    planConfirmedAtRef.current = Date.now();
     if (planBiometric) biometricPassedAtRef.current = Date.now();
     try {
       await signAndSend();
@@ -8418,6 +8439,8 @@ function handleHoldEnd() {
     const steps = planView?.steps || [];
     const detail = steps.map(st => `${st.label} ${st.from || ""}${st.to ? ` → ${st.to}` : ""}`.replace(/\s+/g, " ").trim()).join(" · ");
     setPlanBanner({ title: steps.length > 1 ? `Done, ${steps.length} steps` : "Done", detail });
+    const t0 = planConfirmedAtRef.current;
+    setPlanDone({ steps, txUrl: planView?.txUrl || null, seconds: t0 ? Math.max(1, Math.round((Date.now() - t0) / 1000)) : null });
     leaveRequestBox("done");
     clearActiveTicket();
     refreshBalance();
@@ -8747,7 +8770,7 @@ function handleHoldEnd() {
               </button>
             )}
           <div className="balance-row">
-            <div className="balance"><AnimatedBalance value={Number(ethers.formatEther(balance || 0n))} decimals={2} /></div>
+            <div className="balance">{balanceReady ? <AnimatedBalance value={Number(ethers.formatEther(balance || 0n))} decimals={2} /> : <Skel w={132} h={34} r={8} />}</div>
             <div className="balance-usd">{activeNetwork.nativeSymbol}</div>
             <button
               type="button"
@@ -8769,14 +8792,14 @@ function handleHoldEnd() {
   <div className="balance-usd-value">
     {xplPriceUSD && (
       <span className="balance-usd-total">
-        ≈ {(
+        ≈ <AnimatedBalance currency decimals={2} value={
           Number(ethers.formatEther(balance || 0n)) * xplPriceUSD +
           Object.entries(tokens).reduce((sum, [symbol, token]) => {
             const walletAmt = Number(ethers.formatUnits(tokenBalances[symbol] || 0n, token.decimals));
             const stakedAmt = Number(ethers.formatUnits(stakedBalances[symbol] || 0n, token.decimals));
             return sum + walletAmt + stakedAmt;
           }, 0)
-        ).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 })}
+        } />
         <span className="info-tooltip">
           <Info size={12} strokeWidth={2} />
           <span className="info-tooltip-bubble">
@@ -8890,7 +8913,15 @@ function handleHoldEnd() {
                 <span className="lyra-reply-icon" aria-hidden="true">
                   {lyraReply.error ? <Info size={15} strokeWidth={2} /> : <LyraStar />}
                 </span>
-                <div className="lyra-reply-text">{lyraReplyText === null ? <span className="lyra-reply-wait">…</span> : <TypewriterText key={lyraReplyText} text={lyraReplyText} />}</div>
+                <div className="lyra-reply-text">
+                  {lyraReply.error && <span className="lyra-reply-title">{guardLang() === "fr" ? (/^(nothing was sent|rien n)/i.test(lyraReplyText || "") ? "Bloqué avant la signature" : "Ça n'est pas passé") : (/^nothing was sent/i.test(lyraReplyText || "") ? "Blocked before signing" : "That didn't go through")}</span>}
+                  {lyraReplyText === null ? <span className="lyra-reply-wait">…</span> : <TypewriterText key={lyraReplyText} text={lyraReplyText} />}
+                  {lyraReply.error && lastUserText && !busy && (
+                    <button type="button" className="lyra-reply-retry" onClick={() => { haptic("tap"); setDismissedReplyAt(lyraReply.index); askAI(lastUserText); }}>
+                      <RotateCcw size={12} strokeWidth={2.2} /> {guardLang() === "fr" ? "Réessayer" : "Try again"}
+                    </button>
+                  )}
+                </div>
                 <button type="button" className="lyra-reply-close" onClick={() => setDismissedReplyAt(lyraReply.index)} aria-label="Close" title="Close">
                   <X size={14} />
                 </button>
@@ -8966,6 +8997,10 @@ function handleHoldEnd() {
                 </div>
               );
             })()}
+
+            {showAddFunds && !input.trim() && !planView && (
+              <EmptyWallet networkName={activeNetwork.name} nativeSymbol={activeNetwork.nativeSymbol} onReceive={() => setShowReceiveQr(true)} />
+            )}
 
             {input.trim() || planView || showAddFunds ? null : uiMode !== "3d" && <PortfolioChart
   history={networkPortfolioHistory}
@@ -9091,7 +9126,7 @@ function handleHoldEnd() {
       {receiveQrSrc ? (
         <img className="receive-qr" src={receiveQrSrc} alt="Your wallet address as a QR code" />
       ) : (
-        <Loader2 size={20} className="spin" />
+        <Spinner size={20} />
       )}
       <div className="qr-address" style={{ marginTop: 10, wordBreak: "break-all" }}>{wallet?.address}</div>
       <button
@@ -9138,15 +9173,14 @@ function handleHoldEnd() {
     onMouseDown={(e) => { if (e.target === e.currentTarget) setShowHelp(false); }}
   >
     <div className="contacts-panel help-panel">
-      <div className="contacts-header help-header">
-        <div className="contacts-title">Help</div>
-        <button type="button" className="contacts-close" onClick={() => setShowHelp(false)}>
-          <X size={18} />
-        </button>
-      </div>
+      <PanelHead icon={HelpCircle} tone="a" title="Help" subtitle="Answers in one tap" onClose={() => setShowHelp(false)} />
 
       <HelpFaq
         mode={uiMode}
+        onAsk={() => {
+          setShowHelp(false);
+          setTimeout(() => document.querySelector('textarea[aria-label="Ask Lyra"], input[aria-label="Ask Lyra"], .ask-lyra textarea')?.focus(), 250);
+        }}
         onReplayTour={() => { setShowHelp(false); setTourOpen(true); }}
         onSwitchMode={(m) => { setShowHelp(false); setMenuOpen(false); changeUiMode(m); }}
       />
@@ -9159,12 +9193,7 @@ function handleHoldEnd() {
     onMouseDown={(e) => { if (e.target === e.currentTarget) setShowRewards(false); }}
   >
     <div className="contacts-panel help-panel">
-      <div className="contacts-header help-header">
-        <div className="contacts-title">Rewards</div>
-        <button type="button" className="contacts-close" onClick={() => setShowRewards(false)} aria-label="Close">
-          <X size={18} />
-        </button>
-      </div>
+      <PanelHead icon={Gift} tone="p" title="Rewards" subtitle="Your activity with Lyra" onClose={() => setShowRewards(false)} />
       <RewardsPanel />
     </div>
   </div>
@@ -10328,7 +10357,7 @@ function handleHoldEnd() {
             <div className="biometric-divider">or</div>
             <FillButton
               className="biometric-outline-btn"
-              icon={biometricBusy ? Loader2 : Fingerprint}
+              icon={biometricBusy ? Spinner : Fingerprint}
               iconSide="left"
               iconSpin={biometricBusy}
               onClick={unlockWithBiometric}
@@ -10897,18 +10926,24 @@ function handleHoldEnd() {
     onMouseDown={(e) => { if (e.target === e.currentTarget) setShowSettings(false); }}
   >
     <div className="contacts-panel">
-      <div className="contacts-header">
-        <div className="contacts-title">Settings</div>
-        <button type="button" className="contacts-close" onClick={() => setShowSettings(false)}>
-          <X size={18} />
+      <PanelHead icon={Settings} tone="p" title="Settings" subtitle="Your wallet, your way" onClose={() => setShowSettings(false)} />
+      {wallet?.address && (
+        <button type="button" className="menu-account" onClick={() => { setShowSettings(false); setAccounts(loadAccounts()); setShowAccounts(true); }}>
+          <Avatar name={(accounts.find(a => a.address?.toLowerCase() === wallet.address.toLowerCase())?.name) || "Main account"} size={38} />
+          <span className="menu-account-text">
+            <b>{(accounts.find(a => a.address?.toLowerCase() === wallet.address.toLowerCase())?.name) || "Main account"}</b>
+            <span>{shortAddress(wallet.address)}</span>
+          </span>
+          <span className="menu-chip"><span className="menu-chip-dot" />{activeNetwork.name}</span>
         </button>
-      </div>
+      )}
 
       <div className="settings-list">
 
         <SettingsSection title="General" defaultOpen>
 
         <div className="settings-row">
+          <SettingIcon title="Interface" />
           <div className="settings-row-info">
             <div className="settings-row-title">Interface</div>
             <div className="settings-row-desc">Classic 2D, or the 3D depth view. Switch any time.</div>
@@ -10925,6 +10960,7 @@ function handleHoldEnd() {
         </div>
 
         <div className="settings-row">
+          <SettingIcon title="3D plan animation" />
           <div className="settings-row-info">
             <div className="settings-row-title">3D plan animation</div>
             <div className="settings-row-desc">While Lyra prepares a plan of several steps, watch it come together in 3D.</div>
@@ -10943,6 +10979,7 @@ function handleHoldEnd() {
 
         {uiMode === "3d" && (
           <div className="settings-row">
+            <SettingIcon title="3D guided tour" />
             <div className="settings-row-info">
               <div className="settings-row-title">3D guided tour</div>
               <div className="settings-row-desc">A quick walk through the side menus and the assets box.</div>
@@ -10958,6 +10995,7 @@ function handleHoldEnd() {
         )}
 
         <div className="settings-row">
+          <SettingIcon title="Auto-lock" />
           <div className="settings-row-info">
             <div className="settings-row-title">Auto-lock</div>
             <div className="settings-row-desc">Lock the wallet after inactivity</div>
@@ -11001,6 +11039,7 @@ function handleHoldEnd() {
         </div>
 
         <div className="settings-row">
+          <SettingIcon title="Network" />
           <div className="settings-row-info">
             <div className="settings-row-title">Network</div>
             <div className="settings-row-desc">{activeNetwork.name} · Chain ID {activeNetwork.chainId}</div>
@@ -11008,6 +11047,7 @@ function handleHoldEnd() {
         </div>
 
         <div className="settings-row">
+  <SettingIcon title="Biometric unlock" />
   <div className="settings-row-info">
     <div className="settings-row-title">Biometric unlock</div>
     <div className="settings-row-desc">
@@ -11087,6 +11127,7 @@ function handleHoldEnd() {
         <SettingsSection title="Security">
 
         <div className="settings-row">
+          <SettingIcon title="One-transaction plans" />
           <div className="settings-row-info">
             <div className="settings-row-title">One-transaction plans</div>
             <div className="settings-row-desc">A plan of several steps goes out as one transaction, prepared while you read it: faster, and all or nothing. Uses an EIP-7702 delegation of your address (the contract Ledger approves).</div>
@@ -11100,6 +11141,7 @@ function handleHoldEnd() {
         </div>
 
         <div className="settings-row">
+          <SettingIcon title="Delegation on" />
           <div className="settings-row-info">
             <div className="settings-row-title">Delegation on {activeNetwork.name}</div>
             <div className="settings-row-desc">
@@ -11214,6 +11256,7 @@ function handleHoldEnd() {
         </AnimatePresence>
 
         <div className="settings-row">
+          <SettingIcon title="Require biometric above" />
           <div className="settings-row-info">
             <div className="settings-row-title">Require biometric above</div>
             <div className="settings-row-desc">Any signed operation at or above this amount also needs a biometric re-confirmation{!biometricEnabled ? " (enable biometric unlock above first)" : ""}.</div>
@@ -11236,6 +11279,7 @@ function handleHoldEnd() {
         <SettingsSection title="x402 &amp; agents">
 
         <div className="settings-row">
+          <SettingIcon title="Spending limit" />
           <div className="settings-row-info">
             <div className="settings-row-title">Spending limit</div>
             <div className="settings-row-desc">Blocks any single x402 payment or ACP checkout above this amount, before it's ever signed.</div>
@@ -11298,6 +11342,7 @@ function handleHoldEnd() {
           </button>
         ) : (
           <div className="settings-row">
+            <SettingIcon title="Multisig" />
             <div className="settings-row-info">
               <div className="settings-row-title">Multisig</div>
               <div className="settings-row-desc">
@@ -11341,46 +11386,35 @@ function handleHoldEnd() {
   >
     <div className="contacts-panel">
 
-      <div className="contacts-header">
-        <div>
-          <div className="contacts-title">Contacts</div>
-          <div className="contacts-subtitle">
-            Saved addresses
-          </div>
+      <PanelHead
+        icon={Users}
+        tone="b"
+        title="Contacts"
+        subtitle={contacts.length ? `${contacts.length} ${contacts.length === 1 ? "person" : "people"}` : "Saved addresses"}
+        onClose={() => {
+          setShowContacts(false);
+          setShowAddContact(false);
+          setEditingContact(null);
+          setContactSearch("");
+        }}
+      />
+
+      <div className="contacts-searchbar">
+        <div className="contacts-search">
+          <Search size={13} />
+          <input
+            type="text"
+            value={contactSearch}
+            onChange={(e) => setContactSearch(e.target.value)}
+            placeholder="Search a name"
+            aria-label="Search contacts by name"
+          />
         </div>
-
-        <div className="contacts-header-actions">
-          <div className="contacts-search">
-            <Search size={13} />
-            <input
-              type="text"
-              value={contactSearch}
-              onChange={(e) => setContactSearch(e.target.value)}
-              placeholder="Search by name"
-              aria-label="Search contacts by name"
-            />
-          </div>
-
-          <button
-            type="button"
-            className="contacts-close"
-            onClick={() => {
-              setShowContacts(false);
-              setShowAddContact(false);
-              setEditingContact(null);
-              setContactSearch("");
-            }}
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
-      </div>
-
-      <div className="contacts-io-row">
         <button
           type="button"
-          className="contacts-io-button"
+          className="contacts-io-mini"
+          title="Export contacts"
+          aria-label="Export contacts"
           disabled={contacts.length === 0}
           onClick={() => {
             const blob = new Blob([JSON.stringify(loadContacts(), null, 2)], { type: "application/json" });
@@ -11394,17 +11428,17 @@ function handleHoldEnd() {
             URL.revokeObjectURL(url);
           }}
         >
-          <Download size={13} />
-          Export
+          <Download size={15} />
         </button>
 
         <button
           type="button"
-          className="contacts-io-button"
+          className="contacts-io-mini"
+          title="Import contacts"
+          aria-label="Import contacts"
           onClick={() => importContactsInputRef.current?.click()}
         >
-          <Upload size={13} />
-          Import
+          <Upload size={15} />
         </button>
 
         <input
@@ -11436,8 +11470,10 @@ function handleHoldEnd() {
       <div className="contacts-list">
 
         {contacts.length === 0 ? (
-          <div className="contacts-empty">
-            No saved contacts.
+          <div className="menu-empty">
+            <span className="menu-empty-icon tone-b"><UserPlus size={19} strokeWidth={1.9} /></span>
+            <strong>Save the people you pay</strong>
+            <span>Then just say "send 10 USDT0 to Papa".</span>
           </div>
         ) : contacts.filter(c => c.name.toLowerCase().includes(contactSearch.trim().toLowerCase())).length === 0 ? (
           <div className="contacts-empty">
@@ -11527,6 +11563,7 @@ function handleHoldEnd() {
               ) : (
 
                 <>
+                  <Avatar name={contact.name} size={32} />
                   <div className="contact-info">
 
                     <div className="contact-name">
@@ -11539,6 +11576,17 @@ function handleHoldEnd() {
 
                   </div>
 
+                  <button
+                    type="button"
+                    className="contact-send"
+                    onClick={() => {
+                      setShowContacts(false);
+                      setContactSearch("");
+                      setInput(`Send to ${contact.name} `);
+                    }}
+                  >
+                    Send
+                  </button>
                   <button
                     type="button"
                     className="contact-edit-button"
@@ -12009,6 +12057,7 @@ function handleHoldEnd() {
       </div>
 
       <div className="settings-row">
+        <SettingIcon title="" />
         <div className="settings-row-info">
           <div className="settings-row-title">{shortAddress(activeMultisigSafe.address)}</div>
           <div className="settings-row-desc">
@@ -12169,21 +12218,31 @@ function handleHoldEnd() {
             exit={{ opacity: 0, scale: 0.95, y: 14 }}
             transition={{ type: "spring", stiffness: 340, damping: 28 }}
           >
-            <div className="contacts-header">
-              <div className="contacts-title">
-                {{ send: "Send/Receive", sent: "Send", received: "Receive", swap: "Swap", stake: "Stake", bridge: "Bridge", predictions: "Predictions", x402: "x402", a2a: "A2A", acp: "ACP" }[txHistoryTab]}
-              </div>
-              <button
-                type="button"
-                className="contacts-close"
-                onClick={closeTxDetail}
-                aria-label="Close"
-              >
-                <X size={18} />
-              </button>
-            </div>
+            {(() => {
+              // the side menus' own icons, one colour per kind (menus.css)
+              const head = {
+                send: ["Send/Receive", <ArrowLeftRight size={18} strokeWidth={1.8} />, "t"],
+                sent: ["Send", <ArrowUpFromDot size={18} strokeWidth={1.8} style={{ transform: "rotate(45deg)" }} />, "c"],
+                received: ["Receive", <ArrowDownToDot size={18} strokeWidth={1.8} style={{ transform: "rotate(45deg)" }} />, "t"],
+                swap: ["Swap", <ArrowLeftRight size={18} strokeWidth={1.8} />, "p"],
+                bridge: ["Bridge", <MoveHorizontal size={18} strokeWidth={1.8} />, "b"],
+                stake: ["Stake", <Vault size={18} strokeWidth={1.8} />, "a"],
+                predictions: ["Predictions", <LineChart size={18} strokeWidth={1.8} />, "p"],
+                x402: ["x402", <Coins size={18} strokeWidth={1.8} />, "a"],
+                a2a: ["A2A", <Users size={18} strokeWidth={1.8} />, "b"],
+                acp: ["ACP", <Link size={18} strokeWidth={1.8} />, "b"],
+              }[txHistoryTab] || ["History", <History size={18} strokeWidth={1.8} />, "p"];
+              const sub = txHistoryLoading ? "Loading…"
+                : txHistoryTab === "received" ? `Funds that came in on ${activeNetwork.name}`
+                : txHistoryTab === "stake" ? "Earn on what you hold"
+                : txHistoryTab === "predictions" ? "Your Polymarket bets"
+                : txHistoryRows.length ? `${txHistoryRows.length} on ${activeNetwork.name}`
+                : activeNetwork.name;
+              return <PanelHead icon={head[1]} tone={head[2]} title={head[0]} subtitle={sub} onClose={closeTxDetail} />;
+            })()}
 
-      <div className="contacts-list">
+      <div className="contacts-list" ref={txListRef}>
+      {txPull.indicator}
       <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={txHistoryTab}
@@ -12196,11 +12255,7 @@ function handleHoldEnd() {
 
         {txHistoryTab === "predictions" ? (
           <>
-            {predictionsLoading && (
-              <div className="contacts-empty">
-                <Loader2 size={16} className="spin" /> Loading…
-              </div>
-            )}
+            {predictionsLoading && <SkeletonRows count={3} />}
 
             {!predictionsLoading && predictionsError && (
               <div className="contacts-empty">{predictionsError}</div>
@@ -12353,11 +12408,7 @@ function handleHoldEnd() {
           </>
         ) : (
           <>
-            {txHistoryLoading && (
-              <div className="contacts-empty">
-                <Loader2 size={16} className="spin" /> Loading…
-              </div>
-            )}
+            {txHistoryLoading && <SkeletonRows count={5} />}
 
             {!txHistoryLoading && txHistoryError && (
               <div className="contacts-empty">{txHistoryError}</div>
@@ -12375,14 +12426,20 @@ function handleHoldEnd() {
                   counterpartyLabel: contact?.name || shortAddress(r.counterparty),
                 };
               });
-              const common = { networkName: activeNetwork.name, protocolFor, explorerUrl: (h) => explorerTx(h, activeNetwork) };
+              const common = { networkName: activeNetwork.name, networkKey: activeNetworkKey, protocolFor, explorerUrl: (h) => explorerTx(h, activeNetwork) };
               if (txHistoryTab === "stake") {
                 const positions = Object.entries(tokens)
                   .filter(([sym]) => (stakedBalances[sym] || 0n) > 0n)
                   .map(([sym, t]) => ({ symbol: sym, amount: Number(ethers.formatUnits(stakedBalances[sym], t.decimals)), apy: stakedApy[sym] ?? null }));
                 return <StakeHistory rows={rows} positions={positions} networkKey={activeNetworkKey} {...common} />;
               }
-              return <TxHistoryList key={txHistoryTab} rows={rows} {...common} />;
+              const empty = {
+                sent: { icon: SendIcon, tone: "c", title: "Nothing sent yet", text: "Send to an address or a saved contact.", example: "send 10 usdt0 to Papa" },
+                received: { icon: QrCode, tone: "t", title: "Nothing received yet", text: "Share your address to receive funds.", example: "show my address" },
+                swap: { icon: ArrowLeftRight, tone: "p", title: "Swap with one sentence", text: "Lyra finds the best route for you.", example: "swap 10 xpl to usdc" },
+                bridge: { icon: MoveHorizontal, tone: "b", title: "Move funds to another network", text: "Lyra picks the bridge and the fees.", example: "bridge 10 usdc to base" },
+              }[txHistoryTab] || null;
+              return <TxHistoryList key={txHistoryTab} rows={rows} empty={empty} stats={txHistoryTab === "swap" || txHistoryTab === "bridge"} {...common} />;
             })()}
           </>
         )}
@@ -12405,6 +12462,7 @@ function handleHoldEnd() {
   const toastEl = (
     <>
       {toast ? <div className="toast">{toast}</div> : null}
+      <PlanDoneSheet done={planDone} networkName={activeNetwork.name} onClose={() => setPlanDone(null)} />
       {showInterfaceChoice && <InterfaceChooser onChoose={chooseInterface} />}
       {showTiltActivation && (
         <TiltActivation
@@ -12419,7 +12477,7 @@ function handleHoldEnd() {
     return (
       <div className="page page--3d">
         {toastEl}
-        <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} paused={anyOverlayOpen} tourActive={tourOpen} onTourDone={finishTour} tiltEnabled={tiltEnabled}>
+        <Box3D leftItems={leftMenu3d} rightItems={rightMenu3d} assets={assets3d} networkName={activeNetwork.name} nativeSymbol={activeNetwork.nativeSymbol} onReceive={() => setShowReceiveQr(true)} paused={anyOverlayOpen} tourActive={tourOpen} onTourDone={finishTour} tiltEnabled={tiltEnabled}>
           {frame}
         </Box3D>
       </div>
@@ -12503,7 +12561,7 @@ function ExecutionChecklist({ label, steps, currentIndex, busy, txHash, network,
 
         <div className={`execution-checklist-main ${mainDone ? "done" : ""}`}>
           <span className="execution-checklist-status-icon">
-            {mainDone ? <Check size={12} strokeWidth={3} /> : <Loader2 size={12} className="spin" />}
+            {mainDone ? <Check size={12} strokeWidth={3} /> : <Spinner size={12} />}
           </span>
           <span className="execution-checklist-main-label">Confirm transaction in wallet</span>
           <span className="execution-checklist-step-count">Step 1 of 1</span>
@@ -12603,7 +12661,7 @@ function TicketTransitionWave() {
   );
 }
 
-function AnimatedBalance({ value, decimals = 2 }) {
+function AnimatedBalance({ value, decimals = 2, currency = false }) {
   const ref = useRef(null);
   const prevValue = useRef(value);
   const tweenRef = useRef(null);
@@ -12612,10 +12670,9 @@ function AnimatedBalance({ value, decimals = 2 }) {
     const el = ref.current;
     if (!el) return;
 
-    const format = (n) => n.toLocaleString("en-US", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: decimals
-    });
+    const format = (n) => n.toLocaleString("en-US", currency
+      ? { style: "currency", currency: "USD", maximumFractionDigits: decimals }
+      : { minimumFractionDigits: 0, maximumFractionDigits: decimals });
 
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion || prevValue.current === value) {
@@ -12635,9 +12692,9 @@ function AnimatedBalance({ value, decimals = 2 }) {
     prevValue.current = value;
 
     return () => tweenRef.current?.kill();
-  }, [value, decimals]);
+  }, [value, decimals, currency]);
 
-  return <span ref={ref}>{value.toLocaleString("en-US", { maximumFractionDigits: decimals })}</span>;
+  return <span ref={ref}>{value.toLocaleString("en-US", currency ? { style: "currency", currency: "USD", maximumFractionDigits: decimals } : { maximumFractionDigits: decimals })}</span>;
 }
 
 const ONBOARDING_EXAMPLES = [

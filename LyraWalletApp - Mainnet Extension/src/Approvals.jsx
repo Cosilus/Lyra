@@ -3,9 +3,10 @@
 // contracts Lyra uses and the ones this wallet has called before, so no
 // indexer is needed. Unlimited ones and unknown contracts come first.
 import React, { useEffect, useState } from "react";
+import Spinner from "./Spinner.jsx";
 import { AnimatePresence, motion } from "framer-motion";
 import { ethers } from "ethers";
-import { ShieldCheck, ShieldAlert, Loader2, RefreshCw } from "lucide-react";
+import { ShieldCheck, ShieldAlert, RefreshCw } from "lucide-react";
 
 const ERC20_ALLOWANCE_ABI = ["function allowance(address owner, address spender) view returns (uint256)"];
 // anything above this is "unlimited" in practice (approve(max) and friends)
@@ -70,7 +71,7 @@ export function Approvals({ owner, provider, tokens, spenders, onRevoke }) {
     <div className="appr">
       <div className="appr-summary">
         {items === null ? (
-          <span className="appr-summary-text"><Loader2 size={14} className="spin" /> Checking your tokens…</span>
+          <span className="appr-summary-text"><Spinner size={14} /> Checking your tokens…</span>
         ) : error ? (
           <span className="appr-summary-text">{error}</span>
         ) : items.length === 0 ? (
@@ -116,7 +117,7 @@ export function Approvals({ owner, provider, tokens, spenders, onRevoke }) {
                 onBlur={() => confirming === it.key && revoking !== it.key && setConfirming(null)}
                 disabled={!!revoking}
               >
-                {revoking === it.key ? <Loader2 size={13} className="spin" /> : confirming === it.key ? "Confirm" : "Revoke"}
+                {revoking === it.key ? <Spinner size={13} /> : confirming === it.key ? "Confirm" : "Revoke"}
               </button>
             </motion.div>
           );

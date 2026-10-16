@@ -1,0 +1,127 @@
+/* Visual polish shared across the wallet (see uiPolish.jsx). */
+
+/* skeletons: grey shapes shimmering where the content will be */
+.lyra-skel {
+  display: inline-block;
+  position: relative;
+  overflow: hidden;
+  background: rgba(var(--beige-rgb), 0.07);
+  vertical-align: middle;
+}
+.lyra-skel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(var(--beige-rgb), 0.1), transparent);
+  animation: lyra-shimmer 1.25s ease-in-out infinite;
+}
+@keyframes lyra-shimmer { to { transform: translateX(100%); } }
+.lyra-skel-rows { display: flex; flex-direction: column; gap: 4px; }
+.lyra-skel-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; }
+.lyra-skel-col { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.balance-skel { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 2px; }
+
+/* a token's logo with its chain in the corner */
+.lyra-token-chain { position: relative; display: inline-flex; flex: 0 0 auto; }
+.lyra-token-chain > .token-logo { width: 100%; height: 100%; border-radius: 50%; }
+.lyra-token-fallback {
+  display: inline-grid; place-items: center; border-radius: 50%;
+  color: #0D0916; font-weight: 600; font-size: 11px;
+}
+.lyra-chain-badge {
+  position: absolute; right: -2px; bottom: -2px;
+  display: grid; place-items: center; border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--void);
+  overflow: hidden;
+}
+.lyra-chain-badge .token-logo { width: 100%; height: 100%; }
+.tx-item .lyra-token-chain { margin-right: 10px; }
+
+/* the empty wallet: an invitation instead of a blank list */
+.lyra-empty {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+  margin: 12px 0; padding: 20px 16px;
+  border: 1px solid var(--line); border-radius: 16px;
+  background: rgba(var(--accent-rgb), 0.05);
+  color: var(--beige);
+}
+.lyra-empty strong { font-size: 15px; font-weight: 600; }
+.lyra-empty span { font-size: 12.5px; color: var(--muted); }
+.lyra-empty-icon {
+  display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 2px;
+  border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+}
+.lyra-empty .lyra-empty-icon { color: var(--accent); }
+.lyra-empty-btn {
+  margin-top: 6px; padding: 9px 16px; border: 0; border-radius: 12px; cursor: pointer;
+  background: var(--beige); color: #0D0916; font: 600 13px var(--sans);
+}
+.lyra-empty.is-compact { margin: 6px 0 2px; padding: 14px 12px; gap: 4px; grid-column: 1 / -1; }
+.lyra-empty.is-compact strong { font-size: 13.5px; }
+.lyra-empty.is-compact .lyra-empty-icon { width: 32px; height: 32px; }
+.lyra-empty.is-compact .lyra-empty-btn { padding: 7px 12px; font-size: 12px; }
+
+/* pull to refresh */
+.lyra-pull { display: flex; align-items: flex-end; justify-content: center; overflow: hidden; padding-bottom: 6px; }
+
+/* a short press answer on buttons: they sink a little under the finger.
+   `scale` composes with any transform a button already has; :where() keeps
+   every button's own transition in charge. */
+:where(button, [role="button"], a.btn) { transition: scale 0.12s ease; }
+button:not(:disabled):active, [role="button"]:active { scale: 0.97; }
+.d3-side-item:active, .hold-btn:active, .lyra-reply-close:active { scale: none; }
+/* segmented switches slide a pill between their buttons (framer layoutId): a
+   pressed button must keep its size, or the pill grows from its centre */
+.stake-tab, .stake-tab:active, .d3-pill-switch button, .d3-pill-switch button:active, .seg-switch button:active { scale: none; transition: color 0.2s ease; }
+
+/* screens: they slide up into place instead of only fading in */
+.contacts-panel { animation: lyra-screen-in 0.32s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes lyra-screen-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+/* on the phone, from the side, like a native screen */
+.lyra-app .contacts-panel { animation-name: lyra-screen-in-side; }
+@keyframes lyra-screen-in-side {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* errors: a title, a sentence, and a way to try again */
+.lyra-reply-title { display: block; font-weight: 600; color: #F2A0A0; margin-bottom: 2px; }
+.lyra-reply-retry {
+  display: flex; width: fit-content; align-items: center; gap: 6px; margin-top: 8px;
+  padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(242, 160, 160, 0.35);
+  background: rgba(242, 160, 160, 0.1); color: #F8C9C9; font: 600 12px var(--sans); cursor: pointer;
+}
+.lyra-reply-retry:hover { background: rgba(242, 160, 160, 0.16); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lyra-skel::after { animation: none; }
+  .contacts-panel, .lyra-app .contacts-panel { animation: none; }
+  button:not(:disabled):active, [role="button"]:active { scale: none; }
+}
+
+/* the XPL logo has no disc of its own: a black one, like Plasma's mark */
+.lyra-token-chain img[src$="xpl.svg"], .lyra-chain-badge img[src$="xpl.svg"],
+.pd-amt-logo[src$="xpl.svg"], .pd-side-logo[src$="xpl.svg"] {
+  background: #000; padding: 14%; box-sizing: border-box; border-radius: 50%;
+}
+.lyra-chain-badge { background: #000; }
+.lyra-token-chain > .token-logo { flex: 0 0 auto; object-fit: contain; }
+
+/* the logo in front: the text column takes the room, rows stay aligned */
+.tx-item:has(.lyra-token-chain) .tx-item-main { flex: 1; min-width: 0; }
+
+/* history lines (TxHistoryList.jsx): [logo] what / with whom ... amount / date */
+.tx-line { gap: 10px; text-align: left; }
+.tx-line .tx-item-chevron { flex: 0 0 auto; }
+.tx-line-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.tx-line-col.is-right { flex: 0 0 auto; align-items: flex-end; text-align: right; }
+.tx-line-verb { font-size: 13.5px; font-weight: 600; color: var(--beige); white-space: nowrap; }
+.tx-line-who { font-size: 11.5px; color: var(--muted-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.tx-line-amount { font: 600 13.5px var(--mono); white-space: nowrap; }
+.tx-line-amount.negative { color: #F2A0A0; }
+.tx-line-amount.positive { color: #9FE0AE; }
+.tx-line-when { font: 500 10.5px/1.35 var(--mono); color: var(--muted-dim); white-space: nowrap; }

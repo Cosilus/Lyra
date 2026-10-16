@@ -4,8 +4,9 @@
 // wallet is unlocked with the password only to sign, then locked again when
 // the window closes. Closing the window counts as "reject".
 import { useEffect, useMemo, useState } from "react";
+import Spinner from "../Spinner.jsx";
 import { ethers } from "ethers";
-import { ShieldCheck, ShieldAlert, AlertTriangle, Lock, Eye, EyeOff, Loader2, Globe, Check, X } from "lucide-react";
+import { ShieldCheck, ShieldAlert, AlertTriangle, Lock, Eye, EyeOff, Globe, Check, X } from "lucide-react";
 import { NETWORKS, DEFAULT_NETWORK, ERC20_ABI } from "../config";
 import { loadSavedWallet, decryptPrivateKey, reconstructPrivateKey } from "../walletVault.js";
 import { translateRequest, shortAddress, forbiddenSignature } from "../signTranslator.js";
@@ -177,7 +178,7 @@ export default function RequestApp() {
   }
 
   if (req === undefined) {
-    return <div className="rq-page"><div className="rq-center"><Loader2 className="spin" size={22} /></div></div>;
+    return <div className="rq-page"><div className="rq-center"><Spinner size={22} /></div></div>;
   }
 
   if (req === null) {
@@ -222,7 +223,7 @@ export default function RequestApp() {
             </div>
           </>
         ) : !translation ? (
-          <div className="rq-center rq-small"><Loader2 className="spin" size={18} /> Reading the request…</div>
+          <div className="rq-center rq-small"><Spinner size={18} /> Reading the request…</div>
         ) : (
           <>
             <div className={`rq-badge rq-badge-${risk}`}><RiskIcon size={14} /> {riskLabel}</div>
@@ -266,7 +267,7 @@ export default function RequestApp() {
       <div className="rq-actions">
         <button type="button" className="rq-secondary" onClick={reject} disabled={busy}><X size={16} /> Reject</button>
         <button type="button" className={`rq-primary${risk === "high" ? " rq-primary-danger" : ""}`} onClick={approve} disabled={busy || (!isConnect && !translation) || translation?.risk === "blocked"}>
-          {busy ? <Loader2 className="spin" size={16} /> : <Check size={16} />}
+          {busy ? <Spinner size={16} /> : <Check size={16} />}
           {isConnect ? "Connect" : req.method === "eth_sendTransaction" ? "Confirm" : "Sign"}
         </button>
       </div>

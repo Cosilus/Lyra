@@ -4,6 +4,7 @@ import { BOX, CARD_DOCK, DOCK } from "./config3d.js";
 import { useParallax3d } from "./useParallax3d.js";
 import { Tour3D, tourStepsHere } from "./Tour3D.jsx";
 import { TokenLogo } from "../tokenLogo.jsx";
+import { EmptyWallet } from "../uiPolish.jsx";
 import { IS_CARD, reportCardDock } from "../cardBridge.js";
 import "./three-d.css";
 
@@ -102,7 +103,7 @@ function SideMenu({ side, items, position, spotIndex }) {
   );
 }
 
-function AssetsTopMenu({ show, spot, assets, onMouseEnter, onMouseLeave }) {
+function AssetsTopMenu({ show, spot, assets, networkName, nativeSymbol, onReceive, onMouseEnter, onMouseLeave }) {
   return (
     <div
       className={`d3-assets-menu${show ? " d3-assets-menu--show" : ""}${spot ? " d3-assets-menu--spot" : ""}`}
@@ -112,7 +113,7 @@ function AssetsTopMenu({ show, spot, assets, onMouseEnter, onMouseLeave }) {
     >
       <div className="d3-assets-label">Assets</div>
       <div className="d3-assets-grid">
-        {assets.length === 0 && <div className="d3-assets-empty">No assets yet.</div>}
+        {!assets.some(a => a.balance > 0) && <EmptyWallet compact networkName={networkName} nativeSymbol={nativeSymbol} onReceive={onReceive} />}
         {assets.map((a) => (
           <div className="d3-atm-pill" key={a.symbol}>
             <span className="d3-atm-left">
@@ -147,7 +148,7 @@ function AssetsTopMenu({ show, spot, assets, onMouseEnter, onMouseLeave }) {
 // the box and opens a side menu (leftItems / rightItems), reaching the
 // top edge opens the assets menu. `paused` freezes it flat (e.g. while
 // a real modal is open on top).
-export function Box3D({ children, leftItems, rightItems, assets, paused, tourActive = false, onTourDone, tiltEnabled = false }) {
+export function Box3D({ children, leftItems, rightItems, assets, networkName, nativeSymbol, onReceive, paused, tourActive = false, onTourDone, tiltEnabled = false }) {
   const { width, height } = useBoxSize();
   const [tourStep, setTourStep] = useState(0);
   useEffect(() => {
@@ -181,6 +182,9 @@ export function Box3D({ children, leftItems, rightItems, assets, paused, tourAct
         show={dockedSide === "top"}
         spot={step?.dock === "top"}
         assets={assets}
+        networkName={networkName}
+        nativeSymbol={nativeSymbol}
+        onReceive={onReceive}
         onMouseEnter={() => { assetsMenuHoveredRef.current = true; }}
         onMouseLeave={() => { assetsMenuHoveredRef.current = false; }}
       />

@@ -25,7 +25,7 @@
 }
 .ps3d-step .plan-step-label { color: rgba(243, 235, 255, 0.7); }
 .ps3d-step .ps3d-check { transform: scale(0); }
-.ps3d-spin { flex: 0 0 auto; color: var(--accent); animation: ps3d-spin 0.9s linear infinite; }
+.ps3d-spin { flex: 0 0 auto; color: var(--accent); }
 .ps3d-step:not(.is-active) .ps3d-spin { display: none; }
 @keyframes ps3d-spin { to { transform: rotate(360deg); } }
 

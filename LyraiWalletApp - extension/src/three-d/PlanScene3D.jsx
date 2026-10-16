@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import Spinner from "../Spinner.jsx";
 import { StepIcon, withTokenLogos } from "../PlanCard.jsx";
 const IS_APP = false; // the testnet extension has no web-app build
 import { isTouchOnly } from "./TiltActivation.jsx";
@@ -341,7 +342,7 @@ export function PlanScene3D({ request, steps: liveSteps, ready, settled, leaving
                   <span className="plan-value-text">{withTokenLogos(step.to || "…")}</span>
                 </div>
               </div>
-              <svg className="ps3d-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.6" /></svg>
+              <Spinner size={14} className="ps3d-spin" />
             </div>
           ))}
         </div>
