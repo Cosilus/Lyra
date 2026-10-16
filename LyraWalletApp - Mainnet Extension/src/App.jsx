@@ -92,6 +92,7 @@ import { HelpFaq } from "./three-d/HelpFaq.jsx";
 import { TokenLogo } from "./tokenLogo.jsx";
 import { IS_CARD, reportCardBusy } from "./cardBridge.js";
 import { installState, onInstallChange, installLyra, IS_APP } from "./platform.js";
+import { canTopUp, needsNativeGas, topUpNativeGas } from "./gasTopUp.js";
 
 // In the 3D interface the wallet frame lives inside a perspective +
 // transform context, which turns every `position: fixed` modal inside
@@ -5339,10 +5340,42 @@ async function executeUnstakeTicket(signer, ticket) {
     return result;
   }
 
+  // Before anything signed with the wallet's own key runs: enough of the
+  // native coin for its fees? If not, and the network allows it (CoW
+  // Protocol: Ethereum, Base, Polygon, Plasma), a little is bought with the
+  // user's stablecoins, signed only, nothing to advance (src/gasTopUp.js).
+  // Arc pays in USDC; plain USDT0 sends on Plasma are free. `steps`:
+  // [{ kind, asset }] of what is about to run.
+  const GAS_FLOOR = { plasma: "0.2", base: "0.0001", polygon: "0.3", ethereum: "0.0008" };
+  async function ensureNativeGas(steps) {
+    if (ledgerActive || !unlockedPrivateKey) return;
+    if (!needsNativeGas(activeNetworkKey, steps)) return;
+    const signer = new ethers.Wallet(unlockedPrivateKey, RPC);
+    const [have, feeData] = await Promise.all([RPC.getBalance(signer.address), RPC.getFeeData()]);
+    const perGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
+    // a plan: its calls, their approvals, Lyra's fee transfers
+    const need = perGas * 250000n * BigInt(Math.max(1, steps.length) * 2);
+    if (have >= need && have > 0n) return;
+    if (!canTopUp(activeNetworkKey)) return; // the usual "a little X for the fees" checks apply
+    const floor = ethers.parseEther(GAS_FLOOR[activeNetworkKey] || "0");
+    let buy = need * 2n - have;
+    if (buy < floor) buy = floor;
+    const got = await topUpNativeGas({
+      wallet: signer,
+      networkKey: activeNetworkKey,
+      tokens,
+      buyNative: buy,
+      nativeSymbol: activeNetwork.nativeSymbol,
+      onStatus: setStatus,
+    });
+    setToast(`Got ${Number(ethers.formatEther(buy)).toPrecision(2)} ${activeNetwork.nativeSymbol} for the network fees, paid with ${got.paid}.`);
+  }
+
   async function executeDefiTicket() {
     if (!unlockedPrivateKey) {
       throw new Error("Wallet locked.");
     }
+    if (defiTicket) await ensureNativeGas([{ kind: defiTicket.feature === "staking" ? (defiTicket.intent === "UNSTAKE_XPL" ? "unstake" : "stake") : defiTicket.feature, asset: defiTicket.asset || activeNetwork.nativeSymbol }]);
     if (!defiTicket) {
       throw new Error("No ticket DeFi is pending.");
     }
@@ -5612,6 +5645,7 @@ async function executeUnstakeTicket(signer, ticket) {
     if (!multiTicket || !multiTicket.steps?.length) {
       throw new Error("No plan pending.");
     }
+    await ensureNativeGas(multiTicket.steps.map(st => ({ kind: st.kind, asset: st.asset })));
     // in one transaction, prepared while the plan was on screen
     if (await runOwnBatch()) return;
 
@@ -5653,7 +5687,7 @@ function decimalsOfAsset(asset) {
             throw new Error(`Nothing was sent. You have ${ethers.formatUnits(have, decimalsOfAsset(asset))} ${asset}, this plan needs ${amt} ${asset}.`);
           }
         }
-        if ((await RPC.getBalance(signer.address)) === 0n) {
+        if (needsNativeGas(activeNetworkKey, multiTicket.steps.map(st => ({ kind: st.kind, asset: st.asset }))) && (await RPC.getBalance(signer.address)) === 0n) {
           throw new Error(`Nothing was sent. You need a little ${activeNetwork.nativeSymbol} on ${activeNetwork.name} to pay the network fees.`);
         }
       }
@@ -5948,6 +5982,8 @@ function decimalsOfAsset(asset) {
   if (!sendAmount || Number(sendAmount) <= 0) {
     throw new Error("Invalid amount.");
   }
+
+  await ensureNativeGas([{ kind: "send", asset: sendAssetSymbol }]);
 
   const STABLE_SYMBOLS_SEND = ["USDC", "USDC.e", "USDT", "USDT0", "EURC", "DAI"];
   const sendEstimatedUSD = sendAssetSymbol === activeNetwork.nativeSymbol

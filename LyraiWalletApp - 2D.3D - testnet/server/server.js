@@ -14,6 +14,7 @@ import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { registerSafeRoutes } from "./routes/safe.js";
 import { registerDappRoutes } from "./routes/dapp.js";
+import { orderMultiSteps } from "./tools/planSteps.js";
 
 dotenv.config();
 
@@ -7291,6 +7292,29 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
     }
 
     if (action.intent === "MULTI_ACTION" && Array.isArray(action.steps) && action.steps.length > 0) {
+      // The order is computed by code, not left to the model; a real
+      // ambiguity becomes a question (tools/planSteps.js, tools/intentPlanner.js)
+      {
+        let ordered = { steps: action.steps };
+        try {
+          ordered = orderMultiSteps(action.steps, {
+            network,
+            networks: NETWORKS,
+            tokensByNetwork: TOKENS_BY_NETWORK,
+            holdings,
+            contacts,
+            nativePriceUSD: lastKnownPriceByCoingeckoId.get(network.coingeckoId)?.priceUSD ?? null,
+          });
+        } catch (e) {
+          console.error("Planner skipped:", e?.message || e); // the AI's own order, as before
+        }
+        if (ordered.question) {
+          return res.json({ intent: "CHAT", amount: null, amountUSD: null, recipient: null, asset: network.nativeSymbol, requires_confirmation: false, message: ordered.question });
+        }
+        action.steps = ordered.steps;
+        const extra = [...(ordered.notes || []), ordered.after].filter(Boolean).join(" ");
+        if (extra) action.message = [action.message || "Here's the plan, check each step, then confirm.", extra].join(" ");
+      }
       const walletContext = walletAddress
         ? `Connected wallet address: ${walletAddress}. ${network.nativeSymbol} balance shown: ${balance || "0"}.`
         : "No wallet connected yet.";
@@ -7304,6 +7328,7 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
 
       let previousOutputEstimate = null;
       let previousOutputSymbol = null;
+      const outputBySymbol = new Map(); // token -> estimated output of the step that produced it
       const resolvedSteps = [];
 
       aiProgress(`Planning ${action.steps.length} steps`);
@@ -7318,14 +7343,19 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
             : "";
           aiProgress(`Step ${stepIndex + 1} of ${action.steps.length} · ${verb}`, [what, to].filter(Boolean).join(" → "));
         }
-        const dependsOnPrevious = !step.amount && previousOutputEstimate !== null;
-        const effectiveAmount = step.amount || (dependsOnPrevious ? String(previousOutputEstimate) : null);
+        // the step that produced this token (the planner may have put another
+        // step in between), else the one right before, as before
+        const producedEstimate = !step.amount && step.asset && outputBySymbol.has(step.asset) ? outputBySymbol.get(step.asset) : null;
+        const dependsOnPrevious = !step.amount && (producedEstimate !== null || previousOutputEstimate !== null);
+        const effectiveAmount = step.amount || (dependsOnPrevious ? String(producedEstimate ?? previousOutputEstimate) : null);
         // When this step depends on the previous one's output, the asset
         // it actually receives can differ from what the user originally
         // named (e.g. "swap to USDT" on a network where only USDC is
         // available substitutes USDC), a dependent step must follow the
         // real produced asset, not the user's now-stale original wording.
-        const effectiveAsset = (dependsOnPrevious && previousOutputSymbol)
+        const effectiveAsset = producedEstimate !== null
+          ? step.asset
+          : (dependsOnPrevious && previousOutputSymbol)
           ? previousOutputSymbol
           : (step.asset || previousOutputSymbol || network.nativeSymbol);
 
@@ -7442,6 +7472,7 @@ if (["GET_ADDRESS", "RECEIVE_XPL", "CHAT"].includes(action.intent)) {
         if (kind === "swap") {
           previousOutputEstimate = parseLeadingNumber(ticket.estimatedReceive);
           previousOutputSymbol = ticket.tokenOutSymbol || step.tokenOutSymbol || null;
+          if (previousOutputSymbol && previousOutputEstimate !== null) outputBySymbol.set(previousOutputSymbol, previousOutputEstimate);
         } else {
           previousOutputEstimate = null;
           previousOutputSymbol = null;
