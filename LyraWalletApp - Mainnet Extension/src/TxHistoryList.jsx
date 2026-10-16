@@ -4,7 +4,8 @@
 // views next to its history: the positions still open, and the closed ones.
 import React, { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink, Vault } from "lucide-react";
+import { TokenWithChain } from "./uiPolish.jsx";
 
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "—");
 const amt = (leg) => (leg ? `${Number(leg.valueXPL).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${leg.symbol || ""}`.trim() : null);
@@ -21,12 +22,21 @@ export function stakeAssetOf(symbol, knownSymbols) {
   return hit || s;
 }
 
-function rowTitle(row) {
-  if (row.category === "send") return row.isSent ? `↗ Sent to ${row.counterpartyLabel}` : `↙ Received from ${row.counterpartyLabel}`;
-  if (row.category === "swap") return "⇄ Swap";
-  if (row.category === "stake") return row.stakeAction === "withdraw" ? "◆ Withdrawn" : "◆ Staked";
-  return "⇢ Bridged";
+// A line in two parts: what happened ("Sent") and with whom or what ("to Papa")
+function rowVerb(row) {
+  if (row.category === "send") return row.isSent ? "Sent" : "Received";
+  if (row.category === "swap") return "Swap";
+  if (row.category === "stake") return row.stakeAction === "withdraw" ? "Withdrawn" : "Staked";
+  return "Bridged";
 }
+function rowWith(row, { networkName, protocolFor }) {
+  if (row.category === "send") return `${row.isSent ? "to" : "from"} ${row.counterpartyLabel}`;
+  if (row.category === "swap") return row.outgoing && row.incoming ? `${row.outgoing.symbol} → ${row.incoming.symbol}` : protocolFor("swap") || networkName;
+  if (row.category === "stake") return protocolFor("stake", { asset: row.asset }) || networkName;
+  return protocolFor("bridge") ? `via ${protocolFor("bridge")}` : networkName;
+}
+const day = (ts) => new Date(ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const hour = (ts) => new Date(ts * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
 // The few lines worth knowing for each kind of interaction
 function rowDetails(row, { networkName, protocolFor }) {
@@ -60,18 +70,23 @@ const slideIn = (i) => ({
   transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1], delay: Math.min(i, 10) * 0.045 },
 });
 
-function TxLine({ row, open, onToggle, networkName, protocolFor, explorerUrl, index = 0 }) {
+// [logo] what happened / with whom        amount / date
+function TxLine({ row, open, onToggle, networkName, networkKey, protocolFor, explorerUrl, index = 0 }) {
   const negative = row.category === "stake" ? row.stakeAction !== "withdraw" : row.isSent;
+  const amount = `${negative ? "−" : "+"}${amt(row.display)}`;
+  const who = rowWith(row, { networkName, protocolFor });
   return (
     <motion.div className={`tx-item-wrap${open ? " is-open" : ""}`} {...slideIn(index)}>
-      <button type="button" className={`tx-item ${negative ? "sent" : "received"}`} onClick={onToggle} aria-expanded={open}>
-        <div className="tx-item-main">
-          <div className="tx-item-direction">{rowTitle(row)}</div>
-          <div className="tx-item-date">{when(row.timestamp)}</div>
-        </div>
-        <div className={`tx-item-amount ${negative ? "negative" : "positive"}`}>
-          {negative ? "-" : "+"}{amt(row.display)}
-        </div>
+      <button type="button" className={`tx-item tx-line ${negative ? "sent" : "received"}`} onClick={onToggle} aria-expanded={open}>
+        <TokenWithChain symbol={row.asset || row.display?.symbol} networkKey={networkKey} size={30} />
+        <span className="tx-line-col">
+          <span className="tx-line-verb">{rowVerb(row)}</span>
+          <span className="tx-line-who">{who}</span>
+        </span>
+        <span className="tx-line-col is-right">
+          <span className={`tx-line-amount ${negative ? "negative" : "positive"}`}>{amount}</span>
+          <span className="tx-line-when">{day(row.timestamp)} · {hour(row.timestamp)}</span>
+        </span>
         <ChevronDown size={14} className="tx-item-chevron" />
       </button>
       <AnimatePresence initial={false}>
@@ -101,21 +116,74 @@ function TxLine({ row, open, onToggle, networkName, protocolFor, explorerUrl, in
   );
 }
 
-export function TxHistoryList({ rows, networkName, protocolFor, explorerUrl, emptyText = "No transactions found for this category." }) {
+// lines grouped by day ("Today", "Yesterday", "This week", then the month)
+function dayGroup(ts) {
+  const d = new Date(ts * 1000), now = new Date();
+  const start = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((start(now) - start(d)) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return "This week";
+  return d.toLocaleDateString("en-US", { month: "long", year: d.getFullYear() === now.getFullYear() ? undefined : "numeric" });
+}
+
+// empty: { icon, tone, title, text, example } shows an invitation instead of a
+// bare "nothing here"; stats: a small count summary above the lines
+export function TxHistoryList({ rows, networkName, networkKey, protocolFor, explorerUrl, emptyText = "No transactions found for this category.", empty = null, stats = false }) {
   const [openHash, setOpenHash] = useState(null);
-  if (!rows.length) return <div className="contacts-empty">{emptyText}</div>;
-  return rows.map((row, i) => (
-    <TxLine
-      key={row.hash}
-      index={i}
-      row={row}
-      open={openHash === row.hash}
-      onToggle={() => setOpenHash(h => (h === row.hash ? null : row.hash))}
-      networkName={networkName}
-      protocolFor={protocolFor}
-      explorerUrl={explorerUrl}
-    />
-  ));
+  const groups = useMemo(() => {
+    const out = [];
+    for (const row of rows) {
+      const g = dayGroup(row.timestamp);
+      if (!out.length || out[out.length - 1].label !== g) out.push({ label: g, rows: [] });
+      out[out.length - 1].rows.push(row);
+    }
+    return out;
+  }, [rows]);
+  if (!rows.length) {
+    if (!empty) return <div className="contacts-empty">{emptyText}</div>;
+    const Icon = empty.icon;
+    return (
+      <div className="menu-empty">
+        <span className={`menu-empty-icon tone-${empty.tone || "p"}`}>{Icon && <Icon size={19} strokeWidth={1.9} />}</span>
+        <strong>{empty.title}</strong>
+        <span>{empty.text}</span>
+        {empty.example && <code className="menu-example">{empty.example}</code>}
+      </div>
+    );
+  }
+  const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
+  let i = 0;
+  return (
+    <>
+      {stats && (
+        <div className="tx-stats">
+          <div><span>Total</span><b>{rows.length}</b></div>
+          <div><span>This month</span><b>{rows.filter(r => r.timestamp * 1000 >= month.getTime()).length}</b></div>
+        </div>
+      )}
+      {groups.map(g => (
+        <div className="tx-group" key={g.label}>
+          <div className="tx-group-label">{g.label}</div>
+          <div className="tx-group-card">
+            {g.rows.map(row => (
+              <TxLine
+                key={row.hash}
+                index={i++}
+                row={row}
+                open={openHash === row.hash}
+                onToggle={() => setOpenHash(h => (h === row.hash ? null : row.hash))}
+                networkName={networkName}
+                networkKey={networkKey}
+                protocolFor={protocolFor}
+                explorerUrl={explorerUrl}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
 }
 
 // Stake: Active (what is staked now) · Closed (assets fully withdrawn) · History
@@ -162,7 +230,10 @@ export function StakeHistory({ rows, positions, networkName, networkKey, protoco
 
   return (
     <>
-      <div className="stake-tabs" role="tablist">
+      <div className="stake-tabs" role="tablist" style={{ "--tabs": tabs.length, "--tab-i": Math.max(0, tabs.findIndex(([k]) => k === view)) }}>
+        {/* one pill under the tabs that slides sideways only, whatever the
+            panel around it does (it recentres when the content changes height) */}
+        <span className="stake-tab-pill" aria-hidden="true" />
         {tabs.map(([key, label, n]) => (
           <button
             key={key}
@@ -172,7 +243,6 @@ export function StakeHistory({ rows, positions, networkName, networkKey, protoco
             className={`stake-tab${view === key ? " is-on" : ""}`}
             onClick={() => setView(key)}
           >
-            {view === key && <motion.span layoutId="stake-tab-pill" className="stake-tab-pill" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
             <span className="stake-tab-label">{label}{n > 0 && <span className="stake-tab-n">{n}</span>}</span>
           </button>
         ))}
@@ -180,7 +250,12 @@ export function StakeHistory({ rows, positions, networkName, networkKey, protoco
 
       {view === "active" && (
         positions.length === 0 ? (
-          <div className="contacts-empty">Nothing staked right now.</div>
+          <div className="menu-empty">
+            <span className="menu-empty-icon tone-a"><Vault size={19} strokeWidth={1.9} /></span>
+            <strong>Put your stablecoins to work</strong>
+            <span>Stake in one sentence, withdraw any time.</span>
+            <code className="menu-example">stake 100 usdt0</code>
+          </div>
         ) : positions.map((p, i) => {
           // the position on Aave's own dashboard: connect the wallet there and it's listed
           const link = { href: aaveDashboardUrl(networkKey), target: "_blank", rel: "noreferrer", "data-tip": "See this position on Aave" };
@@ -247,6 +322,7 @@ export function StakeHistory({ rows, positions, networkName, networkKey, protoco
         <TxHistoryList
           rows={rows}
           networkName={networkName}
+          networkKey={networkKey}
           protocolFor={protocolFor}
           explorerUrl={explorerUrl}
           emptyText="No staking transactions yet."

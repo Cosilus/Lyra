@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import Spinner from "./Spinner.jsx";
+import { haptic } from "./uiPolish.jsx";
 import { motion, AnimatePresence } from "framer-motion";
 import { HoldSquares } from "./HoldSquares.jsx";
-import { ArrowLeftRight, ArrowUpFromDot, ArrowDownToDot, Vault, MoveHorizontal, Wallet, Zap, ListOrdered, MessageCircle, Check, Fingerprint, Loader2, ExternalLink, X, ChevronDown } from "lucide-react";
+import { ArrowLeftRight, ArrowUpFromDot, ArrowDownToDot, Vault, MoveHorizontal, Wallet, Zap, ListOrdered, MessageCircle, Check, Fingerprint, ExternalLink, X, ChevronDown } from "lucide-react";
 import { TokenLogo, tokenLogoUrl } from "./tokenLogo.jsx";
 import { StatusBadge } from "./StatusBadge.jsx";
 import { FillButton } from "./FillButton.jsx";
@@ -107,7 +109,7 @@ function StepRow({ step, index, checked, active, showTx }) {
           <Value text={step.to} />
         </div>
       </div>
-      {active && <Loader2 size={14} className="plan-spin plan-step-spin" />}
+      {active && <Spinner size={14} className="plan-step-spin" />}
       {showTx && step.txUrl && !active && (
         <motion.a
           className="plan-step-tx"
@@ -242,7 +244,7 @@ function HoldButton({ onDone, disabled, children }) {
     const tick = (now) => {
       const p = Math.min(100, ((now - t0) / HOLD_MS) * 100);
       drawRef.current?.(p);
-      if (p >= 100) { raf.current = 0; done.current = true; onDone(); return; }
+      if (p >= 100) { raf.current = 0; done.current = true; haptic("confirm"); onDone(); return; }
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
@@ -395,7 +397,7 @@ export function PlanCard({
           layout
         >
           <div className="plan-sim-head">
-            {simulation.state === "loading" ? <Loader2 size={13} className="plan-spin" />
+            {simulation.state === "loading" ? <Spinner size={13} />
               : simulation.state === "fail" ? <X size={13} strokeWidth={2.6} />
               : <Check size={13} strokeWidth={2.6} />}
             <span>
@@ -505,7 +507,7 @@ export function PlanCard({
       {phase === "running" && (
         <div className="plan-actions">
           <button type="button" className="plan-confirm" disabled>
-            <Loader2 size={15} className="plan-spin" /> Confirming…
+            <Spinner size={15} /> Confirming…
           </button>
         </div>
       )}

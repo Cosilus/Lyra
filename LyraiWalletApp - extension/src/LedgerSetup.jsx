@@ -4,8 +4,9 @@
 // from the device itself, so the guide ticks it on its own; Smart accounts
 // can't be read, it is confirmed by the next try.
 import React, { useState } from "react";
+import Spinner from "./Spinner.jsx";
 import { motion } from "framer-motion";
-import { Check, X, Loader2, ShieldCheck } from "lucide-react";
+import { Check, X, ShieldCheck } from "lucide-react";
 
 const TOUCH = ["stax", "flex", "apexp"];
 
@@ -93,7 +94,7 @@ export function LedgerSetup({ model, need, blindOn, onCheck, onClose }) {
 
         {note && <div className="acct-error">{note}</div>}
         <button type="button" className="acct-submit lsetup-done" onClick={need === "smart" || blind ? onClose : check} disabled={checking}>
-          {checking ? <Loader2 size={15} className="acct-spin" /> : need === "smart" ? "Done, I'll confirm again" : blind ? "All set, continue" : "I turned them on"}
+          {checking ? <Spinner size={15} /> : need === "smart" ? "Done, I'll confirm again" : blind ? "All set, continue" : "I turned them on"}
         </button>
       </motion.div>
     </div>

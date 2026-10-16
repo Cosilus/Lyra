@@ -3,8 +3,9 @@
 // phrase, or import one (private key or recovery phrase). Opens in place,
 // under the address, inside the card.
 import React, { useEffect, useRef, useState } from "react";
+import Spinner from "./Spinner.jsx";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Plus, Download, Lock, ArrowLeft, Loader2, Pencil, Usb } from "lucide-react";
+import { Check, Plus, Download, Lock, ArrowLeft, Pencil, Usb } from "lucide-react";
 
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "");
 
@@ -175,7 +176,7 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
                   onClick={() => run(onConnectLedger)}
                   data-tip="Plug in your Ledger and open its Ethereum app"
                 >
-                  {working ? <Loader2 size={14} className="acct-spin" /> : <Usb size={14} strokeWidth={2.2} />} Ledger
+                  {working ? <Spinner size={14} /> : <Usb size={14} strokeWidth={2.2} />} Ledger
                 </button>
               )}
             </div>
@@ -228,7 +229,7 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
             />
             {error && <div className="acct-error">{error}</div>}
             <button type="submit" className="acct-submit" disabled={working}>
-              {working ? <Loader2 size={15} className="acct-spin" /> : view === "create" ? "Create address" : view === "import" ? "Import" : "Unlock and switch"}
+              {working ? <Spinner size={15} /> : view === "create" ? "Create address" : view === "import" ? "Import" : "Unlock and switch"}
             </button>
           </motion.form>
         )}

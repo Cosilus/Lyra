@@ -1,0 +1,177 @@
+/* Menu pages (Settings, Contacts, Help, Rewards): a coloured icon in the
+   header, settings grouped in cards, one tinted icon per line, values and
+   chevrons on the right. Tones: violet = look, green = security,
+   coral = keys and approvals, blue = people and networks, amber = help. */
+:root {
+  --tone-p-bg: rgba(167, 139, 250, 0.14); --tone-p: #C4B0FF;
+  --tone-t-bg: rgba(93, 202, 165, 0.14); --tone-t: #9FE1CB;
+  --tone-c-bg: rgba(240, 153, 123, 0.14); --tone-c: #F5C4B3;
+  --tone-b-bg: rgba(133, 183, 235, 0.14); --tone-b: #B5D4F4;
+  --tone-a-bg: rgba(239, 159, 39, 0.14); --tone-a: #FAC775;
+}
+.tone-p { background: var(--tone-p-bg); color: var(--tone-p); }
+.tone-t { background: var(--tone-t-bg); color: var(--tone-t); }
+.tone-c { background: var(--tone-c-bg); color: var(--tone-c); }
+.tone-b { background: var(--tone-b-bg); color: var(--tone-b); }
+.tone-a { background: var(--tone-a-bg); color: var(--tone-a); }
+
+/* header */
+.panel-head { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+.panel-head-icon { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; flex: 0 0 auto; }
+.panel-head-text { flex: 1; min-width: 0; }
+.panel-head-title { font-size: 16px; font-weight: 600; color: var(--beige); line-height: 1.15; }
+.panel-head-sub { font-size: 11.5px; color: var(--muted-dim); margin-top: 2px; }
+.panel-head .contacts-close { flex: 0 0 auto; }
+
+/* the account at the top of Settings */
+.menu-account {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  padding: 12px; margin-bottom: 4px; cursor: pointer;
+  border-radius: 16px; border: 1px solid rgba(var(--accent-rgb), 0.22);
+  background: rgba(var(--accent-rgb), 0.08); color: var(--beige); font: inherit;
+}
+.menu-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto;
+  display: grid; place-items: center; font: 600 14px var(--sans);
+}
+.menu-account-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.menu-account-text b { font-size: 13.5px; font-weight: 600; }
+.menu-account-text span { font: 500 11px var(--mono); color: var(--muted-dim); }
+.menu-chip {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  font-size: 11px; padding: 4px 9px; border-radius: 999px;
+  background: rgba(var(--beige-rgb), 0.07); color: var(--muted);
+}
+.menu-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: #5DCAA5; }
+
+/* Settings: each section is a card, its name above it */
+.settings-section { border-bottom: 0; padding-bottom: 0; margin-top: 6px; }
+.settings-section-toggle {
+  padding: 10px 4px 6px !important; font-size: 10.5px !important; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted-dim) !important;
+}
+.settings-section-body {
+  gap: 0 !important; padding: 0 !important;
+  border: 1px solid rgba(var(--accent-rgb), 0.14); border-radius: 16px;
+  background: var(--panel); overflow: visible;
+}
+.settings-section-body > .settings-row,
+.settings-section-body > .settings-action-row {
+  margin: 0; padding: 11px 12px; border-radius: 0;
+  border: 0; border-top: 1px solid var(--line-soft);
+  background: transparent;
+}
+.settings-section-body > :first-child { border-top: 0; border-radius: 16px 16px 0 0; }
+.settings-section-body > :last-child { border-radius: 0 0 16px 16px; }
+.settings-section-body > :only-child { border-radius: 16px; }
+.settings-row { gap: 11px; align-items: center; }
+.settings-row-icon { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; }
+.settings-row-title { font-size: 13.5px; font-weight: 600; }
+.settings-row-desc { font-size: 11.5px; color: var(--muted-dim); line-height: 1.35; }
+.settings-action-row { gap: 11px; }
+.settings-action-row > svg:first-child {
+  box-sizing: content-box; padding: 7px; border-radius: 10px; flex: 0 0 auto;
+  background: var(--tone-c-bg); color: var(--tone-c);
+}
+.settings-action-row.danger > svg:first-child { background: rgba(242, 160, 160, 0.14); color: #F2A0A0; }
+.settings-action-row:hover { background: rgba(var(--beige-rgb), 0.03); }
+
+/* Contacts */
+.contacts-searchbar {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.contacts-searchbar .contacts-search { flex: 1; width: auto; max-width: none; }
+.contacts-searchbar .contacts-search input { width: 100%; }
+.contacts-io-mini {
+  width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; cursor: pointer;
+  border-radius: 10px; border: 1px solid var(--line-soft); background: rgba(var(--beige-rgb), 0.04); color: var(--muted);
+}
+.contacts-io-mini:disabled { opacity: 0.4; cursor: default; }
+.contact-item { gap: 11px; }
+.contact-send {
+  flex: 0 0 auto; padding: 5px 11px; border-radius: 999px; cursor: pointer;
+  border: 0; background: var(--tone-p-bg); color: var(--tone-p); font: 600 11.5px var(--sans);
+}
+.contact-address { font-family: var(--mono); }
+.menu-empty {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+  padding: 22px 16px; border-radius: 16px; border: 1px solid var(--line-soft); background: var(--panel);
+}
+.menu-empty-icon { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 2px; }
+.menu-empty strong { font-size: 14px; color: var(--beige); }
+.menu-empty span { font-size: 12px; color: var(--muted); }
+
+/* Help: the topics as tiles */
+.faq-ask {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 12px; cursor: text;
+  padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line-soft);
+  background: rgba(var(--beige-rgb), 0.04); color: var(--muted-dim); font: 13px var(--sans); text-align: left;
+}
+.faq-ask svg { color: var(--tone-p); }
+.faq-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.faq-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; cursor: pointer;
+  padding: 11px; border-radius: 16px; border: 1px solid rgba(var(--accent-rgb), 0.14);
+  background: var(--panel); color: var(--beige); font: inherit;
+}
+.faq-tile b { font-size: 12.5px; font-weight: 600; }
+.faq-tile span { font-size: 10.5px; color: var(--muted-dim); }
+.faq-tile-icon { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; }
+.faq-tile.active { border-color: rgba(var(--accent-rgb), 0.55); background: rgba(var(--accent-rgb), 0.1); }
+
+/* Rewards */
+.rw-hero {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px;
+  border-radius: 16px; border: 1px solid rgba(var(--accent-rgb), 0.22); background: rgba(var(--accent-rgb), 0.08);
+}
+.rw-hero span { font-size: 11.5px; color: var(--muted-dim); }
+.rw-count { font: 600 32px/1 var(--mono); color: var(--beige); }
+.rw-bar { height: 6px; border-radius: 6px; background: rgba(var(--beige-rgb), 0.08); overflow: hidden; }
+.rw-bar > i { display: block; height: 100%; border-radius: 6px; background: var(--accent); }
+.rw-card { margin-top: 10px; border: 1px solid rgba(var(--accent-rgb), 0.14); border-radius: 16px; background: var(--panel); }
+.rw-row { display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-top: 1px solid var(--line-soft); }
+.rw-row:first-child { border-top: 0; }
+.rw-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rw-row-text b { font-size: 13px; font-weight: 600; color: var(--beige); }
+.rw-row-text span { font-size: 11px; color: var(--muted-dim); }
+.rw-row-value { font: 600 13px var(--mono); color: var(--muted); }
+.rw-note { margin: 10px 4px 0; font-size: 11px; color: var(--muted-dim); text-align: center; }
+.settings-row-info { flex: 1; min-width: 0; text-align: left; }
+
+/* the Rewards page reads left to right now */
+.rewards { display: block !important; text-align: left !important; padding: 0 !important; }
+.rewards .rw-hero { align-items: flex-start; }
+.rewards .rw-row-text { align-items: flex-start; text-align: left; }
+
+/* on-chain menus (Send, Receive, Swap, Bridge, Stake): lines grouped by day */
+.tx-group-label { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted-dim); margin: 6px 4px 6px; }
+.tx-group-card { border: 1px solid rgba(var(--accent-rgb), 0.14); border-radius: 16px; background: var(--panel); overflow: hidden; }
+.tx-group-card .tx-item-wrap { margin: 0; }
+.tx-group-card .tx-item-wrap + .tx-item-wrap { border-top: 1px solid var(--line-soft); }
+.tx-group-card .tx-item { border: 0; border-radius: 0; background: transparent; min-height: 56px; }
+.tx-group-card .tx-item:hover { background: rgba(var(--beige-rgb), 0.03); }
+.tx-group-card .tx-detail { background: rgba(var(--beige-rgb), 0.02); }
+.tx-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+.tx-stats > div { border: 1px solid rgba(var(--accent-rgb), 0.14); border-radius: 14px; background: var(--panel); padding: 10px 12px; }
+.tx-stats span { display: block; font-size: 10.5px; color: var(--muted-dim); }
+.tx-stats b { display: block; margin-top: 2px; font: 600 17px var(--mono); color: var(--beige); }
+.menu-example { margin-top: 4px; font: 500 11.5px var(--mono); padding: 6px 10px; border-radius: 10px; background: var(--tone-p-bg); color: var(--tone-p); }
+/* Stake: the switch and the open positions in the same style */
+.stake-tabs { border-radius: 12px !important; background: rgba(var(--beige-rgb), 0.05) !important; border: 0 !important; }
+.stake-tab.is-on { color: #0D0916 !important; }
+.stake-tab-pill { border-radius: 9px !important; background: var(--accent) !important; box-shadow: none !important; }
+.stake-tab.is-on .stake-tab-n { color: rgba(13, 9, 22, 0.6); }
+.stake-pos { border-radius: 16px !important; border: 1px solid rgba(var(--accent-rgb), 0.14) !important; background: var(--panel) !important; }
+.stake-pos-apy { background: var(--tone-t-bg); color: var(--tone-t); border-radius: 999px; padding: 2px 8px; }
+
+/* the Stake switch's pill: under the tabs, it slides to the chosen one */
+.stake-tabs { position: relative; }
+.stake-tabs > .stake-tab-pill {
+  position: absolute; top: 3px; bottom: 3px; left: 3px; inset-inline-end: auto;
+  width: calc((100% - 6px - (var(--tabs) - 1) * 2px) / var(--tabs));
+  transform: translateX(calc(var(--tab-i) * (100% + 2px)));
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stake-tab { background: none !important; }
+.stake-tab-label { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .stake-tabs > .stake-tab-pill { transition: none; } }
