@@ -6696,6 +6696,36 @@ async function executeAIIntent(action) {
 
       pushActiveToCollapsedIfAny();
 
+      // Top-ups go through Coinbase Onramp first: USDC on Base, bought on
+      // Coinbase's own page (card, Apple Pay, bank). The server asks Coinbase
+      // for a single-use session token for this address; nothing about the
+      // payment passes through Lyra.
+      try {
+        const cbRes = await fetch(`${API_BASE_URL}/api/coinbase/buy-url?address=${encodeURIComponent(wallet.address)}&amountUSD=${encodeURIComponent(amountUSD)}`);
+        const cb = await cbRes.json().catch(() => ({}));
+        if (cb.configured && cb.url) {
+          setDefiTicket({
+            feature: "onramp-buy",
+            intent: "RECEIVE_FIAT",
+            executable: false,
+            amountUSD,
+            onramperUrl: cb.url,
+            provider: "coinbase",
+            urlAt: Date.now(),
+            platform: "Coinbase",
+            target: "USDC on Base",
+            riskLevel: "low"
+          });
+          break;
+        }
+        if (cb.configured && cb.error) {
+          setMessages(m => [...m, { role: "ai", text: `❌ ${cb.error} Try again in a moment.` }]);
+          return;
+        }
+      } catch (e) {
+        console.warn("Coinbase Onramp buy-url fetch failed:", e);
+      }
+
       // Real provider: Onramper (aggregates 30+ onramps), see
       // tools/onramper.js on the server. It signs a widget link
       // server-side (the private key never reaches this client) that
@@ -6727,6 +6757,14 @@ async function executeAIIntent(action) {
           riskLevel: "low"
         });
         break;
+      }
+
+      // No provider set up on the server: on mainnet, say so plainly (a
+      // simulated payment must never look real to a user); the demo below
+      // stays for the testnet build only.
+      if (!IS_TESTNET) {
+        setMessages(m => [...m, { role: "ai", text: "⚠️ Top-ups aren't available yet. You can receive crypto to your address in the meantime: say \"show my address\"." }]);
+        return;
       }
 
       // Demo fallback: no ONRAMPER_API_KEY set on this server yet.
@@ -9736,7 +9774,7 @@ function handleHoldEnd() {
             </div>
             <div className="transaction-row">
               <span>Target</span>
-              <strong>ETH on Ethereum</strong>
+              <strong>{defiTicket.target || "ETH on Ethereum"}</strong>
             </div>
             <div className="transaction-row">
               <span>Provider</span>
@@ -9927,7 +9965,9 @@ function handleHoldEnd() {
           : defiTicket.feature === "receive-any-chain"
             ? "Only send tokens from an EVM-compatible blockchain. This window will close automatically once the funds are received."
             : defiTicket.feature === "onramp-buy"
-              ? "Opens Onramper's own hosted page in a new tab, pre-filled with this amount and your address. Card or bank details are entered there, never inside Lyra. Once the crypto lands on your address, it shows up like any other deposit."
+              ? (defiTicket.provider === "coinbase"
+                  ? "Opens Coinbase's own page in a new tab, pre-filled with this amount and your address on Base. Pay by card, Apple Pay or bank there, never inside Lyra. The USDC lands on Base; ask Lyra to bridge it to another network if you want."
+                  : "Opens Onramper's own hosted page in a new tab, pre-filled with this amount and your address. Card or bank details are entered there, never inside Lyra. Once the crypto lands on your address, it shows up like any other deposit.")
               : defiTicket.feature === "offramp-sell"
                 ? (defiTicket.configured
                     ? "Opens Onramper's own hosted page in a new tab to set up the payout. It shows you a deposit address once ready — send to it from Lyra with a normal Send, the same as sending to anyone else. Bank details are entered on Onramper's page, never inside Lyra."
@@ -10001,9 +10041,21 @@ function handleHoldEnd() {
         href={defiTicket.onramperUrl}
         target="_blank"
         rel="noopener noreferrer"
-        onClick={() => setTimeout(() => setDefiTicket(null), 300)}
+        onClick={async (e) => {
+          // Coinbase's session token lasts 5 minutes: an older link gets a fresh one
+          if (defiTicket.provider === "coinbase" && Date.now() - (defiTicket.urlAt || 0) > 4 * 60 * 1000) {
+            e.preventDefault();
+            const tab = window.open("about:blank", "_blank");
+            try {
+              const r = await fetch(`${API_BASE_URL}/api/coinbase/buy-url?address=${encodeURIComponent(wallet.address)}&amountUSD=${encodeURIComponent(defiTicket.amountUSD)}`);
+              const d = await r.json();
+              if (d.url && tab) tab.location.href = d.url; else tab?.close();
+            } catch { tab?.close(); }
+          }
+          setTimeout(() => setDefiTicket(null), 300);
+        }}
       >
-        Open Onramper
+        {defiTicket.provider === "coinbase" ? "Open Coinbase" : "Open Onramper"}
       </a>
     ) : (
       <button type="button" className="confirm defi-ticket-close" onClick={() => setDefiTicket(null)}>
