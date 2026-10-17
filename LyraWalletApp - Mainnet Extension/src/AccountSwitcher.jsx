@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Spinner from "./Spinner.jsx";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Plus, Download, Lock, ArrowLeft, Pencil, Usb } from "lucide-react";
+import { Check, Plus, Download, Lock, ArrowLeft, Pencil, Usb, ChevronDown } from "lucide-react";
 
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "");
 
@@ -22,7 +22,7 @@ function AccountMark({ address }) {
   );
 }
 
-export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, onCreate, onImport, onRename, onConnectLedger }) {
+export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, onCreate, onImport, onRename, onConnectLedger, onConnectOneKey, onConnectTrezor }) {
   // the address being renamed, and the name being typed
   const [renaming, setRenaming] = useState(null);
   const [draftName, setDraftName] = useState("");
@@ -37,6 +37,8 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
   const [secret, setSecret] = useState("");
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
+  // the hardware wallets on offer, behind one button
+  const [hwOpen, setHwOpen] = useState(false);
   const firstField = useRef(null);
 
   useEffect(() => {
@@ -139,7 +141,7 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
                       <AccountMark address={a.address} />
                       <span className="acct-text">
                         <span className="acct-name">{a.name}</span>
-                        <span className="acct-address">{a.kind === "ledger" ? `Ledger · ${short(a.address)}` : short(a.address)}</span>
+                        <span className="acct-address">{a.kind === "ledger" ? `Ledger · ${short(a.address)}` : a.kind === "onekey" ? `OneKey · ${short(a.address)}` : a.kind === "trezor" ? `Trezor · ${short(a.address)}` : short(a.address)}</span>
                       </span>
                       {active ? (
                         <Check size={15} strokeWidth={2.4} className="acct-state is-on" />
@@ -168,18 +170,47 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
               <button type="button" className="acct-action" onClick={() => setView("import")}>
                 <Download size={14} strokeWidth={2.2} /> Import
               </button>
-              {onConnectLedger && (
+              {(onConnectLedger || onConnectOneKey || onConnectTrezor) && (
                 <button
                   type="button"
-                  className="acct-action"
+                  className={`acct-action acct-hw-toggle${hwOpen ? " is-open" : ""}`}
                   disabled={working}
-                  onClick={() => run(onConnectLedger)}
-                  data-tip="Plug in your Ledger and open its Ethereum app"
+                  aria-expanded={hwOpen}
+                  onClick={() => setHwOpen(o => !o)}
                 >
-                  {working ? <Spinner size={14} /> : <Usb size={14} strokeWidth={2.2} />} Ledger
+                  {working ? <Spinner size={14} /> : <Usb size={14} strokeWidth={2.2} />} Hardware
+                  <ChevronDown size={13} className="acct-hw-chev" />
                 </button>
               )}
             </div>
+            <AnimatePresence initial={false}>
+              {hwOpen && (
+                <motion.div
+                  className="acct-hw-menu"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  {[
+                    ["Ledger", onConnectLedger, "Plug in your Ledger and open its Ethereum app"],
+                    ["Trezor", onConnectTrezor, "Approve in Trezor's window"],
+                    ["OneKey", onConnectOneKey, "Plug in your OneKey and unlock it"],
+                  ].map(([name, connect, hint]) => (
+                    <button
+                      key={name}
+                      type="button"
+                      className="acct-hw-item"
+                      disabled={!connect || working}
+                      onClick={() => { setHwOpen(false); run(connect); }}
+                    >
+                      <span className="acct-hw-name">{name}</span>
+                      <span className="acct-hw-hint">{connect ? hint : "Soon"}</span>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         ) : (
           <motion.form

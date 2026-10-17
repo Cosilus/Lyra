@@ -23,6 +23,8 @@ import { FlyingRequest } from "./FlyingRequest.jsx";
 import { PlanScene3D, plan3dEnabled, setPlan3d } from "./three-d/PlanScene3D.jsx";
 import { HoldSquares } from "./HoldSquares.jsx";
 import { ledgerAddress, ledgerSupported, connectLedger, ledgerSettings, LEDGER_DEFAULT_PATH } from "./ledger.js";
+import { onekeySupported, onekeyAddress, OneKeySigner, ONEKEY_DEFAULT_PATH } from "./onekey.js";
+import { trezorSupported, trezorAddress, TrezorSigner, TREZOR_DEFAULT_PATH } from "./trezor.js";
 import { LedgerSetup } from "./LedgerSetup.jsx";
 import { batchSupported, isDelegated, activateBatching, sendLedgerBatch, prepareOwnBatch, sendOwnBatch, delegationOf, removeOwnDelegation, BATCH_DELEGATOR, encodeBatch } from "./ledgerBatch.js";
 import { verifyBatch } from "./intentGuard.js";
@@ -967,6 +969,18 @@ export default function App() {
   // Its key never leaves the device; plans are sent as one batched
   // transaction (ledgerBatch.js) and everything else that signs is off.
   const [ledgerActive, setLedgerActive] = useState(null);
+  // A OneKey or Trezor address in use (walletAccounts kind "onekey" / "trezor"):
+  // { address, path, kind }. No key in the wallet: each transaction is
+  // confirmed on the device.
+  const [onekeyActive, setOnekeyActive] = useState(null);
+  // the wallet's signer: the unlocked key, or the OneKey plugged in
+  function walletSigner(provider) {
+    if (onekeyActive) {
+      const Signer = onekeyActive.kind === "trezor" ? TrezorSigner : OneKeySigner;
+      return new Signer(onekeyActive.address, onekeyActive.path, provider, (p) => p && setToast(p));
+    }
+    return new ethers.Wallet(unlockedPrivateKey, provider);
+  }
   // The Ledger settings guide (LedgerSetup.jsx): { model, need, blindOn }
   const [ledgerGuide, setLedgerGuide] = useState(null);
   const [showAccounts, setShowAccounts] = useState(false);
@@ -1721,7 +1735,7 @@ useEffect(() => {
       try {
         const polygonNetwork = getNetworkByKey("polygon");
         const polygonProvider = new ethers.JsonRpcProvider(polygonNetwork.rpcUrl, polygonNetwork.chainId);
-        const polygonSigner = new ethers.Wallet(unlockedPrivateKey, polygonProvider);
+        const polygonSigner = walletSigner(polygonProvider);
         const openOrders = await getOpenPolymarketOrders(polygonSigner);
         orders = await Promise.all(openOrders.map(async (o) => {
           const marketResponse = await fetch(`${API_BASE_URL}/api/polymarket/market?conditionId=${o.market}`);
@@ -2337,6 +2351,19 @@ async function verifyWalletPassword(password) {
 async function switchAccount(address, password) {
   const entry = findAccount(address);
   if (!entry) throw new Error("This address isn't in your wallet.");
+  if (entry.kind === "onekey" || entry.kind === "trezor") {
+    setOnekeyActive({ address: entry.address, kind: entry.kind, path: entry.path || (entry.kind === "trezor" ? TREZOR_DEFAULT_PATH : ONEKEY_DEFAULT_PATH) });
+    setLedgerActive(null);
+    setUnlockedPrivateKey(null);
+    setMpcEnabled(false);
+    setWallet({ address: entry.address });
+    setAccounts(loadAccounts());
+    setShowAccounts(false);
+    setToast(`Switched to ${entry.name}.`);
+    refreshBalance(entry.address);
+    return;
+  }
+  setOnekeyActive(null);
   if (entry.kind === "ledger") {
     // the Lyra address stays the saved one (it pays the one-time setup);
     // no key is loaded, so nothing but a Ledger plan can sign from here
@@ -2445,7 +2472,7 @@ async function importAccount(secret, password) {
 // Sets one token's allowance for one contract back to zero
 async function revokeApproval(tokenAddress, spender) {
   if (!unlockedPrivateKey) throw new Error("Unlock your wallet first.");
-  const signer = new ethers.Wallet(unlockedPrivateKey, RPC);
+  const signer = walletSigner(RPC);
   const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
   const tx = await token.approve(spender, 0n);
   await tx.wait();
@@ -2463,6 +2490,28 @@ async function connectLedgerAccount() {
   await switchAccount(address);
   const settings = await ledgerSettings().catch(() => null);
   if (settings?.blindSigning === false) setLedgerGuide({ model: settings.model, need: "both", blindOn: false });
+}
+
+// Adds the OneKey plugged in (first Ethereum address) and switches to it
+async function connectOneKeyAccount() {
+  if (!onekeySupported()) throw new Error("This browser can't reach a OneKey over USB. Use Chrome or Edge.");
+  const address = await onekeyAddress(ONEKEY_DEFAULT_PATH, (p) => p && setToast(p));
+  const list = loadAccounts();
+  if (!list.some(a => a.address.toLowerCase() === address.toLowerCase())) {
+    addAccount({ address, name: `OneKey ${list.filter(a => a.kind === "onekey").length + 1}`, kind: "onekey", path: ONEKEY_DEFAULT_PATH, record: null });
+  }
+  await switchAccount(address);
+}
+
+// Adds the Trezor (first Ethereum address, approved in Trezor's window) and switches to it
+async function connectTrezorAccount() {
+  if (!trezorSupported()) throw new Error("This browser can't reach a Trezor.");
+  const address = await trezorAddress(TREZOR_DEFAULT_PATH, (p) => p && setToast(p));
+  const list = loadAccounts();
+  if (!list.some(a => a.address.toLowerCase() === address.toLowerCase())) {
+    addAccount({ address, name: `Trezor ${list.filter(a => a.kind === "trezor").length + 1}`, kind: "trezor", path: TREZOR_DEFAULT_PATH, record: null });
+  }
+  await switchAccount(address);
 }
 
 // A whole plan as ONE Ledger signature (EIP-7702 batch, see ledgerBatch.js).
@@ -2777,7 +2826,7 @@ async function unlockWithBiometric() {
     }
     const network = getNetworkByKey(networkKey);
     const provider = new ethers.JsonRpcProvider(network.rpcUrl, network.chainId);
-    return new ethers.Wallet(unlockedPrivateKey, provider);
+    return walletSigner(provider);
   }
 
   // +1 for the wallet's own address, always owner #1 and never stored
@@ -3439,6 +3488,7 @@ useEffect(() => {
   advanceExecutionTo(0);
   setStatus("Swapping via Circle's Swap Kit…");
 
+  if (onekeyActive) throw new Error("Nothing was sent. This Circle route can't be signed with this hardware wallet yet.");
   const adapter = createEthersAdapterFromPrivateKey({ privateKey: unlockedPrivateKey });
   const kit = new SwapKit();
   const slippageBps = Math.round((ticket.slippage ?? DEFAULT_SLIPPAGE) * 10000);
@@ -3727,6 +3777,7 @@ async function executeUnstakeTicket(signer, ticket) {
     advanceExecutionTo(stepCursor++);
     setStatus("Bridging via Circle's Bridge Kit…");
 
+    if (onekeyActive) throw new Error("Nothing was sent. This Circle route can't be signed with this hardware wallet yet.");
     const adapter = createEthersAdapterFromPrivateKey({ privateKey: unlockedPrivateKey });
     const kit = new BridgeKit();
     const result = await kit.bridge({
@@ -3977,7 +4028,7 @@ async function executeUnstakeTicket(signer, ticket) {
     }
 
     const provider = new ethers.JsonRpcProvider(sourceNetwork.rpcUrl, sourceNetwork.chainId);
-    const signer = new ethers.Wallet(unlockedPrivateKey, provider);
+    const signer = walletSigner(provider);
     const fromAddress = await signer.getAddress();
     const isNative = ticket.tokenAddress === NATIVE_PSEUDO_ADDRESS;
 
@@ -4217,7 +4268,7 @@ async function executeUnstakeTicket(signer, ticket) {
     }
 
     const provider = new ethers.JsonRpcProvider(sourceNetwork.rpcUrl, sourceNetwork.chainId);
-    const signer = new ethers.Wallet(unlockedPrivateKey, provider);
+    const signer = walletSigner(provider);
     const fromAddress = await signer.getAddress();
 
     onStatus?.(`Fetching a LI.FI route from ${sourceNetwork.name}…`);
@@ -4327,7 +4378,7 @@ async function executeUnstakeTicket(signer, ticket) {
     advanceExecutionTo(0);
 
     setStatus("Signing the payment…");
-    const signer = new ethers.Wallet(unlockedPrivateKey, new ethers.JsonRpcProvider(network.rpcUrl, network.chainId));
+    const signer = walletSigner(new ethers.JsonRpcProvider(network.rpcUrl, network.chainId));
     const paymentPayload = await signGatewayPayment(signer, requirement, ticket.resourceInfo || { url: ticket.url });
     advanceExecutionTo(1);
 
@@ -4370,7 +4421,7 @@ async function executeUnstakeTicket(signer, ticket) {
   async function executeGatewayDepositTicket(ticket) {
     const network = ticket.network;
     const provider = new ethers.JsonRpcProvider(network.rpcUrl, network.chainId);
-    const signer = new ethers.Wallet(unlockedPrivateKey, provider);
+    const signer = walletSigner(provider);
     const usdcAddress = GATEWAY_NETWORKS[ticket.networkKey].usdc;
     const amountRaw = BigInt(ticket.amountRaw);
 
@@ -4431,7 +4482,7 @@ async function executeUnstakeTicket(signer, ticket) {
     advanceExecutionTo(0);
 
     setStatus("Signing the payment…");
-    const signer = new ethers.Wallet(unlockedPrivateKey, new ethers.JsonRpcProvider(network.rpcUrl, network.chainId));
+    const signer = walletSigner(new ethers.JsonRpcProvider(network.rpcUrl, network.chainId));
     const paymentPayload = await signX402Payment(signer, requirement, { url: ticket.url });
     advanceExecutionTo(1);
 
@@ -4490,7 +4541,7 @@ async function executeUnstakeTicket(signer, ticket) {
     }
 
     setStatus("Signing the payment…");
-    const signer = new ethers.Wallet(unlockedPrivateKey, new ethers.JsonRpcProvider(ticket.network.rpcUrl, ticket.network.chainId));
+    const signer = walletSigner(new ethers.JsonRpcProvider(ticket.network.rpcUrl, ticket.network.chainId));
     const paymentPayload = await signX402Payment(signer, ticket.requirement, { url: `acp:${ticket.sessionId}` });
     advanceExecutionTo(0);
 
@@ -5344,7 +5395,8 @@ async function executeUnstakeTicket(signer, ticket) {
   }
 
   async function executeDefiTicket() {
-    if (!unlockedPrivateKey) {
+    const canSign = !!unlockedPrivateKey || !!onekeyActive;
+    if (!canSign) {
       throw new Error("Wallet locked.");
     }
     if (!defiTicket) {
@@ -5378,7 +5430,7 @@ async function executeUnstakeTicket(signer, ticket) {
     }
 
     try {
-      const signer = new ethers.Wallet(unlockedPrivateKey, RPC);
+      const signer = walletSigner(RPC);
       let tx;
 
       if (defiTicket.feature === "swap") {
@@ -5396,7 +5448,7 @@ async function executeUnstakeTicket(signer, ticket) {
         advanceExecutionTo(0);
         const polygonNetwork = getNetworkByKey("polygon");
         const polygonProvider = new ethers.JsonRpcProvider(polygonNetwork.rpcUrl, polygonNetwork.chainId);
-        const polygonSigner = new ethers.Wallet(unlockedPrivateKey, polygonProvider);
+        const polygonSigner = walletSigner(polygonProvider);
         const creds = await getOrDeriveClobCreds(polygonSigner);
         await cancelPolymarketOrder(polygonSigner, creds, defiTicket.orderId);
         // Only step in this ticket (stepsForDefiTicket's own single-item
@@ -5417,7 +5469,7 @@ async function executeUnstakeTicket(signer, ticket) {
       } else if (defiTicket.feature === "cashout-prediction") {
         const polygonNetwork = getNetworkByKey("polygon");
         const polygonProvider = new ethers.JsonRpcProvider(polygonNetwork.rpcUrl, polygonNetwork.chainId);
-        const polygonSigner = new ethers.Wallet(unlockedPrivateKey, polygonProvider);
+        const polygonSigner = walletSigner(polygonProvider);
         const orderResult = await executeCashoutTicket(polygonSigner, defiTicket);
 
         // Polymarket's own positions data won't reflect this sell
@@ -5443,7 +5495,7 @@ async function executeUnstakeTicket(signer, ticket) {
         // own branch instead of falling into the shared tx.hash path.
         const polygonNetwork = getNetworkByKey("polygon");
         const polygonProvider = new ethers.JsonRpcProvider(polygonNetwork.rpcUrl, polygonNetwork.chainId);
-        const polygonSigner = new ethers.Wallet(unlockedPrivateKey, polygonProvider);
+        const polygonSigner = walletSigner(polygonProvider);
         const orderResult = await executePredictionTicket(polygonSigner, defiTicket);
 
         setStatus("Bet placed");
@@ -5458,7 +5510,7 @@ async function executeUnstakeTicket(signer, ticket) {
         // rather than the shared tx.hash/tx.wait() path below.
         const polygonNetwork = getNetworkByKey("polygon");
         const polygonProvider = new ethers.JsonRpcProvider(polygonNetwork.rpcUrl, polygonNetwork.chainId);
-        const polygonSigner = new ethers.Wallet(unlockedPrivateKey, polygonProvider);
+        const polygonSigner = walletSigner(polygonProvider);
         const receipt = await transferViaSafeTransaction(
           polygonSigner,
           defiTicket.fromSafe,
@@ -5610,7 +5662,8 @@ async function executeUnstakeTicket(signer, ticket) {
   }
 
   async function executeMultiTicket() {
-    if (!unlockedPrivateKey) {
+    const canSign = !!unlockedPrivateKey || !!onekeyActive;
+    if (!canSign) {
       throw new Error("Wallet locked.");
     }
     if (!multiTicket || !multiTicket.steps?.length) {
@@ -5623,7 +5676,7 @@ async function executeUnstakeTicket(signer, ticket) {
     beginExecutionTimer();
 
     try {
-      const signer = new ethers.Wallet(unlockedPrivateKey, RPC);
+      const signer = walletSigner(RPC);
       let carriedAmount = null; // real measured amount from the previous step, if any
 
       async function balanceOfAsset(asset) {
@@ -5858,7 +5911,7 @@ function decimalsOfAsset(asset) {
           // step kind here.
           const polygonNetwork = getNetworkByKey("polygon");
           const polygonProvider = new ethers.JsonRpcProvider(polygonNetwork.rpcUrl, polygonNetwork.chainId);
-          const polygonSigner = new ethers.Wallet(unlockedPrivateKey, polygonProvider);
+          const polygonSigner = walletSigner(polygonProvider);
           const orderResult = await executePredictionTicket(polygonSigner, step.ticket);
 
           setMessages(m => [...m, { role: "ai", text: `✅ ${stepLabel} placed (bet) on Polymarket.${orderResult?.orderId ? ` Order ID: ${shortAddress(orderResult.orderId)}` : ""}` }]);
@@ -5976,7 +6029,7 @@ function decimalsOfAsset(asset) {
   try {
     const savedWallet = loadSavedWallet();
 
-    if (!unlockedPrivateKey) {
+    if (!unlockedPrivateKey && !onekeyActive) {
   throw new Error("Wallet locked.");
 }
 
@@ -8320,7 +8373,7 @@ function handleHoldEnd() {
     setExecutionStepIndex(-1);
     setPlanStepIndex(0);
     beginExecutionTimer();
-    const signer = new ethers.Wallet(unlockedPrivateKey, RPC);
+    const signer = walletSigner(RPC);
     let tx;
     try {
       try {
@@ -8436,7 +8489,7 @@ function handleHoldEnd() {
     return ready;
   })();
 
-  const planBiometric = ledgerActive ? null : (() => {
+  const planBiometric = ledgerActive || onekeyActive ? null : (() => {
     const ua = navigator.userAgent || "";
     const label = /Mac|iPhone|iPad/.test(ua) ? "Touch ID" : /Windows/.test(ua) ? "Windows Hello" : "biometrics";
     const record = biometricEnabled ? loadBiometricRecord() : null;
@@ -8931,8 +8984,10 @@ function handleHoldEnd() {
                   <AccountSwitcher
                     accounts={accounts}
                     activeAddress={wallet.address}
-                    keyReady={(a) => accountKeyReady(a) || accounts.some(x => x.kind === "ledger" && x.address.toLowerCase() === String(a).toLowerCase())}
+                    keyReady={(a) => accountKeyReady(a) || accounts.some(x => (x.kind === "ledger" || x.kind === "onekey" || x.kind === "trezor") && x.address.toLowerCase() === String(a).toLowerCase())}
                     onConnectLedger={ledgerSupported() ? connectLedgerAccount : null}
+                    onConnectOneKey={onekeySupported() ? connectOneKeyAccount : null}
+                    onConnectTrezor={trezorSupported() ? connectTrezorAccount : null}
                     onSwitch={switchAccount}
                     onCreate={createAccount}
                     onImport={importAccount}
@@ -10464,7 +10519,7 @@ function handleHoldEnd() {
       )}
 
       <div className="unlock-actions">
-        <FillButton className="unlock-btn-gradient" icon={ArrowRight} onClick={unlockWallet}>
+        <FillButton className="unlock-btn-gradient lock-unlock-btn" icon={ArrowRight} onClick={unlockWallet}>
           Unlock Wallet
         </FillButton>
 
@@ -10478,7 +10533,7 @@ function handleHoldEnd() {
             <>
               <div className="biometric-divider">or</div>
               <FillButton
-                className="biometric-outline-btn"
+                className="biometric-outline-btn lock-bio-btn"
                 icon={biometricBusy ? Spinner : Fingerprint}
                 iconSide="left"
                 iconSpin={biometricBusy}
@@ -11295,7 +11350,7 @@ function handleHoldEnd() {
                   if (!delegationState.confirm) { setDelegationState(d => ({ ...d, confirm: true, error: null })); return; }
                   setDelegationState(d => ({ ...d, busy: true, error: null }));
                   try {
-                    await removeOwnDelegation(new ethers.Wallet(unlockedPrivateKey, RPC));
+                    await removeOwnDelegation(walletSigner(RPC));
                     setOneTxPlans(false);
                     preparedPlanRef.current = null;
                     setDelegationState({ status: "none" });
