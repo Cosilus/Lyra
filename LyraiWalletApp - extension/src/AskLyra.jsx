@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MousePointer2, Mic, Globe, Check, Square, UserPlus } from "lucide-react";
+import { MousePointer2, Mic, Globe, Check, Square, UserPlus, Landmark, Wallet, Settings, Users, History, MessageCircle, Gift, ShieldCheck, Box, Languages, Lock, Timer, Fingerprint, QrCode, LayoutGrid, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { drawIdeas } from "./askLyraIdeas.js";
 import { LYRA_LANGUAGES, speechLangFor } from "./lyraLanguages.js";
@@ -56,7 +56,33 @@ function VoiceWave({ levelRef, startedAt }) {
   );
 }
 
+// the small icons on each side of a request that moves no money
+const SIDE_ICONS = { spark: Sparkles, bank: Landmark, wallet: Wallet, globe: Globe, settings: Settings, contacts: Users, history: History, help: MessageCircle, rewards: Gift, shield: ShieldCheck, box: Box, language: Languages, lock: Lock, timer: Timer, fingerprint: Fingerprint, qr: QrCode };
+const ACTION_ICONS = { ask: MessageCircle, topup: Landmark, offramp: Landmark, network: Globe, setting: Settings, lock: Lock, open: LayoutGrid, balance: Wallet };
+function Side({ text, icon }) {
+  const Icon = SIDE_ICONS[icon];
+  if (!text) return <span className="ask-skel ask-skel--short" />;
+  return <span className="ask-step-value ask-step-side">{Icon && <Icon size={13} strokeWidth={1.9} />}{withTokenLogos(text)}</span>;
+}
+
 function StepPreview({ step, index, previous, via }) {
+  // a request that moves no money: its own label and both sides as given
+  if (step.label) {
+    const Icon = ACTION_ICONS[step.kind];
+    return (
+      <div className="ask-step" style={{ "--i": index }}>
+        <span className="ask-step-icon">{Icon ? <Icon size={16} strokeWidth={1.8} /> : <StepIcon kind={step.kind} />}</span>
+        <div className="ask-step-body">
+          <div className="ask-step-label">{step.label}</div>
+          <div className="ask-step-line">
+            <Side text={step.from} icon={step.fromIcon} />
+            <span className="ask-step-arrow">→</span>
+            <Side text={step.to} icon={step.toIcon} />
+          </div>
+        </div>
+      </div>
+    );
+  }
   const label = STEP_LABELS[step.kind] || "Send";
   const chained = index > 0;
   const subtitle =
@@ -100,7 +126,7 @@ function StepPreview({ step, index, previous, via }) {
   );
 }
 
-export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols, contacts, networks, suggestions = [], protocolLabel, language = "auto", onLanguageChange, pendingContactName = null, onSaveContact }) {
+export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols, contacts, networks, currentNetwork = null, suggestions = [], protocolLabel, language = "auto", onLanguageChange, pendingContactName = null, onSaveContact }) {
   // a 0x address typed or pasted that isn't a contact yet: "Save as contact"
   const newAddress = (() => {
     const a = String(value || "").match(/0x[0-9a-fA-F]{40}/)?.[0];
@@ -138,8 +164,8 @@ export function AskLyra({ value, onChange, onSubmit, busy = false, tokenSymbols,
   });
 
   const { steps } = useMemo(
-    () => parseAskLyra(value, { tokenSymbols, contacts, networks }),
-    [value, tokenSymbols, contacts, networks]
+    () => parseAskLyra(value, { tokenSymbols, contacts, networks, currentNetwork }),
+    [value, tokenSymbols, contacts, networks, currentNetwork]
   );
 
   function submit() {

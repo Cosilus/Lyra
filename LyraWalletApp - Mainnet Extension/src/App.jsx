@@ -9042,6 +9042,7 @@ function handleHoldEnd() {
                 tokenSymbols={[activeNetwork.nativeSymbol, ...Object.keys(tokens)].sort((x, y) => Number((y === activeNetwork.nativeSymbol ? balance : tokenBalances[y] || 0n) > 0n) - Number((x === activeNetwork.nativeSymbol ? balance : tokenBalances[x] || 0n) > 0n))}
                 contacts={contacts}
                 networks={NETWORKS}
+                currentNetwork={activeNetwork.name}
                 suggestions={askLyraSuggestions}
                 protocolLabel={protocolLabel}
                 language={lyraLanguage}
