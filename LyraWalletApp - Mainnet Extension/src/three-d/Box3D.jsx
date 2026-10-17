@@ -4,7 +4,7 @@ import { BOX, CARD_DOCK, DOCK } from "./config3d.js";
 import { useParallax3d } from "./useParallax3d.js";
 import { Tour3D, tourStepsHere } from "./Tour3D.jsx";
 import { TokenLogo } from "../tokenLogo.jsx";
-import { EmptyWallet, TokenWithChain } from "../uiPolish.jsx";
+import { TokenWithChain } from "../uiPolish.jsx";
 import { IS_CARD, reportCardDock } from "../cardBridge.js";
 import { IS_APP } from "../platform.js";
 import "./three-d.css";
@@ -124,7 +124,10 @@ function AssetsTopMenu({ show, spot, assets, networkName, networkKey, nativeSymb
         <div className="d3-assets-total">{usd(total)}</div>
       </div>
       {!held.length ? (
-        <EmptyWallet compact networkName={networkName} nativeSymbol={nativeSymbol} onReceive={onReceive} />
+        <div className="d3-assets-none">
+          <span>No funds yet</span>
+          {onReceive && <button type="button" onClick={onReceive}>Show my address</button>}
+        </div>
       ) : (
         <div className="d3-assets-list">
           {held.map((a) => {

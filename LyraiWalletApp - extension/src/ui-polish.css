@@ -125,3 +125,16 @@ button:not(:disabled):active, [role="button"]:active { scale: 0.97; }
 .tx-line-amount.negative { color: #F2A0A0; }
 .tx-line-amount.positive { color: #9FE0AE; }
 .tx-line-when { font: 500 10.5px/1.35 var(--mono); color: var(--muted-dim); white-space: nowrap; }
+
+/* the wallet screen scrolls when its content runs past the bottom (accounts
+   list open, a long answer, the hardware menu...) instead of being cut off */
+.frame--ask > .header { min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+
+/* no scrollbar anywhere: a scrolling area fades out at the edge where more is
+   hidden (fadeScroll.js sets data-fade) */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { width: 0; height: 0; display: none; }
+[data-fade] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top, 0px), #000 calc(100% - var(--fade-bottom, 0px)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fade-top, 0px), #000 calc(100% - var(--fade-bottom, 0px)), transparent 100%);
+}
