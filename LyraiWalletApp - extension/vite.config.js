@@ -2,6 +2,24 @@ import { defineConfig } from "vite";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
+import { build as esbuild } from "esbuild";
+
+// Trezor Connect for MV3 extensions runs in the background service worker only:
+// src/trezorWorker.js is bundled on its own to dist/trezorBackground.js, which
+// public/background.js loads with importScripts.
+const trezorWorker = () => ({
+  name: "lyra-trezor-worker",
+  apply: "build",
+  async closeBundle() {
+    await esbuild({
+      entryPoints: [fileURLToPath(new URL("./src/trezorWorker.js", import.meta.url))],
+      outfile: fileURLToPath(new URL("./dist/trezorBackground.js", import.meta.url)),
+      bundle: true, format: "iife", platform: "browser", target: "chrome110", minify: true, legalComments: "none",
+      define: { "process.env.NODE_ENV": "\"production\"", global: "globalThis" },
+      logLevel: "warning",
+    });
+  },
+});
 
 // Browser-extension build: the wallet is the side panel page (index.html), and
 // public/manifest.json + public/background.js are copied to dist/ as they are.
@@ -12,6 +30,7 @@ export default defineConfig({
     react(),
     // Buffer for @safe-global/protocol-kit, same as the web wallet.
     nodePolyfills({ include: ["buffer"] }),
+    trezorWorker(),
   ],
   build: {
     outDir: "dist",

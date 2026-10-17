@@ -74,5 +74,10 @@
       "run_at": "document_start",
       "all_frames": false
     }
-  ]
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://suite.trezor.io/*"
+    ]
+  }
 }

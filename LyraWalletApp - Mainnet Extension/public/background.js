@@ -6,6 +6,8 @@
 // new tab page...) get the wallet in the side panel instead.
 // dApp connection (websites asking to connect, sign, send): see providerBackground.js.
 importScripts("providerBackground.js");
+// Trezor (src/trezorWorker.js): its SDK for extensions lives in the service worker
+try { importScripts("trezorBackground.js"); } catch (e) { console.error("Lyra: Trezor support unavailable", e); }
 
 const CAN_INJECT = /^(https?|file):/;
 const BLOCKED_HOSTS = ["chrome.google.com", "chromewebstore.google.com", "microsoftedge.microsoft.com"];
