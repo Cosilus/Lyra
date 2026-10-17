@@ -10,6 +10,7 @@ import { IS_TESTNET, getNetworkByKey, DEFAULT_NETWORK, NETWORKS, TOKENS_BY_NETWO
 import { getBalance, getAddress } from "./tools/walletTools.js";
 import { isDefiFeatureEnabled, getDefiFeatureInfo } from "./tools/defiProtocols.js";
 import { isOnramperConfigured, buildOnramperBuyUrl, buildOnramperSellUrl } from "./tools/onramper.js";
+import { isCoinbaseOnrampConfigured, createOnrampSessionToken, buildCoinbaseBuyUrl } from "./tools/coinbaseOnramp.js";
 import { searchPolymarketMarkets, getClobPrice, getPolymarketMarketByConditionId, getPolymarketPositions, getPolymarketActivity } from "./tools/polymarketTools.js";
 import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -3813,6 +3814,21 @@ app.get("/api/bridge/quote", async (req, res) => {
 // Both endpoints just sign a widget URL, they never move funds or
 // see a card/bank detail themselves -- that happens entirely on
 // Onramper's own hosted page once the client opens the returned URL.
+// Coinbase Onramp (top-ups: USDC on Base), see tools/coinbaseOnramp.js. A
+// fresh single-use session token each time: it expires after 5 minutes.
+app.get("/api/coinbase/buy-url", async (req, res) => {
+  try {
+    const { address, amountUSD } = req.query;
+    if (!/^0x[0-9a-fA-F]{40}$/.test(String(address || ""))) return res.status(400).json({ error: "Missing or invalid address." });
+    if (!isCoinbaseOnrampConfigured()) return res.json({ configured: false, url: null });
+    const token = await createOnrampSessionToken({ address });
+    res.json({ configured: true, url: buildCoinbaseBuyUrl({ token, amountUSD }) });
+  } catch (error) {
+    console.error("Coinbase Onramp buy-url error:", error.message);
+    res.status(502).json({ configured: true, error: "Couldn't prepare the Coinbase link right now." });
+  }
+});
+
 app.get("/api/onramper/buy-url", (req, res) => {
   try {
     const { address, amountUSD } = req.query;
