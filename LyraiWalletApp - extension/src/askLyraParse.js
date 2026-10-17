@@ -60,7 +60,7 @@ function tokenizeWithOffsets(text) {
 const COMMON_SYMBOLS = ["USDC", "USDC.E", "USDT", "USDT0", "EURC", "DAI", "ETH", "WETH", "BTC", "WBTC", "CBBTC", "SOL", "XPL", "POL", "MATIC", "HYPE", "ARB", "OP", "BNB", "AVAX"];
 
 // text -> { highlights: [{start, end, type}], steps: [{kind, amount, asset, toAsset, recipient, network, fromPrevious}] }
-export function parseAskLyra(text, { tokenSymbols = [], contacts = [], networks = [] } = {}) {
+export function parseAskLyra(text, { tokenSymbols = [], contacts = [], networks = [], currentNetwork = null } = {}) {
   const symbols = new Set([...COMMON_SYMBOLS, ...tokenSymbols.map(s => s.toUpperCase())]);
   const contactNames = contacts.map(c => ({ name: c.name, lower: c.name.toLowerCase(), address: c.address }));
   const networkNames = networks.map(n => ({ key: n.key, name: n.name, lower: n.name.toLowerCase(), first: n.name.split(" ")[0].toLowerCase() }));
@@ -167,6 +167,23 @@ export function parseAskLyra(text, { tokenSymbols = [], contacts = [], networks 
     }
   }
 
+  // no money moves (a top-up, a network switch, a screen, a setting): one box
+  // all the same. It also wins over a verb read loosely ("change" is a swap
+  // verb, "change network to Base" is not a swap) when that step got nothing.
+  const action = readAction(text, { networks, currentNetwork });
+  if (action && steps.every(st => !st.amount && !st.asset && !st.recipient && !st.toAsset)) {
+    steps.length = 0;
+    steps.push(action);
+  }
+
+  // anything else (a question, a request Lyra will work out): still a box,
+  // so every sentence shows what comes back before it is sent
+  const question = /\?\s*$|^(what|how|why|when|where|who|which|is|are|can|do|does|explain|tell|qu'?est|comment|pourquoi|quand|o[uù]|c'est quoi|explique)\b/i.test(String(text).trim());
+  if (words.length >= 2 && (!steps.length || (question && steps.every(st => !st.amount && !st.asset && !st.recipient && !st.toAsset)))) {
+    steps.length = 0;
+    steps.push({ kind: "ask", label: question ? "Question" : "Request", from: question ? "Your question" : "Your request", fromIcon: "help", to: question ? "Lyra's answer" : "Lyra works it out", toIcon: "spark" });
+  }
+
   highlights.sort((a, b) => a.start - b.start);
   return { highlights, steps };
 }
@@ -216,4 +233,82 @@ export function highlightPieces(text, highlights) {
   }
   if (pos < text.length) pieces.push({ text: text.slice(pos) });
   return pieces;
+}
+
+// Requests that move no money still get their preview box, so the user sees
+// what will happen before sending: a top-up, a network or interface switch, a
+// screen to open, a setting, locking. step = { kind, label, from, to,
+// fromIcon, toIcon }: `from` -> `to`, each with an optional icon kind.
+const MENUS = [
+  [/\b(settings?|r[ée]glages?|param[eè]tres?)\b/i, "Settings", "settings"],
+  [/\b(contacts?|address book)\b/i, "Contacts", "contacts"],
+  [/\b(history|historique|transactions?|activity|activit[ée])\b/i, "History", "history"],
+  [/\b(help|aide|faq)\b/i, "Help", "help"],
+  [/\b(rewards?|r[ée]compenses?|airdrop)\b/i, "Rewards", "rewards"],
+  [/\b(assets?|portfolio|portefeuille|tokens)\b/i, "Assets", "wallet"],
+  [/\b(approvals?|autorisations?)\b/i, "Approvals", "shield"],
+];
+const LANGS = { english: "English", anglais: "English", french: "French", français: "French", francais: "French", spanish: "Spanish", espagnol: "Spanish", german: "German", allemand: "German", italian: "Italian", italien: "Italian", portuguese: "Portuguese", portugais: "Portuguese", chinese: "Chinese", chinois: "Chinese", japanese: "Japanese", japonais: "Japanese", korean: "Korean", russian: "Russian", turkish: "Turkish", arabic: "Arabic", hindi: "Hindi" };
+
+export function readAction(text, { networks = [], currentNetwork = null } = {}) {
+  const t = String(text || "").trim();
+  if (!t) return null;
+  const lower = t.toLowerCase();
+  const money = t.match(/[$€]\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:[$€]|usd|eur|dollars?|euros?)(?![a-z])/i);
+  const amount = money ? (money[1] || money[2]).replace(",", ".") : (t.match(/\b(\d+(?:[.,]\d+)?)\b/)?.[1] || null);
+  const token = t.match(/\b(USDC|USDT0?|EURC|ETH|XPL|POL|HYPE|DAI)\b/i)?.[1]?.toUpperCase() || null;
+  const net = networks.find(n => new RegExp(`\\b${n.name.split(" ")[0]}\\b`, "i").test(t));
+
+  // top up / buy with a card or a bank transfer
+  if (/\b(top[\s-]?up|recharge\w*|on[\s-]?ramp|buy|ach[eè]te\w*|add (?:\$|€|\d))/i.test(t) && !/\b(x402|nano ?payments?|gateway)\b/i.test(t)) {
+    const what = [amount ? `$${amount}` : null, token || "USDC"].filter(Boolean).join(" ");
+    return { kind: "topup", label: "Top up", from: "Card or bank", fromIcon: "bank", to: what, toIcon: "wallet" };
+  }
+  // cash out to a bank account
+  if (/\b(cash ?out|off[\s-]?ramp|sell .*to (?:my )?bank|withdraw .*to (?:my )?bank|vers ma banque|retire\w* .*banque)\b/i.test(t)) {
+    const what = [amount, token].filter(Boolean).join(" ") || "Your funds";
+    return { kind: "offramp", label: "Cash out", from: what, fromIcon: "wallet", to: "Bank account", toIcon: "bank" };
+  }
+  // 2D / 3D
+  const mode = lower.match(/\b(2d|3d)\b/);
+  if (mode && /\b(switch|change|go|use|passe|mode|interface|view|vue)\b/i.test(t)) {
+    const to = mode[1].toUpperCase();
+    return { kind: "setting", label: "Interface", from: to === "3D" ? "2D" : "3D", fromIcon: "box", to, toIcon: "box" };
+  }
+  // switch network
+  if (net && /\b(switch|change|go|move to|use|passe|bascule|network|r[ée]seau|chain)\b/i.test(t) && !/\b(bridge|send|swap|stake|envoie|transf)/i.test(t)) {
+    return { kind: "network", label: "Switch network", from: currentNetwork || "Current network", fromIcon: "globe", to: net.name, toIcon: "globe" };
+  }
+  // reply language
+  const lang = Object.keys(LANGS).find(k => new RegExp(`\\b${k}\\b`, "i").test(t));
+  if (lang && /\b(speak|reply|answer|talk|language|langue|parle|r[ée]ponds?)\b/i.test(t)) {
+    return { kind: "setting", label: "Language", from: "Lyra's replies", fromIcon: "language", to: LANGS[lang], toIcon: "language" };
+  }
+  // auto-lock delay, biometrics
+  const minutes = t.match(/(\d+)\s*(?:min|minutes?)/i)?.[1];
+  if (/auto[\s-]?lock/i.test(t)) {
+    return { kind: "setting", label: "Auto-lock", from: "Auto-lock", fromIcon: "lock", to: minutes ? `${minutes} min` : /\b(off|never|disable|d[ée]sactive)\b/i.test(t) ? "Off" : null, toIcon: "timer" };
+  }
+  // lock
+  if (/\b(lock|verrouill\w*|bloque)\b/i.test(t) && !/\bunlock\b/i.test(t)) {
+    return { kind: "lock", label: "Lock wallet", from: "Unlocked", fromIcon: "wallet", to: "Locked", toIcon: "lock" };
+  }
+  if (/\b(biometric\w*|fingerprint|face ?id|touch ?id|empreinte|windows hello)\b/i.test(t)) {
+    const off = /\b(off|disable|remove|turn off|d[ée]sactive|enl[eè]ve)\b/i.test(t);
+    return { kind: "setting", label: "Fingerprint unlock", from: off ? "On" : "Off", fromIcon: "fingerprint", to: off ? "Off" : "On", toIcon: "fingerprint" };
+  }
+  // show my address / receive
+  if (/\b(my address|mon adresse|receive|recevoir|deposit address|qr)\b/i.test(t)) {
+    return { kind: "receive", label: "Receive", from: "Your address", fromIcon: "wallet", to: net?.name || currentNetwork || "QR code", toIcon: "qr" };
+  }
+  // balance
+  if (/\b(balance|solde|how much do i have|combien j'ai)\b/i.test(t)) {
+    return { kind: "balance", label: "Balance", from: "Your wallet", fromIcon: "wallet", to: /\b(every|all|tous|toutes)\b/i.test(t) ? "All networks" : (net?.name || currentNetwork || "This network"), toIcon: "globe" };
+  }
+  // open a screen
+  if (/\b(open|show|go to|display|ouvre|affiche|montre|va dans|voir)\b/i.test(t)) {
+    const menu = MENUS.find(([re]) => re.test(t));
+    if (menu) return { kind: "open", label: "Open", from: "Wallet", fromIcon: "wallet", to: menu[1], toIcon: menu[2] };
+  }
+  return null;
 }

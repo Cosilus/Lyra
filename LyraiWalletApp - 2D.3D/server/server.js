@@ -2378,6 +2378,8 @@ top-up, buying crypto with their own fiat, not a payment request sent
 to someone else):
 
 "I want to receive $50 in crypto"
+"top up $3" / "top up 3$" / "top up $50 of USDC"
+"recharge 20€" / "recharge mon wallet de 20$"
 "add $50 to my account"
 "buy $100 of crypto"
 "cash to crypto"
@@ -6878,6 +6880,10 @@ you must use the GET_BALANCE intent.
         CASH_TO_CRYPTO: "RECEIVE_FIAT", ONRAMP: "RECEIVE_FIAT", ON_RAMP: "RECEIVE_FIAT",
         RECEIVE_USD: "RECEIVE_FIAT", RECEIVE_MONEY: "RECEIVE_FIAT", RECEIVE_PAYMENT: "RECEIVE_FIAT",
         QR_PAYMENT: "RECEIVE_FIAT", BUY_CRYPTO: "RECEIVE_FIAT",
+        // a fallback model (OpenRouter out of credits) names a top-up its own way
+        TOP_UP: "RECEIVE_FIAT", TOPUP: "RECEIVE_FIAT", BUY: "RECEIVE_FIAT", BUY_FIAT: "RECEIVE_FIAT",
+        ADD_FUNDS: "RECEIVE_FIAT", FUND_WALLET: "RECEIVE_FIAT", RECHARGE: "RECEIVE_FIAT",
+        SHOW_ADDRESS: "RECEIVE_XPL", GET_DEPOSIT_ADDRESS: "RECEIVE_XPL",
         // Same drift, same fix, for the newer fiat-out (off-ramp) intent.
         // Careful not to reuse SELL/CASH_OUT/CASHOUT here, those are
         // already claimed above by the Polymarket cash-out intent.
@@ -6904,6 +6910,31 @@ you must use the GET_BALANCE intent.
       };
       if (INTENT_ALIASES[action.intent]) {
         action.intent = INTENT_ALIASES[action.intent];
+      }
+
+      // "top up 3$" / "recharge 20€": buying crypto with a card or a bank
+      // transfer (Onramper). Live-confirmed that the model answers CHAT
+      // ("your balance is 0, show my address") or puts the dollars in
+      // "amount". The x402 / Nanopayments balance top-up stays its own intent.
+      {
+        const text = String(message);
+        const topUp = /\b(top[\s-]?up|recharge[rz]?|on[\s-]?ramp)\b/i.test(text) && !/\b(x402|nano ?payments?|gateway)\b/i.test(text);
+        if (topUp && (!VALID_INTENTS.has(action.intent) || ["CHAT", "RECEIVE_XPL", "RECEIVE_FIAT", "GATEWAY_DEPOSIT"].includes(action.intent))) {
+          const money = text.match(/[$€]\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*(?:[$€]|usd|eur|dollars?|euros?)(?![a-z])/i);
+          const usd = money ? (money[1] || money[2]).replace(",", ".") : (action.amountUSD ?? (action.intent === "RECEIVE_FIAT" ? action.amount : null));
+          action.intent = "RECEIVE_FIAT";
+          action.amountUSD = usd != null ? String(usd) : null;
+          action.amount = null;
+          action.recipient = null;
+          action.requires_confirmation = false;
+          action.message = action.amountUSD ? "" : "How much would you like to add?";
+          delete action.text;
+        }
+      }
+      // a top-up's dollars always go in amountUSD
+      if (action.intent === "RECEIVE_FIAT" && action.amountUSD == null && action.amount != null) {
+        action.amountUSD = String(action.amount);
+        action.amount = null;
       }
 
       // "consolidate my BNB" / "consolide mes bnb": live-confirmed
