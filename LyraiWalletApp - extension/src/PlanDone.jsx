@@ -1,7 +1,7 @@
 // The end of a plan: a sheet rises over the wallet, the check draws itself,
 // the net result is shown big (what left, what arrived), then every step with
-// its explorer link. On a phone or in the side panel it is a bottom sheet; in
-// a wide window (the extension opened in a tab) a card in the middle.
+// its explorer link. A bottom sheet everywhere (window, side panel, floating
+// card): it rises from the bottom and folds back down.
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -41,6 +41,13 @@ export function PlanDoneSheet({ done, networkName, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [done, onClose]);
 
+  // in the floating card the backdrop can't blur the wallet (the overlays layer
+  // is clipped on its own): the wallet itself is blurred while the sheet is up
+  useEffect(() => {
+    document.documentElement.classList.toggle("pd-open", !!done);
+    return () => document.documentElement.classList.remove("pd-open");
+  }, [!!done]);
+
   const steps = done?.steps || [];
   const first = side(steps[0]?.from);
   const last = side(steps[steps.length - 1]?.to);
@@ -52,7 +59,8 @@ export function PlanDoneSheet({ done, networkName, onClose }) {
           className="pd-overlay"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          // the backdrop clears only once the sheet is down
+          exit={{ opacity: 0, transition: { duration: 0.25, delay: 0.2 } }}
           transition={{ duration: 0.25 }}
           onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
@@ -62,7 +70,7 @@ export function PlanDoneSheet({ done, networkName, onClose }) {
             aria-label="Plan done"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            exit={{ y: "100%", transition: { duration: 0.38, ease: [0.55, 0, 0.8, 0.2] } }}
             transition={{ duration: 0.5, ease: EASE }}
           >
             <span className="pd-grab" aria-hidden="true" />

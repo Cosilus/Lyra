@@ -4114,6 +4114,10 @@ html.lyra-card .d3-assets-menu {
     bottom 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 html.lyra-card .d3-side-menu--right { left: calc(100% + 14px - var(--card-dock-dx, 0px)); right: auto; }
+html.lyra-card .d3-side-menu:not(.d3-side-menu--show) {
+  transition: opacity 0.2s ease var(--close-delay, 0ms), transform 0.2s cubic-bezier(0.64, 0, 0.78, 0) var(--close-delay, 0ms),
+    left 0.35s cubic-bezier(0.22, 1, 0.36, 1) var(--close-delay, 0ms), right 0.35s cubic-bezier(0.22, 1, 0.36, 1) var(--close-delay, 0ms);
+}
 
 /* Assets menu: above the wallet, in the top margin. */
 html.lyra-card .d3-assets-menu {
@@ -4126,12 +4130,12 @@ html.lyra-card .d3-assets-menu {
   transform: translateX(-50%) translateY(14px) scale(0.94);
 }
 html.lyra-card .d3-assets-menu--show { transform: translateX(-50%) translateY(0) scale(1); }
-/* Closing: the menu leaves upward, away from the wallet, and fast. It used to
-   slide down into the wallet while the wallet grew back, so half a second of
-   it showed over the wallet's top edge. */
+/* Closing: the opening in reverse (down toward the wallet, smaller, fading).
+   It stays above the wallet's edge: its bottom doesn't follow the wallet
+   growing back, and it sits behind the wallet (z-index 0) meanwhile. */
 html.lyra-card .d3-assets-menu:not(.d3-assets-menu--show) {
-  transform: translateX(-50%) translateY(-10px) scale(0.96);
-  transition: opacity 0.1s ease, transform 0.1s ease, bottom 0s;
+  /* quick: the card's top margin stops showing the menu area as the wallet grows back */
+  transition: opacity 0.12s ease, transform 0.14s cubic-bezier(0.55, 0, 0.8, 0.2), bottom 0s 0.15s;
 }
 
 /* ================================

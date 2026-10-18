@@ -32,7 +32,8 @@ import { selectPaymentRequirement, signX402Payment, encodePaymentHeader, decodeP
 import { logAuditEvent, loadAuditLog, loadAuditLogByCategory, clearAuditLog } from "./auditLog";
 import { DEMO_A2A_AGENT_URL, sendA2ATask, fetchAgentCard } from "./a2a";
 import { createCheckoutSession, completeCheckoutSession } from "./acp";
-import { SAFE_SUPPORTED_NETWORK_KEYS, isSafeSupportedNetwork, deploySafe, getSafeBalance, getSafeInfo, getNextNonce, proposeTransfer, proposeAddOwner, fetchPendingTransactions, confirmTransfer } from "./multisig";
+import { SAFE_SUPPORTED_NETWORK_KEYS, isSafeSupportedNetwork, deploySafe, getSafeBalance, getSafeInfo, getNextNonce, proposeTransfer, proposeAddOwner, fetchPendingTransactions, confirmTransfer, findOwnedSafes, getSafeCreation, waitingFor } from "./multisig";
+import { DeploySteps, PendingSafeTx, MultisigWaitingPill, MultisigHistory } from "./MultisigParts.jsx";
 // Arc has no Uniswap/LI.FI deployment yet (it's brand new), so its
 // swap and bridge are Circle's own App Kit SDKs instead: SwapKit
 // (single-chain USDC<->EURC conversion) and BridgeKit (CCTP, the same
@@ -94,7 +95,7 @@ import { InterfaceChooser } from "./three-d/InterfaceChooser.jsx";
 import { ActivityBlock } from "./three-d/ActivityBlock.jsx";
 import { HelpFaq } from "./three-d/HelpFaq.jsx";
 import { TokenLogo } from "./tokenLogo.jsx";
-import { haptic, Skel, SkeletonRows, EmptyWallet, usePullToRefresh } from "./uiPolish.jsx";
+import { haptic, Skel, SkeletonRows, EmptyWallet, usePullToRefresh, LyraToast } from "./uiPolish.jsx";
 import { PlanDoneSheet } from "./PlanDone.jsx";
 import { PanelHead, SettingIcon, Avatar } from "./menuParts.jsx";
 import { WelcomeDemo } from "./WelcomeDemo.jsx";
@@ -535,6 +536,20 @@ function loadMultisigSafes() {
     return [];
   }
 }
+
+// Safes removed from this wallet (still on-chain): "network:address", never re-added by the scan
+function loadHiddenSafes() {
+  try { return JSON.parse(localStorage.getItem("plasma_multisig_hidden_v1") || "[]"); } catch { return []; }
+}
+function saveHiddenSafes(list) {
+  localStorage.setItem("plasma_multisig_hidden_v1", JSON.stringify(list));
+}
+
+const SAFE_FACTORIES = new Set([
+  "0xa6b71e26c5e0845f74c812102ca7114b6a896ab2",
+  "0xc22834581ebc8527d974f8a1c97e1bea4ef910bc",
+  "0x4e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67",
+]);
 
 function saveMultisigSafes(safes) {
   localStorage.setItem(
@@ -1123,6 +1138,29 @@ export default function App() {
   const [multisigProposeAmount, setMultisigProposeAmount] = useState("");
   const [multisigActionBusy, setMultisigActionBusy] = useState(false);
   const [multisigActionError, setMultisigActionError] = useState("");
+  // the creation checklist (index of the stage in progress) and its transaction
+  const [multisigDeployStep, setMultisigDeployStep] = useState(null);
+  const [multisigDeployTx, setMultisigDeployTx] = useState(null);
+  // the pending transaction to unfold when the Safe screen opens, and the creation tx shown there
+  const [multisigFocusTx, setMultisigFocusTx] = useState(null);
+  const [multisigCreation, setMultisigCreation] = useState(null);
+  // "network:safe" -> safeTxHashes still waiting on this address's signature
+  const [multisigWaitingMap, setMultisigWaitingMap] = useState({});
+  // waiting transactions already announced by the pill (opened from it)
+  const [multisigPillSeen, setMultisigPillSeen] = useState(() => new Set());
+  const multisigWaitingList = Object.entries(multisigWaitingMap)
+    .flatMap(([key, hashes]) => hashes.filter(h => !multisigPillSeen.has(h)).map(hash => ({ key, hash })));
+  const multisigSafesRef = useRef(multisigSafes);
+  multisigSafesRef.current = multisigSafes;
+  // the Safes this address co-owns (the Multisig tabs, the addresses menu)
+  const myMultisigs = wallet?.address
+    ? multisigSafes.filter(s => s.owners?.some(o => o.toLowerCase() === wallet.address.toLowerCase()))
+    : [];
+  // the menus' history: the wallet's own, or its multisigs'
+  const [txHistoryScope, setTxHistoryScope] = useState("wallet");
+  useEffect(() => { setTxHistoryScope("wallet"); }, [txHistoryTab]);
+  const [multisigRemoveArmed, setMultisigRemoveArmed] = useState(false);
+  const [hiddenSafes, setHiddenSafes] = useState(loadHiddenSafes);
 
   const [biometricSupported] = useState(() => isWebAuthnAvailable());
   // Biometrics are ON by default: the plan card offers them on any device with a
@@ -2938,6 +2976,8 @@ async function unlockWithBiometric() {
     }
 
     setMultisigDeploying(true);
+    setMultisigDeployTx(null);
+    setMultisigDeployStep(0);
     try {
       const signer = multisigSigner(activeNetworkKey);
       const ownerAddress = await signer.getAddress();
@@ -2948,15 +2988,24 @@ async function unlockWithBiometric() {
         signer,
         owners,
         threshold: multisigThreshold,
+        onStep: (i, info) => {
+          setMultisigDeployStep(i);
+          if (info?.txHash) setMultisigDeployTx(info.txHash);
+        },
       });
 
-      const updated = [...multisigSafes, safe];
+      const updated = [...multisigSafes.filter(s => !(s.network === safe.network && s.address.toLowerCase() === safe.address.toLowerCase())), safe];
       setMultisigSafes(updated);
       saveMultisigSafes(updated);
 
+      // "Safe ready" stays on screen a moment, then the Safe itself opens
+      await new Promise(res => setTimeout(res, 1100));
       closeMultisigSetup();
+      setMultisigDeployStep(null);
       setToast(`Multisig deployed on ${activeNetwork.name}`);
+      openMultisigManage(safe);
     } catch (e) {
+      setMultisigDeployStep(null);
       console.error("Multisig deployment failed:", e);
       setMultisigSetupError(friendlyErrorText(e).replace(/^❌\s*/, ""));
     } finally {
@@ -2973,6 +3022,20 @@ async function unlockWithBiometric() {
       ]);
       setMultisigBalance(bal);
       setMultisigPending(pending);
+      if (wallet?.address) {
+        const key = safe.network + ":" + safe.address.toLowerCase();
+        const waiting = waitingFor(pending, wallet.address).map(p => p.safeTxHash);
+        setMultisigWaitingMap(m => {
+          const next = { ...m };
+          if (waiting.length) next[key] = waiting; else delete next[key];
+          return next;
+        });
+      }
+      if (!safe.creationTx) {
+        getSafeCreation({ networkKey: safe.network, safeAddress: safe.address })
+          .then(c => { if (c?.txHash) setMultisigCreation(c.txHash); })
+          .catch(() => {});
+      }
     } catch (e) {
       console.error("Couldn't load multisig data:", e);
       setMultisigActionError(friendlyErrorText(e).replace(/^❌\s*/, ""));
@@ -2981,8 +3044,33 @@ async function unlockWithBiometric() {
     }
   }
 
-  function openMultisigManage(safe) {
+  // Off this wallet's lists only: the Safe, its owners and its funds stay on-chain
+  function removeMultisigSafe(safe) {
+    const key = safe.network + ":" + safe.address.toLowerCase();
+    const hidden = [...new Set([...loadHiddenSafes(), key])];
+    saveHiddenSafes(hidden);
+    setHiddenSafes(hidden);
+    const updated = multisigSafes.filter(s => !(s.network === safe.network && s.address.toLowerCase() === safe.address.toLowerCase()));
+    setMultisigSafes(updated);
+    saveMultisigSafes(updated);
+    setMultisigWaitingMap(m => { const next = { ...m }; delete next[key]; return next; });
+    setActiveMultisigSafe(null);
+    setMultisigRemoveArmed(false);
+    setToast("Multisig removed from this wallet.");
+  }
+
+  // Lets the background scan find removed Safes again
+  function restoreHiddenSafes() {
+    saveHiddenSafes([]);
+    setHiddenSafes([]);
+    setToast("Removed multisigs will come back in a few seconds.");
+  }
+
+  function openMultisigManage(safe, focusTx = null) {
+    setMultisigRemoveArmed(false);
     setActiveMultisigSafe(safe);
+    setMultisigFocusTx(focusTx);
+    setMultisigCreation(safe.creationTx || null);
     setMultisigBalance(null);
     setMultisigPending([]);
     setMultisigActionError("");
@@ -3048,6 +3136,52 @@ async function unlockWithBiometric() {
       setMultisigActionBusy(false);
     }
   }
+
+  // Safes this address co-owns (found on the Safe service), and the
+  // transactions waiting on its signature: checked in the background, and
+  // announced by the pill at the top right like a deposit arriving.
+  useEffect(() => {
+    if (!wallet?.address || locked) return;
+    const me = wallet.address;
+    let stop = false;
+    async function scan() {
+      if (typeof document !== "undefined" && document.hidden) return;
+      let safes = multisigSafesRef.current;
+      const nets = [...new Set([...safes.map(s => s.network), activeNetworkKey])].filter(isSafeSupportedNetwork);
+      const found = [];
+      for (const net of nets) {
+        try {
+          for (const a of await findOwnedSafes({ networkKey: net, owner: me })) {
+            if (safes.some(s => s.network === net && s.address.toLowerCase() === a.toLowerCase())) continue;
+            if (loadHiddenSafes().includes(net + ":" + a.toLowerCase())) continue;
+            try {
+              const info = await getSafeInfo({ networkKey: net, safeAddress: a });
+              found.push({ address: a, network: net, owners: info.owners, threshold: info.threshold, ownerAddress: me, createdAt: Date.now(), discovered: true });
+            } catch { /* the next scan tries again */ }
+          }
+        } catch { /* Safe service unreachable: try again later */ }
+      }
+      if (stop) return;
+      if (found.length) {
+        safes = [...multisigSafesRef.current, ...found];
+        setMultisigSafes(safes);
+        saveMultisigSafes(safes);
+      }
+      const map = {};
+      for (const s of safes) {
+        if (!s.owners?.some(o => o.toLowerCase() === me.toLowerCase())) continue;
+        try {
+          const pending = await fetchPendingTransactions({ networkKey: s.network, safeAddress: s.address });
+          const waiting = waitingFor(pending, me);
+          if (waiting.length) map[s.network + ":" + s.address.toLowerCase()] = waiting.map(p => p.safeTxHash);
+        } catch { /* keep going with the other Safes */ }
+      }
+      if (!stop) setMultisigWaitingMap(map);
+    }
+    scan();
+    const timer = setInterval(scan, 45000);
+    return () => { stop = true; clearInterval(timer); };
+  }, [wallet?.address, locked, activeNetworkKey, hiddenSafes.length]);
 
   // silent: the background poll below. No spinner, no status line, no toast,
   // just the numbers updating when something arrives.
@@ -7830,6 +7964,54 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
   }
 
   handleIntentRef.current = handleIntent;
+  // A request about the multisig rather than the wallet. Prepared in the Safe
+  // screen; proposing or approving stays the person's own click there.
+  function handleMultisigRequest(text) {
+    const t = String(text || "").trim();
+    if (!/\b(multi-?sig|(?:my|the|our|from)\s+safe)\b/i.test(t)) return false;
+    const approve = /\b(approve|sign|confirm|validate)\b/i.test(t);
+    const send = /\b(send|pay|transfer|propose)\b/i.test(t);
+    if (!approve && !send) return false;
+    const say = (reply) => setMessages(m => [...m, { role: "user", text: t }, { role: "ai", text: reply }]);
+    const mine = myMultisigs;
+    const safe = mine.find(x => x.network === activeNetworkKey) || (mine.length === 1 ? mine[0] : null);
+    if (!mine.length) {
+      say(`You don't have a multisig yet. Set one up in Settings, then ask again.`);
+      return true;
+    }
+    if (!safe) {
+      say(`You have multisigs on ${mine.map(x => getNetworkByKey(x.network).name).join(", ")}. Switch to that network and ask again.`);
+      return true;
+    }
+    const net = getNetworkByKey(safe.network);
+    if (approve) {
+      const waiting = multisigWaitingMap[safe.network + ":" + safe.address.toLowerCase()] || [];
+      openMultisigManage(safe, waiting[0] || null);
+      say(waiting.length
+        ? `Here's the transaction waiting for your signature on your ${net.name} multisig. Check it and press Approve.`
+        : `Nothing is waiting for your signature on your ${net.name} multisig.`);
+      return true;
+    }
+    const amount = t.match(/(\d+(?:[.,]\d+)?)\s*([a-z][a-z0-9]*)?/i);
+    const toMatch = t.match(/\bto\s+(0x[0-9a-fA-F]{40}|[^\s,.!?]+)/i);
+    const symbol = amount?.[2] && !/^(to|from)$/i.test(amount[2]) ? amount[2].toUpperCase() : net.nativeSymbol;
+    if (symbol !== net.nativeSymbol.toUpperCase()) {
+      say(`A multisig transfer sends ${net.nativeSymbol} for now. Try "send 0.01 ${net.nativeSymbol} from my multisig to …".`);
+      return true;
+    }
+    let to = toMatch?.[1] || "";
+    if (to && !ethers.isAddress(to)) {
+      const c = loadContacts().find(x => x.name.toLowerCase() === to.toLowerCase());
+      if (!c) { say(`I don't know "${to}" yet. Save them as a contact, or use their address.`); return true; }
+      to = c.address;
+    }
+    openMultisigManage(safe);
+    if (to) setMultisigProposeTo(to);
+    if (amount) setMultisigProposeAmount(amount[1].replace(",", "."));
+    say(`Your transfer is ready in your ${net.name} multisig${amount ? ` (${amount[1]} ${net.nativeSymbol}${to ? ` to ${shortAddress(to)}` : ""})` : ""}. Check it and press Propose: the other owners then approve it.`);
+    return true;
+  }
+
   async function handleIntent(text) {
   if (!text.trim()) return;
   // the address Lyra asked for, pasted on its own: save it, then go on
@@ -7860,6 +8042,8 @@ checkAddressAndProceed(recipient, () => setShowSend(true));
       };
     }
   } catch { askOriginRef.current = null; }
+
+  if (handleMultisigRequest(text)) return;
 
   const savedContacts = loadContacts(); // fresh: a contact may have just been added
   const { steps } = parseAskLyra(text, {
@@ -8040,7 +8224,8 @@ function handleHoldEnd() {
 
   const anyOverlayOpen =
     showSettings || showContacts || showNetworkMenu || showChart3d || showHelp || showRewards || showReceiveQr || showTxHistory || showUnlock || showWallet || showWelcome ||
-    showPasswordSetup || showSend || !!defiTicket || !!multiTicket;
+    showPasswordSetup || showSend || !!defiTicket || !!multiTicket ||
+    showExportKey || showExportSeed || showResetConfirm || showAuditLog || showMultisigSetup || !!activeMultisigSafe || !!planDone;
 
   // ---- Plan card (send / swap / bridge / stake / multi-step) ----
   const planEligible = !!(showSend || multiTicket || (defiTicket && ["swap", "bridge", "staking"].includes(defiTicket.feature)));
@@ -8873,6 +9058,18 @@ function handleHoldEnd() {
           </span>
         </motion.button>
       )}
+      {!incoming && wallet && !locked && multisigWaitingList.length > 0 && (
+        <MultisigWaitingPill
+          key="ms-waiting"
+          count={multisigWaitingList.length}
+          onOpen={() => {
+            const first = multisigWaitingList[0];
+            const safe = multisigSafes.find(s => s.network + ":" + s.address.toLowerCase() === first.key);
+            setMultisigPillSeen(seen => new Set([...seen, ...multisigWaitingList.map(x => x.hash)]));
+            if (safe) openMultisigManage(safe, first.hash);
+          }}
+        />
+      )}
     </AnimatePresence>
     {wallet && uiMode !== "3d" && (
       <div className="header-menu" ref={headerMenuRef}>
@@ -9115,6 +9312,10 @@ function handleHoldEnd() {
                     onConnectLedger={ledgerSupported() ? connectLedgerAccount : null}
                     onConnectOneKey={onekeySupported() ? connectOneKeyAccount : null}
                     onConnectTrezor={trezorSupported() ? connectTrezorAccount : null}
+                    multisigs={multisigSafes
+                      .filter(s => s.owners?.some(o => o.toLowerCase() === wallet.address.toLowerCase()))
+                      .map(s => ({ ...s, networkName: getNetworkByKey(s.network).name, waiting: (multisigWaitingMap[s.network + ":" + s.address.toLowerCase()] || []).length }))}
+                    onOpenMultisig={(m) => openMultisigManage(multisigSafes.find(s => s.network === m.network && s.address === m.address) || m)}
                     onSwitch={switchAccount}
                     onCreate={createAccount}
                     onImport={importAccount}
@@ -11645,6 +11846,13 @@ function handleHoldEnd() {
 
         <SettingsSection title="Multisig">
 
+        {hiddenSafes.length > 0 && (
+          <button type="button" className="settings-action-row" onClick={restoreHiddenSafes}>
+            <RotateCcw size={16} strokeWidth={1.8} />
+            <span>Show removed multisigs again ({hiddenSafes.length})</span>
+          </button>
+        )}
+
         {multisigSafes.length > 0 && multisigSafes.map(safe => (
           <button
             type="button"
@@ -12348,6 +12556,9 @@ function handleHoldEnd() {
 
       {multisigSetupError && <div className="seed-error">{multisigSetupError}</div>}
 
+      {multisigDeployStep !== null ? (
+        <DeploySteps step={multisigDeployStep} txUrl={multisigDeployTx ? explorerTx(multisigDeployTx, activeNetwork) : null} />
+      ) : (
       <div className="multisig-actions">
         <button
           type="button"
@@ -12355,7 +12566,7 @@ function handleHoldEnd() {
           disabled={multisigDeploying}
           onClick={deployMultisigSafe}
         >
-          {multisigDeploying ? "Deploying…" : "Confirm & Deploy"}
+          Confirm & Deploy
         </button>
         <button
           type="button"
@@ -12366,6 +12577,7 @@ function handleHoldEnd() {
           Back
         </button>
       </div>
+      )}
 
       </div>
     </div>
@@ -12387,6 +12599,7 @@ function handleHoldEnd() {
         </button>
       </div>
 
+      <div className="ms-body">
       <div className="settings-row">
         <SettingIcon title="" />
         <div className="settings-row-info">
@@ -12395,10 +12608,50 @@ function handleHoldEnd() {
             {activeMultisigSafe.threshold}-of-{activeMultisigSafe.owners.length} owners ·{" "}
             {multisigBalance === null ? "Loading balance…" : `${ethers.formatEther(multisigBalance)} ${getNetworkByKey(activeMultisigSafe.network).nativeSymbol}`}
           </div>
+          <div className="settings-row-desc">Transfers are paid from this Safe's own balance: send funds to its address first ({getNetworkByKey(activeMultisigSafe.network).name}).</div>
         </div>
+        <button
+          type="button"
+          className="contact-send"
+          onClick={() => { navigator.clipboard?.writeText(activeMultisigSafe.address).then(() => setToast("Safe address copied."), () => setToast(activeMultisigSafe.address)); }}
+          title={activeMultisigSafe.address}
+        >
+          Copy
+        </button>
       </div>
 
+      {(multisigCreation || activeMultisigSafe.creationTx) && (
+        <div className="ms-created">
+          Creation transaction
+          <a href={explorerTx(multisigCreation || activeMultisigSafe.creationTx, getNetworkByKey(activeMultisigSafe.network))} target="_blank" rel="noreferrer">
+            {shortAddress(multisigCreation || activeMultisigSafe.creationTx)} <ExternalLink size={10} />
+          </a>
+        </div>
+      )}
+
       {multisigActionError && <div className="seed-error">{multisigActionError}</div>}
+
+      <div className="settings-section-label">
+        {multisigLoading ? "Loading pending approvals…" : `Pending approvals (${multisigPending.length})`}
+      </div>
+
+      {!multisigLoading && multisigPending.length === 0 && (
+        <div className="settings-row-desc">Nothing waiting on a signature right now.</div>
+      )}
+
+      {multisigPending.map(p => (
+        <PendingSafeTx
+          key={p.safeTxHash}
+          p={p}
+          safe={activeMultisigSafe}
+          me={wallet?.address}
+          nativeSymbol={getNetworkByKey(activeMultisigSafe.network).nativeSymbol}
+          busy={multisigActionBusy}
+          defaultOpen={p.safeTxHash === multisigFocusTx}
+          onApprove={handleMultisigConfirm}
+          nameOf={(a) => contacts.find(c => c.address?.toLowerCase() === String(a).toLowerCase())?.name}
+        />
+      ))}
 
       <div className="add-contact-form">
         <div className="add-contact-title">Propose a transfer</div>
@@ -12430,39 +12683,22 @@ function handleHoldEnd() {
         </div>
       </div>
 
-      <div className="settings-section-label">
-        {multisigLoading ? "Loading pending approvals…" : `Pending approvals (${multisigPending.length})`}
+      <div className="ms-remove">
+        <span className="ms-remove-text">
+          {multisigRemoveArmed
+            ? "Remove it from this wallet? The Safe, its owners and its funds stay on-chain."
+            : "Remove this multisig from this wallet only."}
+        </span>
+        <button
+          type="button"
+          className={`ms-remove-btn${multisigRemoveArmed ? " is-confirm" : ""}`}
+          onClick={() => (multisigRemoveArmed ? removeMultisigSafe(activeMultisigSafe) : setMultisigRemoveArmed(true))}
+        >
+          {multisigRemoveArmed ? "Remove" : "Remove…"}
+        </button>
       </div>
 
-      {!multisigLoading && multisigPending.length === 0 && (
-        <div className="settings-row-desc">Nothing waiting on a signature right now.</div>
-      )}
-
-      {multisigPending.map(p => {
-        const confirmed = (p.confirmations || []).length;
-        const required = p.confirmationsRequired;
-        const alreadySigned = (p.confirmations || []).some(
-          c => c.owner?.toLowerCase() === wallet?.address?.toLowerCase()
-        );
-        return (
-          <div className="settings-row" key={p.safeTxHash}>
-            <div className="settings-row-info">
-              <div className="settings-row-title">
-                Send {ethers.formatEther(p.value || "0")} {getNetworkByKey(activeMultisigSafe.network).nativeSymbol} to {shortAddress(p.to)}
-              </div>
-              <div className="settings-row-desc">{confirmed}/{required} signatures</div>
-            </div>
-            <button
-              type="button"
-              className="contacts-io-button"
-              disabled={multisigActionBusy || alreadySigned}
-              onClick={() => handleMultisigConfirm(p.safeTxHash)}
-            >
-              {alreadySigned ? "Signed" : "Approve"}
-            </button>
-          </div>
-        );
-      })}
+      </div>
     </div>
   </div>
 )}
@@ -12739,6 +12975,53 @@ function handleHoldEnd() {
           </>
         ) : (
           <>
+            {myMultisigs.length > 0 && ["sent", "received", "swap", "bridge", "stake"].includes(txHistoryTab) && (
+              <div className="stake-tabs ms-scope" role="tablist" style={{ "--tabs": 2, "--tab-i": txHistoryScope === "multisig" ? 1 : 0 }}>
+                <span className="stake-tab-pill" aria-hidden="true" />
+                {[["wallet", "Wallet"], ["multisig", "Multisig"]].map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={txHistoryScope === key}
+                    className={`stake-tab${txHistoryScope === key ? " is-on" : ""}`}
+                    onClick={() => setTxHistoryScope(key)}
+                  >
+                    <span className="stake-tab-label">
+                      {label}
+                      {key === "multisig" && Object.values(multisigWaitingMap).flat().length > 0 && (
+                        <span className="stake-tab-n">{Object.values(multisigWaitingMap).flat().length}</span>
+                      )}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {txHistoryScope === "multisig" && myMultisigs.length > 0 && ["sent", "received", "swap", "bridge", "stake"].includes(txHistoryTab) ? (
+              <MultisigHistory
+                key={txHistoryTab}
+                category={txHistoryTab}
+                safes={myMultisigs}
+                walletRows={txHistoryTab !== "sent" ? [] : txHistoryRows
+                  .filter(row => row.isSent && !(Number(row.display?.valueXPL) > 0))
+                  .map(row => {
+                    const to = String(row.counterparty || "").toLowerCase();
+                    const safe = myMultisigs.find(x => x.address.toLowerCase() === to);
+                    if (!safe && !SAFE_FACTORIES.has(to)) return null;
+                    return {
+                      id: row.hash, safe: safe || myMultisigs[0],
+                      verb: safe ? "Executed" : "Multisig created",
+                      who: safe ? `by you · Safe ${shortAddress(safe.address)}` : "Safe deployment",
+                      amount: "", when: new Date(row.timestamp * 1000).toISOString(),
+                      href: explorerTx(row.hash, activeNetwork),
+                    };
+                  })
+                  .filter(Boolean)}
+                nameOf={(a) => contacts.find(c => c.address?.toLowerCase() === String(a).toLowerCase())?.name}
+                onOpenSafe={(safe, hash) => { setShowTxHistory(false); setTxHistoryTab(null); openMultisigManage(safe, hash); }}
+              />
+            ) : (
+            <>
             {txHistoryLoading && <SkeletonRows count={5} />}
 
             {!txHistoryLoading && txHistoryError && (
@@ -12758,6 +13041,13 @@ function handleHoldEnd() {
                 };
               });
               const common = { networkName: activeNetwork.name, networkKey: activeNetworkKey, protocolFor, explorerUrl: (h) => explorerTx(h, activeNetwork) };
+              // the wallet's calls for its multisigs (creating one, executing an approved
+              // transfer) belong to the Multisig tab, not to the wallet's own sends
+              const safeAddrs = new Set(myMultisigs.map(x => x.address.toLowerCase()));
+              const isMultisigCall = (row) => row.isSent && !(Number(row.display?.valueXPL) > 0)
+                && (safeAddrs.has(String(row.counterparty || "").toLowerCase()) || SAFE_FACTORIES.has(String(row.counterparty || "").toLowerCase()));
+              rows.splice(0, rows.length, ...rows.filter(row => !isMultisigCall(row)).map(row =>
+                safeAddrs.has(String(row.counterparty || "").toLowerCase()) ? { ...row, counterpartyLabel: "your multisig" } : row));
               if (txHistoryTab === "stake") {
                 const positions = Object.entries(tokens)
                   .filter(([sym]) => (stakedBalances[sym] || 0n) > 0n)
@@ -12772,6 +13062,8 @@ function handleHoldEnd() {
               }[txHistoryTab] || null;
               return <TxHistoryList key={txHistoryTab} rows={rows} empty={empty} stats={txHistoryTab === "swap" || txHistoryTab === "bridge"} {...common} />;
             })()}
+            </>
+            )}
           </>
         )}
 
@@ -12792,7 +13084,7 @@ function handleHoldEnd() {
 
   const toastEl = (
     <>
-      {toast ? <div className="toast">{toast}</div> : null}
+      <LyraToast text={toast} />
       <PlanDoneSheet done={planDone} networkName={activeNetwork.name} onClose={() => setPlanDone(null)} />
       {bioOffer && !showUnlock && (
         <div className="bio-offer" role="dialog" aria-label="Fingerprint unlock">

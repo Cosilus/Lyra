@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Spinner from "./Spinner.jsx";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Plus, Download, Lock, ArrowLeft, Pencil, Usb, ChevronDown } from "lucide-react";
+import { Check, Plus, Download, Lock, ArrowLeft, Pencil, Usb, ChevronDown, ShieldCheck } from "lucide-react";
 
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "");
 
@@ -22,7 +22,7 @@ function AccountMark({ address }) {
   );
 }
 
-export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, onCreate, onImport, onRename, onConnectLedger, onConnectOneKey, onConnectTrezor }) {
+export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, onCreate, onImport, onRename, onConnectLedger, onConnectOneKey, onConnectTrezor, multisigs = [], onOpenMultisig }) {
   // the address being renamed, and the name being typed
   const [renaming, setRenaming] = useState(null);
   const [draftName, setDraftName] = useState("");
@@ -162,6 +162,31 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
                 );
               })}
             </ul>
+            {multisigs.length > 0 && onOpenMultisig && (
+              <>
+                <div className="acct-section-label">Multisig</div>
+                <ul className="acct-list">
+                  {multisigs.map((m, i) => (
+                    <motion.li
+                      key={m.network + m.address}
+                      className="acct-item"
+                      initial={{ opacity: 0, x: -14 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: Math.min(accounts.length + i, 10) * 0.04 }}
+                    >
+                      <button type="button" className="acct-row" onClick={() => onOpenMultisig(m)}>
+                        <span className="acct-ms-mark"><ShieldCheck size={14} strokeWidth={2} /></span>
+                        <span className="acct-text">
+                          <span className="acct-name">{m.threshold}-of-{m.owners?.length || "?"} · {m.networkName}</span>
+                          <span className="acct-address">{short(m.address)}</span>
+                        </span>
+                        {m.waiting > 0 && <span className="acct-ms-badge">{m.waiting} to sign</span>}
+                      </button>
+                    </motion.li>
+                  ))}
+                </ul>
+              </>
+            )}
             {error && <div className="acct-error">{error}</div>}
             <div className="acct-actions">
               <button type="button" className="acct-action" onClick={() => setView("create")}>

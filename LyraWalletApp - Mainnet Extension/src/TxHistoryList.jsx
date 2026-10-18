@@ -73,7 +73,8 @@ const slideIn = (i) => ({
 // [logo] what happened / with whom        amount / date
 function TxLine({ row, open, onToggle, networkName, networkKey, protocolFor, explorerUrl, index = 0 }) {
   const negative = row.category === "stake" ? row.stakeAction !== "withdraw" : row.isSent;
-  const amount = `${negative ? "−" : "+"}${amt(row.display)}`;
+  const zero = !(Number(row.display?.valueXPL) > 0);
+  const amount = `${zero ? "" : negative ? "−" : "+"}${amt(row.display)}`;
   const who = rowWith(row, { networkName, protocolFor });
   return (
     <motion.div className={`tx-item-wrap${open ? " is-open" : ""}`} {...slideIn(index)}>

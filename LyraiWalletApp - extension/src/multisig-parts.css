@@ -1,0 +1,119 @@
+/* Multisig pieces (MultisigParts.jsx) */
+
+/* the live checklist while a Safe is being created */
+.ms-steps { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 6px; }
+.ms-step { display: flex; align-items: center; gap: 11px; }
+.ms-step-icon {
+  position: relative; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 12px;
+  display: grid; place-items: center; color: var(--accent-strong); background: var(--accent-soft);
+}
+.ms-step.is-active .ms-step-icon { background: linear-gradient(135deg, var(--accent), var(--accent-deep)); color: #fff; }
+.ms-step-check {
+  position: absolute; right: -4px; bottom: -4px; width: 15px; height: 15px; border-radius: 50%;
+  display: grid; place-items: center; background: #3DDC84; color: #08140D; box-shadow: 0 0 0 2px var(--panel);
+}
+.ms-step-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ms-step-label { font-size: 13.5px; font-weight: 600; color: var(--beige); }
+.ms-step-hint { font-size: 11px; color: var(--muted-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-step-hint a { color: var(--accent-strong); text-decoration: none; display: inline-flex; align-items: center; gap: 3px; }
+.ms-step.is-done .ms-step-label { color: rgba(var(--beige-rgb), 0.78); }
+.ms-step-spin { color: var(--accent); flex: 0 0 auto; }
+
+/* a pending transaction, unfolding to its details */
+.ms-tx {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 10px;
+  padding: 10px 10px 10px 12px; margin: 6px 0;
+  border: 1px solid var(--line); border-radius: 14px; background: rgba(var(--beige-rgb), 0.025);
+}
+.ms-tx.is-waiting { border-color: rgba(var(--accent-rgb), 0.45); }
+.ms-tx-head { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.ms-tx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ms-tx-title { font-size: 13.5px; font-weight: 600; color: var(--beige); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-tx-sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-tx-chev { flex: 0 0 auto; color: var(--muted); transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
+.ms-tx.is-open .ms-tx-chev { transform: rotate(180deg); }
+.ms-tx-details { grid-column: 1 / -1; grid-row: 2; overflow: hidden; }
+.ms-tx-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; }
+.ms-tx-dl dt { color: var(--muted-dim); }
+.ms-tx-dl dd { margin: 0; color: var(--beige); min-width: 0; overflow-wrap: anywhere; }
+.ms-tx-dl dd.is-mono { font: 500 11.5px var(--mono); }
+.ms-tx-owners { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
+.ms-owner {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px;
+  font-size: 11.5px; color: var(--muted); border: 1px solid var(--line);
+}
+.ms-owner.is-signed { color: #7EE2A0; border-color: rgba(61, 220, 132, 0.35); background: rgba(61, 220, 132, 0.07); }
+.ms-owner-wait { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: ms-breathe 1.4s ease-in-out infinite; }
+.ms-tx-approve {
+  grid-column: 2; grid-row: 1; height: 30px; padding: 0 12px; border: 0; border-radius: 10px; cursor: pointer;
+  background: var(--beige); color: #0D0916; font: 600 12px var(--sans); white-space: nowrap;
+}
+.ms-tx-approve.is-signed { background: transparent; color: #7EE2A0; border: 1px solid rgba(61, 220, 132, 0.35); cursor: default; }
+.ms-tx-approve:disabled:not(.is-signed) { opacity: 0.6; cursor: default; }
+
+/* the creation transaction line in the Safe screen */
+.ms-created { display: flex; align-items: center; gap: 6px; margin: 2px 0 8px; font-size: 11.5px; color: var(--muted); }
+.ms-created a { color: var(--accent-strong); text-decoration: none; display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); }
+
+/* "Multisig approval waiting", top right, like a deposit arriving */
+.ms-pill {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 230px; height: 30px; padding: 0 13px 0 10px;
+  border: 1px solid rgba(var(--accent-rgb), 0.45); border-radius: 999px;
+  background: rgba(30, 22, 48, 0.92); color: var(--beige); cursor: pointer;
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  position: relative; overflow: hidden;
+}
+.ms-pill::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(var(--accent-rgb), 0.22) 50%, transparent 70%);
+  transform: translateX(-100%); animation: ms-sweep 2.4s ease-in-out infinite;
+}
+.ms-pill:hover { border-color: rgba(var(--accent-rgb), 0.75); }
+.ms-pill-text { font: 600 12px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--accent-strong); }
+.ms-pill-pulse { display: inline-flex; gap: 3px; flex: 0 0 auto; }
+.ms-pill-pulse span { width: 5px; height: 5px; border-radius: 50%; background: var(--accent-strong); animation: ms-dot 1.2s ease-in-out infinite; }
+.ms-pill-pulse span:nth-child(2) { animation-delay: 0.18s; }
+.ms-pill-pulse span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes ms-dot { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+@keyframes ms-sweep { 0% { transform: translateX(-100%); } 60%, 100% { transform: translateX(100%); } }
+@keyframes ms-breathe { 0%, 100% { opacity: 0.35; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1); } }
+
+/* the Multisig section of the addresses menu */
+.acct-section-label { margin: 10px 4px 4px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-dim); }
+.acct-ms-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; flex: 0 0 auto; background: var(--accent-soft); color: var(--accent-strong); }
+.acct-ms-badge {
+  flex: 0 0 auto; margin-left: auto; padding: 2px 7px; border-radius: 999px; font: 600 10.5px var(--sans);
+  background: rgba(var(--accent-rgb), 0.18); color: var(--accent-strong);
+  animation: ms-breathe 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-pill::after, .ms-pill-pulse span, .ms-owner-wait, .acct-ms-badge { animation: none; }
+}
+
+/* the Safe screen: its content scrolls under the fixed header */
+.ms-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.ms-body .add-contact-form { margin-top: 14px; }
+/* no rename button on a Safe line: the badge lines up with the check mark */
+.acct-item .acct-row:has(.acct-ms-mark) { padding-right: 12px; }
+
+/* links inside the details (the Safe transaction) */
+.ms-link { color: var(--accent-strong); text-decoration: none; display: inline-flex; align-items: center; gap: 3px; }
+.ms-link:hover { text-decoration: underline; }
+
+/* Wallet | Multisig, at the top of the Send / Receive / Swap / Bridge / Stake menus */
+.ms-scope { margin-bottom: 10px; }
+.ms-hist-mark { flex: 0 0 auto; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-strong); }
+.tx-line .tx-line-when.ms-hist-pending { color: var(--accent-strong); }
+a.tx-item.tx-line { text-decoration: none; color: inherit; }
+
+/* Safe screen: remove from this wallet */
+.ms-remove { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 16px 0 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ms-remove-text { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.ms-remove-btn {
+  flex: 0 0 auto; height: 30px; padding: 0 12px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(213, 116, 99, 0.4); background: transparent; color: #E08A7A; font: 600 12px var(--sans);
+}
+.ms-remove-btn:hover { background: rgba(213, 116, 99, 0.12); }
+.ms-remove-btn.is-confirm { background: #D57463; border-color: #D57463; color: #fff; }
