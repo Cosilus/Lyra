@@ -32,9 +32,14 @@ const ALLOWED = [
   { method: "POST", re: new RegExp(`^/v2/safes/${ADDRESS}/multisig-transactions/$`) },
   { method: "GET", re: new RegExp(`^/v2/multisig-transactions/${HASH}/$`) },
   { method: "POST", re: new RegExp(`^/v1/multisig-transactions/${HASH}/confirmations/$`) },
+  // which Safes an address owns (a co-owner on another device finds them), and how a Safe was created
+  { method: "GET", re: new RegExp(`^/v1/owners/${ADDRESS}/safes/$`) },
+  { method: "GET", re: new RegExp(`^/v1/safes/${ADDRESS}/creation/$`) },
+  // a Safe's history in the wallet's Multisig tabs: what came in
+  { method: "GET", re: new RegExp(`^/v1/safes/${ADDRESS}/incoming-transfers/$`) },
 ];
-// The pending-transactions list is the only call with a query string.
-const ALLOWED_QUERY_KEYS = new Set(["executed", "nonce__gte"]);
+// Query strings: the pending list (executed, nonce__gte) and the history pages (limit).
+const ALLOWED_QUERY_KEYS = new Set(["executed", "nonce__gte", "limit"]);
 
 // One multisig transaction from start to finish is about 10 requests,
 // so 30 a minute per client is plenty for real use. The global cap

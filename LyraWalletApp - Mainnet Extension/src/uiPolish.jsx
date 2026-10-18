@@ -2,7 +2,8 @@
 // the chain badge on token logos, the empty-wallet invitation, the phone's
 // short vibrations and pull-to-refresh.
 import { useEffect, useRef, useState } from "react";
-import { QrCode } from "lucide-react";
+import { QrCode, Check, AlertTriangle, Info } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { TokenLogo } from "./tokenLogo.jsx";
 import Spinner from "./Spinner.jsx";
 import "./ui-polish.css";
@@ -133,4 +134,35 @@ export function usePullToRefresh(ref, onRefresh) {
     </div>
   ) : null;
   return { indicator, style: pull ? { transform: `translateY(${pull * 0.15}px)` } : undefined };
+}
+
+// ---------------------------------------------------------------- toast
+// The short notices ("Safe address copied.", "Network unavailable"): a pill
+// that drops in at the top like a phone notification, an icon for what kind
+// of news it is, and slides back up when it ends.
+const WARN = /unavailable|fail|error|couldn|can.t|cannot|reject|invalid|not found|denied|wrong|insufficient|too low|blocked/i;
+const OK = /removed|copied|added|approv|executed|deployed|saved|done|connected|sent|success|switched|updated|restored|unlocked|enabled/i;
+export function LyraToast({ text }) {
+  const clean = String(text || "").replace(/^[\u2705\u274C\u26A0\uFE0F\s]+/u, "");
+  const kind = WARN.test(clean) ? "warn" : OK.test(clean) ? "ok" : "info";
+  const Icon = kind === "warn" ? AlertTriangle : kind === "ok" ? Check : Info;
+  return (
+    <AnimatePresence>
+      {text && (
+        <motion.div
+          key={clean}
+          className={`lyra-toast is-${kind}`}
+          role="status"
+          aria-live="polite"
+          initial={{ opacity: 0, y: -28, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -22, scale: 0.96 }}
+          transition={{ type: "spring", stiffness: 520, damping: 34 }}
+        >
+          <span className="lyra-toast-icon"><Icon size={14} strokeWidth={2.6} /></span>
+          <span className="lyra-toast-text">{clean}</span>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }

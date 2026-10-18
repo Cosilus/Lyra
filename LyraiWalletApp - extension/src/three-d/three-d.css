@@ -103,6 +103,17 @@
     box-shadow 0.25s ease;
 }
 .d3-side-menu--show .d3-side-item { opacity: 1; transform: translateY(0) scale(1); }
+/* Closing, the opening in reverse: the buttons shrink back toward the centre
+   (outer ones first), then the menu slides back behind the wallet. */
+.d3-side-menu:not(.d3-side-menu--show) {
+  transition: opacity 0.2s ease var(--close-delay, 0ms), transform 0.2s cubic-bezier(0.64, 0, 0.78, 0) var(--close-delay, 0ms), box-shadow 0.3s ease;
+}
+.d3-side-menu:not(.d3-side-menu--show) .d3-side-item {
+  transition:
+    opacity 0.24s cubic-bezier(0.55, 0, 1, 0.45) var(--delay-out, 0ms),
+    transform 0.26s cubic-bezier(0.36, 0, 0.66, -0.56) var(--delay-out, 0ms),
+    scale 0.22s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.25s ease;
+}
 
 /* Hover: the button lights up and grows a little, with a soft halo, and
    a small label slides out on the outer side. */
@@ -163,7 +174,11 @@
 /* Closing: the menu drops behind the wallet at once (z-index changes instantly,
    the fade runs on): no piece of it left over the wallet while the wallet
    comes back up. */
-.d3-assets-menu:not(.d3-assets-menu--show) { z-index: 0; }
+.d3-assets-menu:not(.d3-assets-menu--show) {
+  z-index: 0;
+  /* the opening in reverse: back up, smaller, fading */
+  transition: opacity 0.25s cubic-bezier(0.55, 0, 1, 0.45), transform 0.25s cubic-bezier(0.55, 0, 0.8, 0.2), box-shadow 0.3s ease;
+}
 .d3-assets-menu--show {
   opacity: 1;
   pointer-events: auto;

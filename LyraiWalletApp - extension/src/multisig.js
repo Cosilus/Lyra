@@ -149,7 +149,7 @@ function hashTx(chainId, safeAddress, txParams) {
 // deployment transaction is broadcast through Lyra's own already-
 // proven ethers signer below, the same one every other transaction in
 // this app goes through.
-export async function deploySafe({ networkKey, signer, owners, threshold }) {
+export async function deploySafe({ networkKey, signer, owners, threshold, onStep }) {
   const network = getNetworkByKey(networkKey);
 
   if (!isSafeSupportedNetwork(networkKey)) {
@@ -165,8 +165,12 @@ export async function deploySafe({ networkKey, signer, owners, threshold }) {
     throw new Error(`The signature threshold must be between 1 and ${owners.length}.`);
   }
 
+  // each stage reported as it starts, for the live checklist (0..4)
+  const step = (i, info) => { try { onStep?.(i, info); } catch { /* display only */ } };
+  step(0);
   const ownerAddress = await signer.getAddress();
 
+  step(1);
   const protocolKit = await Safe.init({
     provider: network.rpcUrl,
     signer: ownerAddress,
@@ -178,15 +182,19 @@ export async function deploySafe({ networkKey, signer, owners, threshold }) {
   const safeAddress = await protocolKit.getAddress();
   const deploymentTx = await protocolKit.createSafeDeploymentTransaction();
 
+  step(2);
   const tx = await signer.sendTransaction({
     to: deploymentTx.to,
     value: BigInt(deploymentTx.value || 0),
     data: deploymentTx.data,
   });
+  step(3, { txHash: tx.hash });
   await tx.wait();
+  step(4);
 
   return {
     address: safeAddress,
+    creationTx: tx.hash,
     network: networkKey,
     owners,
     threshold,
@@ -372,4 +380,65 @@ export async function confirmTransfer({ networkKey, safeAddress, signer, safeTxH
   }
 
   return { executed: false, pending: updated };
+}
+
+// The Safes `owner` is an owner of on a network (Safe's Transaction Service
+// index): how a co-owner on another device finds a Safe it never created.
+export async function findOwnedSafes({ networkKey, owner }) {
+  const out = await txServiceRequest(networkKey, `/v1/owners/${ethers.getAddress(owner)}/safes/`);
+  return (out?.safes || []).map(a => ethers.getAddress(a));
+}
+
+// How the Safe was created: the deployment transaction and who sent it.
+export async function getSafeCreation({ networkKey, safeAddress }) {
+  const out = await txServiceRequest(networkKey, `/v1/safes/${ethers.getAddress(safeAddress)}/creation/`);
+  return out ? { txHash: out.transactionHash || null, creator: out.creator || null, created: out.created || null } : null;
+}
+
+// The pending transactions `owner` still has to approve
+export function waitingFor(pending, owner) {
+  const me = String(owner || "").toLowerCase();
+  return (pending || []).filter(p => !(p.confirmations || []).some(c => String(c.owner).toLowerCase() === me));
+}
+
+// What a pending transaction does, in words: a transfer, an owner added, or a contract call
+const DESCRIBE_ABI = new ethers.Interface([
+  "function addOwnerWithThreshold(address owner, uint256 _threshold)",
+  "function removeOwner(address prevOwner, address owner, uint256 _threshold)",
+  "function changeThreshold(uint256 _threshold)",
+  "function transfer(address to, uint256 amount)",
+]);
+export function describeSafeTx(p, { nativeSymbol = "ETH", safeAddress } = {}) {
+  const value = BigInt(p.value || 0);
+  const data = p.data && p.data !== "0x" ? p.data : null;
+  if (!data) return { kind: "transfer", title: `Send ${ethers.formatEther(value)} ${nativeSymbol}`, to: p.to };
+  try {
+    const call = DESCRIBE_ABI.parseTransaction({ data });
+    if (call?.name === "addOwnerWithThreshold") return { kind: "owner", title: "Add an owner", to: call.args[0], detail: `Signatures required: ${call.args[1]}` };
+    if (call?.name === "removeOwner") return { kind: "owner", title: "Remove an owner", to: call.args[1], detail: `Signatures required: ${call.args[2]}` };
+    if (call?.name === "changeThreshold") return { kind: "owner", title: `Require ${call.args[0]} signatures`, to: safeAddress };
+    if (call?.name === "transfer") return { kind: "token", title: "Send tokens", to: call.args[0], detail: `Raw amount ${call.args[1]} of token ${p.to}` };
+  } catch { /* another contract call */ }
+  return { kind: "call", title: "Contract call", to: p.to, detail: `${data.slice(0, 10)}… (${(data.length - 2) / 2} bytes)` };
+}
+
+// A Safe's own history for the wallet's Multisig tabs: its transactions
+// (pending and executed, newest first) and what came into it
+export async function fetchSafeHistory({ networkKey, safeAddress }) {
+  const out = await txServiceRequest(networkKey, `/v2/safes/${safeAddress}/multisig-transactions/?limit=25`);
+  return out?.results || [];
+}
+export async function fetchSafeIncoming({ networkKey, safeAddress }) {
+  const out = await txServiceRequest(networkKey, `/v1/safes/${safeAddress}/incoming-transfers/?limit=25`);
+  return out?.results || [];
+}
+
+// A Safe transaction in Safe{Wallet}, where every owner sees it (chains it
+// lists only; elsewhere null)
+const SAFE_APP_PREFIX = { 1: "eth", 8453: "base", 137: "matic", 11155111: "sep", 84532: "basesep" };
+export function safeAppTxUrl(networkKey, safeAddress, safeTxHash) {
+  const prefix = SAFE_APP_PREFIX[getNetworkByKey(networkKey)?.chainId];
+  if (!prefix) return null;
+  const safe = ethers.getAddress(safeAddress);
+  return `https://app.safe.global/transactions/tx?safe=${prefix}:${safe}&id=multisig_${safe}_${safeTxHash}`;
 }

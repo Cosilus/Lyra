@@ -79,8 +79,16 @@ function useBoxSize() {
 function SideMenu({ side, items, position, spotIndex }) {
   const centerIndex = (items.length - 1) / 2;
   const show = side === position;
+  // closing runs the opening backwards: the outer buttons fold in first, the
+  // centre one last, then the menu itself slides away
+  const outStagger = Math.round(DOCK.itemStaggerMs * 0.6);
+  const maxDist = Math.floor(centerIndex + 0.5);
   return (
-    <nav className={`d3-side-menu d3-side-menu--${position}${show ? " d3-side-menu--show" : ""}`} aria-hidden={!show}>
+    <nav
+      className={`d3-side-menu d3-side-menu--${position}${show ? " d3-side-menu--show" : ""}`}
+      aria-hidden={!show}
+      style={{ "--close-delay": `${maxDist * outStagger + 170}ms` }}
+    >
       {items.map((item, i) => (
         <button
           key={item.label}
@@ -94,6 +102,7 @@ function SideMenu({ side, items, position, spotIndex }) {
             // Only the entrance is staggered; hover must answer at once.
             "--delay": `${Math.abs(i - centerIndex) * DOCK.itemStaggerMs}ms`,
             "--offset": i - centerIndex,
+            "--delay-out": `${Math.round((centerIndex - Math.abs(i - centerIndex)) * outStagger)}ms`,
           }}
         >
           {item.icon}
