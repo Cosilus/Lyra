@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
+import "./fonts.css";
 import { startCardBridge, startCloseShortcut } from "./cardBridge.js";
 import { syncNetworks } from "./providerSync.js";
 import { startTooltips } from "./tooltips.js";

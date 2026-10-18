@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Spinner from "./Spinner.jsx";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Plus, Download, Lock, ArrowLeft, Pencil, Usb, ChevronDown, ShieldCheck } from "lucide-react";
+import { Check, Plus, Download, Lock, ArrowLeft, Pencil, Usb, ChevronDown, ShieldCheck, X } from "lucide-react";
 
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "");
 
@@ -22,7 +22,7 @@ function AccountMark({ address }) {
   );
 }
 
-export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, onCreate, onImport, onRename, onConnectLedger, onConnectOneKey, onConnectTrezor, multisigs = [], onOpenMultisig }) {
+export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, onCreate, onImport, onRename, onConnectLedger, onConnectOneKey, onConnectTrezor, multisigs = [], onOpenMultisig, onRemove }) {
   // the address being renamed, and the name being typed
   const [renaming, setRenaming] = useState(null);
   const [draftName, setDraftName] = useState("");
@@ -96,6 +96,8 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
             <ul className="acct-list">
               {accounts.map((a, i) => {
                 const active = a.address.toLowerCase() === activeAddress?.toLowerCase();
+                // the main address (the recovery phrase's first) and the one in use stay
+                const removable = !!onRemove && !active && a.kind !== "main";
                 if (renaming === a.address) {
                   return (
                     <li key={a.address}>
@@ -127,7 +129,7 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
                 return (
                   <motion.li
                     key={a.address}
-                    className="acct-item"
+                    className={`acct-item${removable ? " can-remove" : ""}`}
                     initial={{ opacity: 0, x: -14 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: Math.min(i, 8) * 0.04 }}
@@ -158,6 +160,17 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
                     >
                       <Pencil size={12} strokeWidth={2} />
                     </button>
+                    {removable && (
+                      <button
+                        type="button"
+                        className="acct-remove"
+                        onClick={() => onRemove(a)}
+                        aria-label={`Remove ${a.name}`}
+                        data-tip="Remove"
+                      >
+                        <X size={12} strokeWidth={2.6} />
+                      </button>
+                    )}
                   </motion.li>
                 );
               })}
@@ -177,8 +190,8 @@ export function AccountSwitcher({ accounts, activeAddress, keyReady, onSwitch, o
                       <button type="button" className="acct-row" onClick={() => onOpenMultisig(m)}>
                         <span className="acct-ms-mark"><ShieldCheck size={14} strokeWidth={2} /></span>
                         <span className="acct-text">
-                          <span className="acct-name">{m.threshold}-of-{m.owners?.length || "?"} · {m.networkName}</span>
-                          <span className="acct-address">{short(m.address)}</span>
+                          <span className="acct-name">{m.name || `${m.threshold}-of-${m.owners?.length || "?"} · ${m.networkName}`}</span>
+                          <span className="acct-address">{short(m.address)}{m.balanceText ? <span className="acct-ms-bal"> · {m.balanceText}</span> : null}</span>
                         </span>
                         {m.waiting > 0 && <span className="acct-ms-badge">{m.waiting} to sign</span>}
                       </button>

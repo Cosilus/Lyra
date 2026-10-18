@@ -1,0 +1,26 @@
+/* ConfirmDialog.jsx */
+.cd-overlay {
+  position: fixed; inset: 0; z-index: 1250;
+  display: flex; align-items: flex-end; justify-content: center; padding: 14px;
+  background: rgba(7, 5, 12, 0.5);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+@media (min-height: 520px) { .cd-overlay { align-items: center; } }
+.cd-sheet {
+  width: 100%; max-width: 340px; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 22px 18px 16px; border-radius: 24px;
+  background: linear-gradient(180deg, #221836, #150e22);
+  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: var(--beige);
+}
+.cd-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(229, 115, 99, 0.14); color: #F08A78; margin-bottom: 12px; }
+.cd-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.cd-text { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.cd-note { margin: 10px 0 0; padding: 9px 11px; border-radius: 12px; font-size: 12px; line-height: 1.4; color: #F5C2A8; background: rgba(229, 115, 99, 0.1); }
+.cd-actions { display: flex; gap: 8px; width: 100%; margin-top: 18px; }
+.cd-actions button { flex: 1; height: 42px; border-radius: 14px; border: 0; cursor: pointer; font: 700 13.5px var(--sans); }
+.cd-cancel { background: rgba(var(--beige-rgb), 0.08); color: var(--beige); }
+.cd-cancel:hover { background: rgba(var(--beige-rgb), 0.12); }
+.cd-confirm { background: #D9604C; color: #fff; }
+.cd-confirm:hover { background: #E26B57; }

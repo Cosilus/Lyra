@@ -4,6 +4,7 @@ import RequestApp from "./RequestApp.jsx";
 import { syncNetworks } from "../providerSync.js";
 import { startFadeScroll } from "../fadeScroll.js";
 import "../styles.css";
+import "../fonts.css";
 import "./request.css";
 
 syncNetworks();

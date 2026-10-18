@@ -25,8 +25,8 @@
   --danger: #F2A0A0;
   --success: #B9E3B0;
 
-  --sans: "Inter", system-ui, -apple-system, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   font-family: var(--sans);
   color: var(--beige);

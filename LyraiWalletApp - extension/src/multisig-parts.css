@@ -117,3 +117,42 @@ a.tx-item.tx-line { text-decoration: none; color: inherit; }
 }
 .ms-remove-btn:hover { background: rgba(213, 116, 99, 0.12); }
 .ms-remove-btn.is-confirm { background: #D57463; border-color: #D57463; color: #fff; }
+
+/* addresses menu: a Safe's balance after its address */
+.acct-ms-bal { color: var(--beige); opacity: 0.85; }
+
+/* addresses menu: the small red cross that removes an address (not the main
+   one, not the one in use); it takes the lock's place while hovered */
+.acct-remove {
+  position: absolute; right: 8px; top: 50%; translate: 0 -50%;
+  display: grid; place-items: center; width: 22px; height: 22px; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer;
+  background: rgba(229, 96, 76, 0.14); color: #F07562;
+  opacity: 0; transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.acct-item:hover .acct-remove, .acct-remove:focus-visible { opacity: 1; }
+.acct-remove:hover { background: #D9604C; color: #fff; }
+.acct-item.can-remove:hover .acct-state { opacity: 0; }
+@media (hover: none) {
+  .acct-remove { opacity: 1; }
+  .acct-item.can-remove .acct-state { display: none; }
+}
+
+/* Safe screen header: its name, renamed in place */
+.ms-name { display: inline-flex; align-items: center; gap: 7px; min-width: 0; padding: 0; border: 0; background: none; color: var(--muted); cursor: pointer; }
+.ms-name .contacts-title { color: var(--beige); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-name:hover { color: var(--beige); }
+.ms-name-input {
+  flex: 1; min-width: 0; margin-right: 10px; padding: 6px 10px; border-radius: 10px;
+  border: 1px solid rgba(var(--beige-rgb), 0.25); background: rgba(var(--beige-rgb), 0.05);
+  color: var(--beige); font: 700 15px var(--sans); outline: none;
+}
+
+/* the pill, quieter: a dot with a breathing halo, "1 approval waiting" */
+.ms-pill { gap: 8px; padding: 0 13px 0 11px; border-color: rgba(var(--beige-rgb), 0.1); background: rgba(27, 18, 40, 0.92); }
+.ms-pill::after { display: none; }
+.ms-pill-dot { position: relative; flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.ms-pill-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: rgba(var(--accent-rgb), 0.35); animation: ms-halo 1.8s ease-out infinite; }
+@keyframes ms-halo { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(1.6); opacity: 0; } }
+.ms-pill-text { color: var(--beige); font-weight: 500; }
+@media (prefers-reduced-motion: reduce) { .ms-pill-dot::after { animation: none; } }
