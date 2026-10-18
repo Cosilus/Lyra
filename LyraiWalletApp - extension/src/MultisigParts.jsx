@@ -137,20 +137,22 @@ export function PendingSafeTx({ p, safe, me, nativeSymbol, busy, defaultOpen, on
 }
 
 // The pill at the top right, like a deposit arriving
-export function MultisigWaitingPill({ count, onOpen }) {
+export function MultisigWaitingPill({ count, onOpen, layoutId }) {
   return (
     <motion.button
       type="button"
+      layoutId={layoutId}
+      style={{ borderRadius: 999 }}
       className="ms-pill"
       initial={{ opacity: 0, y: -8, scale: 0.94 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -6, scale: 0.97 }}
       transition={{ type: "spring", stiffness: 420, damping: 30 }}
       onClick={onOpen}
-      aria-label={`Multisig approval waiting${count > 1 ? ` (${count})` : ""}`}
+      aria-label={`${count} multisig approval${count > 1 ? "s" : ""} waiting`}
     >
-      <span className="ms-pill-pulse" aria-hidden="true"><span /><span /><span /></span>
-      <span className="ms-pill-text">Multisig approval waiting{count > 1 ? ` · ${count}` : ""}</span>
+      <span className="ms-pill-dot" aria-hidden="true" />
+      <span className="ms-pill-text">{count} approval{count > 1 ? "s" : ""} waiting</span>
     </motion.button>
   );
 }
