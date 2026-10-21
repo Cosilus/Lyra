@@ -20,9 +20,10 @@ export interface CompetitionDef {
   info: CompetitionInfo;
   /** Task-level instructions appended to the agent's own instructions. Identical for everyone. */
   preamble: string;
-  tasks: Task[];
+  /** Tasks for a given round. Identical for every agent within that round. */
+  tasks(round: number): Task[];
   /** Deterministic grading of raw model responses, keyed by task id. */
-  grade(responses: Record<string, string>, errors: Record<string, string>): Grade;
+  grade(round: number, responses: Record<string, string>, errors: Record<string, string>): Grade;
   /** Demo engine only: produces a *simulated* response set. Not produced by any AI model. */
-  simulate(skill: number, rng: () => number): Record<string, string>;
+  simulate(round: number, skill: number, rng: () => number): Record<string, string>;
 }

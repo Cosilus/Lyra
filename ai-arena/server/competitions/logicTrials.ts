@@ -17,7 +17,7 @@ interface Question {
 
 export const POINTS_PER_QUESTION = 10;
 
-const QUESTIONS: Question[] = [
+const SET_A: Question[] = [
   {
     id: 'q1', tag: 'arithmetic', kind: 'number',
     prompt: 'A portfolio is worth $1,000. It increases by 20%, then decreases by 20%. What is its final value in dollars?',
@@ -90,9 +90,30 @@ const QUESTIONS: Question[] = [
   },
 ];
 
+
+const q = (id: string, tag: Question['tag'], kind: Kind, prompt: string, expected: number | string[], expectedLabel: string, explanation: string, wrong: string[]): Question =>
+  ({ id, tag, kind, prompt, expected, expectedLabel, explanation, wrong });
+
+const SET_B: Question[] = [
+  q('q1', 'arithmetic', 'number', 'An item costs $200. Its price rises by 10%, then falls by 10%. What is the final price in dollars?', 198, '$198', '$200 × 1.10 × 0.90 = $198. The 10% fall applies to the higher price.', ['200', '190', '180']),
+  q('q2', 'sequences', 'number', 'What is the next number in the sequence: 5, 10, 20, 40, ?', 80, '80', 'Each term doubles, so 40 × 2 = 80.', ['60', '100', '160']),
+  q('q3', 'sequences', 'number', 'What is the next number in the sequence: 1, 4, 9, 16, 25, ?', 36, '36', 'These are the square numbers: 6² = 36.', ['30', '35', '49']),
+  q('q4', 'logic', 'number', 'If 5 workers dig 5 holes in 5 days, how many days do 50 workers need to dig 50 holes?', 5, '5 days', 'Each worker digs one hole in 5 days, so 50 workers dig 50 holes in the same 5 days.', ['50', '10', '1']),
+  q('q5', 'arithmetic', 'number', 'A notebook and a pen cost $2.20 in total. The notebook costs $2.00 more than the pen. How many cents does the pen cost?', 10, '10 cents', 'Pen = x, notebook = x + 2.00, so 2x + 2.00 = 2.20 and x = $0.10.', ['20', '5', '1']),
+  q('q6', 'multi-step', 'number', 'A car drives 120 km at 60 km/h, then another 120 km at 40 km/h. What is its average speed over the whole trip, in km/h?', 48, '48 km/h', 'Total distance 240 km. Time = 2 h + 3 h = 5 h. 240 / 5 = 48 km/h (not the simple mean of 50).', ['50', '45', '52']),
+  q('q7', 'logic', 'number', 'A patch of algae doubles in size every day and covers the whole pond on day 30. On which day does it cover a quarter of the pond?', 28, 'Day 28', 'It covers half the pond on day 29 and a quarter on day 28.', ['15', '29', '26']),
+  q('q8', 'logic', 'text', 'Some cats are pets. All pets are animals. Is it necessarily true that some cats are animals? Answer "yes" or "no".', ['yes'], 'Yes', 'The cats that are pets are animals, so at least some cats are animals.', ['no']),
+  q('q9', 'sequences', 'number', 'What is the next number in the sequence: 2, 3, 5, 9, 17, ?', 33, '33', 'The differences are 1, 2, 4, 8, so the next difference is 16 and 17 + 16 = 33.', ['31', '25', '34']),
+  q('q10', 'multi-step', 'number', 'A coat costs $150. It is discounted by 20%, then a $10 coupon is subtracted from the discounted price. What is the final price in dollars?', 110, '$110', '$150 × 0.80 = $120, then $120 − $10 = $110.', ['120', '100', '105']),
+];
+
+/** Two question sets alternate from round to round. Within a round every agent gets the same set. */
+const SETS = [SET_A, SET_B];
+const questionsFor = (round: number) => SETS[(round - 1) % SETS.length];
+
 const FORMAT = 'Reply with the final answer only, on a single line, in exactly this format: ANSWER: <value>';
 
-const tasks: Task[] = QUESTIONS.map((q, i) => ({ id: q.id, label: `Question ${i + 1}`, tag: q.tag, prompt: `${q.prompt}\n\n${FORMAT}` }));
+const tasksFor = (round: number): Task[] => questionsFor(round).map((q, i) => ({ id: q.id, label: `Question ${i + 1}`, tag: q.tag, prompt: `${q.prompt}\n\n${FORMAT}` }));
 
 /** Extracts the value after the last "ANSWER:" marker. Returns null if the format was not respected. */
 export function extractAnswer(raw: string): string | null {
@@ -130,12 +151,12 @@ export const logicTrials: CompetitionDef = {
     name: 'THE LOGIC TRIALS',
     tagline: 'A challenge designed to test accuracy, reasoning and consistency.',
     description:
-      'Ten fixed questions covering arithmetic, number sequences, logic puzzles and multi-step problems. Every agent receives exactly the same questions and every answer is checked automatically.',
+      'Ten questions per round covering arithmetic, number sequences, logic puzzles and multi-step problems. Two question sets alternate between rounds. Within a round, every agent receives exactly the same questions and every answer is checked automatically.',
     status: 'live',
     championship: 'standard',
     specialties: ['math_logic', 'general', 'strategy'],
-    taskCount: QUESTIONS.length,
-    maxScore: QUESTIONS.length * POINTS_PER_QUESTION,
+    taskCount: SET_A.length,
+    maxScore: SET_A.length * POINTS_PER_QUESTION,
     durationLabel: '10 questions · about 1 min',
     rules: [
       'Standard championship: identical questions, identical task instructions, identical limits for every agent.',
@@ -152,10 +173,10 @@ export const logicTrials: CompetitionDef = {
     publishAnswers: true,
   },
   preamble: 'You are answering one question from a closed-book logic and maths test. No tools are available.',
-  tasks,
+  tasks: tasksFor,
 
-  grade(responses, errors) {
-    const answers: AnswerRecord[] = QUESTIONS.map((q, i) => {
+  grade(round, responses, errors) {
+    const answers: AnswerRecord[] = questionsFor(round).map((q, i) => {
       const raw = responses[q.id] ?? '';
       const parsed = extractAnswer(raw);
       const correct = parsed !== null && checkAnswer(q, parsed);
@@ -181,9 +202,9 @@ export const logicTrials: CompetitionDef = {
     return { score: answers.reduce((s, a) => s + a.points, 0), answers, criteria, strengths, mistakes };
   },
 
-  simulate(skill, rng) {
+  simulate(round, skill, rng) {
     const out: Record<string, string> = {};
-    for (const q of QUESTIONS) {
+    for (const q of questionsFor(round)) {
       const right = rng() < skill;
       const value = right ? q.expectedLabel.replace(/[^\d.]/g, '') || (q.expected as string[])[0] : q.wrong[Math.floor(rng() * q.wrong.length)];
       out[q.id] = `[simulated] ANSWER: ${value}`;

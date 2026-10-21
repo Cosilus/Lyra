@@ -194,7 +194,7 @@ export function createApp(store: Store) {
     if (!round) throw new HttpError(404, 'Round not found.');
     if (round.status !== 'completed') throw new HttpError(409, 'Results are published once the round is complete.');
     const def = getCompetition(round.competitionId)!;
-    const body: RoundDetail = { round, info: def.info, tasks: def.tasks, results: round.results };
+    const body: RoundDetail = { round, info: def.info, tasks: def.tasks(round.number), results: round.results };
     res.json(body);
   });
 

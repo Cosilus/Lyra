@@ -32,41 +32,55 @@ describe('The Logic Trials scoring', () => {
     q6: 'ANSWER: 2', q7: 'ANSWER: 47', q8: 'ANSWER: yes', q9: 'ANSWER: 65', q10: 'ANSWER: $66',
   };
   it('gives 100 for all-correct answers', () => {
-    expect(logicTrials.grade(perfect, {}).score).toBe(100);
+    expect(logicTrials.grade(1, perfect, {}).score).toBe(100);
   });
   it('gives 0 for empty answers and 10 per correct answer', () => {
-    expect(logicTrials.grade({}, {}).score).toBe(0);
-    expect(logicTrials.grade({ ...perfect, q1: 'ANSWER: 1000', q2: 'no format' }, {}).score).toBe(80);
+    expect(logicTrials.grade(1, {}, {}).score).toBe(0);
+    expect(logicTrials.grade(1, { ...perfect, q1: 'ANSWER: 1000', q2: 'no format' }, {}).score).toBe(80);
   });
   it('simulated answers go through the same grader and are reproducible', () => {
-    const a = logicTrials.grade(logicTrials.simulate(0.6, makeRng('x')), {});
-    const b = logicTrials.grade(logicTrials.simulate(0.6, makeRng('x')), {});
+    const a = logicTrials.grade(1, logicTrials.simulate(1, 0.6, makeRng('x')), {});
+    const b = logicTrials.grade(1, logicTrials.simulate(1, 0.6, makeRng('x')), {});
     expect(a.score).toBe(b.score);
     expect(a.score % 10).toBe(0);
   });
   it('simulation at skill 1 is perfect and at skill 0 scores nothing', () => {
-    expect(logicTrials.grade(logicTrials.simulate(1, makeRng('a')), {}).score).toBe(100);
-    expect(logicTrials.grade(logicTrials.simulate(0, makeRng('a')), {}).score).toBe(0);
+    expect(logicTrials.grade(1, logicTrials.simulate(1, 1, makeRng('a')), {}).score).toBe(100);
+    expect(logicTrials.grade(1, logicTrials.simulate(1, 0, makeRng('a')), {}).score).toBe(0);
   });
   it('never puts expected answers in task prompts', () => {
-    for (const t of logicTrials.tasks) expect(t.prompt).not.toMatch(/960|explanation/i);
+    for (const t of logicTrials.tasks(1)) expect(t.prompt).not.toMatch(/960|explanation/i);
+  });
+});
+
+describe('question sets', () => {
+  const answersB: Record<string, string> = { q1: '198', q2: '80', q3: '36', q4: '5', q5: '10', q6: '48', q7: '28', q8: 'yes', q9: '33', q10: '110' };
+  it('round 2 uses the second set, graded with its own answers', () => {
+    const r = Object.fromEntries(Object.entries(answersB).map(([k, v]) => [k, `ANSWER: ${v}`]));
+    expect(logicTrials.grade(2, r, {}).score).toBe(100);
+    expect(logicTrials.grade(1, r, {}).score).toBeLessThan(100);
+    expect(logicTrials.tasks(1)[0].prompt).not.toBe(logicTrials.tasks(2)[0].prompt);
+    expect(logicTrials.tasks(3)[0].prompt).toBe(logicTrials.tasks(1)[0].prompt);
+  });
+  it('simulation at skill 1 is perfect on both sets', () => {
+    for (const round of [1, 2]) expect(logicTrials.grade(round, logicTrials.simulate(round, 1, makeRng('z')), {}).score).toBe(100);
   });
 });
 
 describe('Research Arena rubric', () => {
   it('scores an empty report 0', () => {
-    expect(researchArena.grade({ report: '' }, {}).score).toBe(0);
+    expect(researchArena.grade(1, { report: '' }, {}).score).toBe(0);
   });
   it('rewards a complete sourced report and penalises invented sources', () => {
-    const good = researchArena.simulate(1, makeRng('r'));
-    const full = researchArena.grade(good, {}).score;
+    const good = researchArena.simulate(1, 1, makeRng('r'));
+    const full = researchArena.grade(1, good, {}).score;
     expect(full).toBeGreaterThanOrEqual(90);
-    const bad = researchArena.grade({ report: good.report + ' See [S9].' }, {}).score;
+    const bad = researchArena.grade(1, { report: good.report + ' See [S9].' }, {}).score;
     expect(bad).toBeLessThan(full);
   });
   it('never exceeds the maximum', () => {
     for (let i = 0; i < 30; i++) {
-      const s = researchArena.grade(researchArena.simulate(Math.random(), makeRng('s' + i)), {}).score;
+      const s = researchArena.grade(1, researchArena.simulate(1, Math.random(), makeRng('s' + i)), {}).score;
       expect(s).toBeGreaterThanOrEqual(0);
       expect(s).toBeLessThanOrEqual(100);
     }

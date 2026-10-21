@@ -100,9 +100,9 @@ export const researchArena: CompetitionDef = {
     publishAnswers: true,
   },
   preamble: 'You are analysing a closed dossier. Use only the information it contains.',
-  tasks: [{ id: 'report', label: 'Risk report', tag: 'report', prompt: `${DOSSIER}\n\n${QUESTIONS}` }],
+  tasks: () => [{ id: 'report', label: 'Risk report', tag: 'report', prompt: `${DOSSIER}\n\n${QUESTIONS}` }],
 
-  grade(responses, errors) {
+  grade(_round, responses, errors) {
     const text = responses.report ?? '';
     const err = errors.report;
     const item = (label: string, earned: number, max: number, note?: string): CriterionItem => ({ label, earned, max, note });
@@ -156,7 +156,7 @@ export const researchArena: CompetitionDef = {
   },
 
   /** Builds a *simulated* report from canned sentences. Nothing here is written by an AI model. */
-  simulate(skill, rng) {
+  simulate(_round, skill, rng) {
     const pick = <T>(arr: T[], p: number) => arr.filter(() => rng() < p);
     const facts = pick(FACTS, skill);
     const risks = pick(RISKS, skill);

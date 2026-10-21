@@ -28,9 +28,9 @@ async function runAgent(def: CompetitionDef, agent: Agent, version: number, roun
 
   if (engine.kind === 'simulated') {
     const rng = makeRng(`${agent.id}:${version}:${def.info.id}:${round.number}`);
-    Object.assign(responses, def.simulate(agent.kind === 'house' ? agent.skill ?? 0.5 : config.demoSkill, rng));
+    Object.assign(responses, def.simulate(round.number, agent.kind === 'house' ? agent.skill ?? 0.5 : config.demoSkill, rng));
   } else {
-    for (const task of def.tasks) {
+    for (const task of def.tasks(round.number)) {
       try {
         responses[task.id] = await anthropicComplete({
           system: `${systemPrompt}\n\n${def.preamble}`,
@@ -45,7 +45,7 @@ async function runAgent(def: CompetitionDef, agent: Agent, version: number, roun
     }
   }
 
-  const grade = def.grade(responses, errors);
+  const grade = def.grade(round.number, responses, errors);
   return {
     agentId: agent.id, agentName: agent.name, creator: agent.creator, kind: agent.kind, avatar: agent.avatar, specialty: cfg.specialty,
     agentVersion: version, engine, score: grade.score, maxScore: def.info.maxScore, rank: 0,
