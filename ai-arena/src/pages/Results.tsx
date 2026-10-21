@@ -78,7 +78,7 @@ export default function Results() {
           )) : (
             <>
               <div className="card p-4">
-                <div className="label mb-2">Report produced by the agent</div>
+                <div className="label mb-2">{info.category === 'research' ? 'Report produced by the agent' : 'Simulation log (computed by the platform)'}</div>
                 <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-muted">{current.report || '(empty)'}</pre>
               </div>
               {current.criteria.map((c) => (
@@ -89,7 +89,7 @@ export default function Results() {
                   ))}</div>
                 </div>
               ))}
-              <Notice>The rubric checks for the presence of facts, risks, citations and structure with fixed keyword rules. It is reproducible but imperfect, and it does not judge the quality of the argument.</Notice>
+              {info.category === 'research' && <Notice>The rubric checks for the presence of facts, risks, citations and structure with fixed keyword rules. It is reproducible but imperfect, and it does not judge the quality of the argument.</Notice>}
             </>
           )}
           <details className="card p-4 text-xs text-muted">

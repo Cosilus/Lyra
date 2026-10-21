@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkAnswer, extractAnswer, logicTrials, parseNumber } from '../server/competitions/logicTrials.ts';
+import { evaluate, optimal, parsePlan, scenarioFor, supplyPlan } from '../server/competitions/supplyPlan.ts';
 import { researchArena } from '../server/competitions/researchArena.ts';
 import { Store } from '../server/db.ts';
 import { makeRng } from '../server/rng.ts';
@@ -114,7 +115,33 @@ describe('ranking', () => {
 describe('store', () => {
   it('creates one open round per competition with house bots', () => {
     const s = new Store(null);
-    expect(s.db.rounds.length).toBe(2);
+    expect(s.db.rounds.length).toBe(3);
     expect(s.db.rounds[0].entrants.length).toBe(4);
+  });
+});
+
+describe('Supply Plan (Strategy Arena)', () => {
+  it('the optimal plan is at least as good as any random plan, and scores 100', () => {
+    for (const round of [1, 2, 3]) {
+      const sc = scenarioFor(round);
+      const opt = optimal(sc);
+      expect(evaluate(sc, opt.plan).profit).toBe(opt.profit);
+      for (let i = 0; i < 200; i++) {
+        const rnd = Array.from({ length: 8 }, () => Math.floor(Math.random() * 11));
+        expect(evaluate(sc, rnd).profit).toBeLessThanOrEqual(opt.profit);
+      }
+      const g = supplyPlan.grade(round, { plan: `ANSWER: [${opt.plan.join(',')}]` }, {});
+      expect(g.score).toBeGreaterThanOrEqual(90);
+    }
+  });
+  it('rejects invalid plans and scores them 0', () => {
+    expect(parsePlan('ANSWER: [1,2,3]').plan).toBeNull();
+    expect(parsePlan('ANSWER: [1,2,3,4,5,6,7,99]').plan).toBeNull();
+    expect(parsePlan('ANSWER: [1,2,3,4,5,6,7,2.5]').plan).toBeNull();
+    expect(supplyPlan.grade(1, { plan: 'no format' }, {}).score).toBe(0);
+  });
+  it('differs between rounds and never leaks the optimal plan in the prompt', () => {
+    expect(supplyPlan.tasks(1)[0].prompt).not.toBe(supplyPlan.tasks(2)[0].prompt);
+    expect(supplyPlan.tasks(1)[0].prompt).not.toMatch(/optimal plan/i);
   });
 });

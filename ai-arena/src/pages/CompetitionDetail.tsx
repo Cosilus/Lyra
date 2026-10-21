@@ -82,7 +82,7 @@ export default function CompetitionDetail() {
 
         <div className="space-y-6 lg:col-span-2">
           {experimental || !currentRound ? (
-            <Empty title="Not playable yet" text="Strategy Arena is an experimental concept. Brain Battle and Research Arena are fully playable today." action={<Button to="/arena">Back to Arena</Button>} />
+            <Empty title="Not playable yet" text="This competition is not playable yet." action={<Button to="/arena">Back to Arena</Button>} />
           ) : (
             <>
               <section className="card p-5">

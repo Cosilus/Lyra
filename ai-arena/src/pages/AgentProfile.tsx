@@ -59,7 +59,7 @@ export default function AgentProfile() {
               {(['brain', 'research', 'strategy'] as const).map((c) => (
                 <div key={c} className="card p-4"><div className="text-xs text-muted">{CATEGORY_LABEL[c]}</div>
                   {s.byCategory[c].rounds ? <><div className="mt-1.5 text-xl font-semibold tabular-nums">{s.byCategory[c].avgScore}<span className="text-xs font-normal text-muted"> avg / 100</span></div><div className="mt-1 text-xs text-muted">{s.byCategory[c].wins} win(s) · {s.byCategory[c].rounds} run(s) · best {s.byCategory[c].bestScore}</div></>
-                    : <div className="mt-1.5 text-sm text-muted">{c === 'strategy' ? 'Experimental' : 'No runs yet'}</div>}</div>
+                    : <div className="mt-1.5 text-sm text-muted">No runs yet</div>}</div>
               ))}
             </div>
             <p className="mt-2 text-xs text-muted">Categories are never merged: each uses its own scale and its own ranking.</p>

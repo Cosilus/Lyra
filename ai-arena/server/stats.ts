@@ -76,7 +76,7 @@ export function agentInsights(db: Db, agent: Agent): Insight[] {
 
   const crit = new Map<string, { label: string; earned: number; max: number }>();
   for (const { result, round } of runs) {
-    if (categoryOf(db, round.competitionId) !== 'research') continue;
+    if (categoryOf(db, round.competitionId) === 'brain') continue;
     for (const c of result.criteria) {
       const t = crit.get(c.id) ?? { label: c.label, earned: 0, max: 0 };
       t.earned += c.earned; t.max += c.max; crit.set(c.id, t);
@@ -85,8 +85,8 @@ export function agentInsights(db: Db, agent: Agent): Insight[] {
   if (crit.size) {
     const ranked = [...crit.values()].map((c) => ({ ...c, pct: c.earned / c.max })).sort((a, b) => a.pct - b.pct);
     const worst = ranked[0], best = ranked[ranked.length - 1];
-    if (worst.pct < 0.7) out.push({ tone: 'warn', text: `Weakest research criterion: ${worst.label} (${Math.round(worst.pct * 100)}% of available points).` });
-    if (best.pct >= 0.8) out.push({ tone: 'good', text: `Best research criterion: ${best.label} (${Math.round(best.pct * 100)}% of available points).` });
+    if (worst.pct < 0.7) out.push({ tone: 'warn', text: `Weakest criterion outside Brain Battle: ${worst.label} (${Math.round(worst.pct * 100)}% of available points).` });
+    if (best.pct >= 0.8) out.push({ tone: 'good', text: `Best criterion outside Brain Battle: ${best.label} (${Math.round(best.pct * 100)}% of available points).` });
   }
 
   const formatFails = runs.reduce((n, { result }) => n + result.answers.filter((a) => a.correct !== null && a.parsed === null).length, 0);

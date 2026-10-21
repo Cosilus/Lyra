@@ -113,7 +113,7 @@ export default function AgentWizard() {
             <div className="grid gap-3 sm:grid-cols-2">{SPECIALTIES.map((s) => (
               <Choice key={s.id} selected={form.config.specialty === s.id} title={s.label} text={s.summary}
                 onClick={() => setC({ specialty: s.id, strategy: strategiesFor(s.id).some((x) => x.id === form.config.strategy) ? form.config.strategy : strategiesFor(s.id)[0].id })} />))}
-              <p className="text-xs text-muted sm:col-span-2">Each competition accepts certain specialties only. Brain Battle accepts Mathematics & Logic, Strategy and General Intelligence. Research Arena accepts Research & Analysis, Crypto & Web3 and General Intelligence.</p></div>
+              <p className="text-xs text-muted sm:col-span-2">Each competition accepts certain specialties only. Brain Battle and Strategy Arena accept Mathematics & Logic, Strategy and General Intelligence. Research Arena accepts Research & Analysis, Crypto & Web3 and General Intelligence.</p></div>
           )}
 
           {step === 3 && (

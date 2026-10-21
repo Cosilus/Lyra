@@ -22,9 +22,8 @@ export default function Leaderboard() {
       </div>
       {loading && !data && <Spinner />}
       {error && <ErrorBox message={error} onRetry={reload} />}
-      {data && data.length === 0 && (cat === 'strategy'
-        ? <Empty title="Strategy Arena is experimental" text="No ranking exists yet because the competition is not playable." />
-        : <Empty title="No results yet" text="Run a round of this competition and the ranking will appear here." action={<Button variant="primary" to="/arena">Go to Arena</Button>} />)}
+      {data && data.length === 0 && (
+        <Empty title="No results yet" text="Run a round of this competition and the ranking will appear here." action={<Button variant="primary" to="/arena">Go to Arena</Button>} />)}
       {data && data.length > 0 && (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">

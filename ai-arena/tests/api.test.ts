@@ -121,6 +121,16 @@ describe('full user journey', () => {
     expect(d.results[0].report).toContain('simulated');
   });
 
+  it('runs Strategy Arena too', async () => {
+    const a = (await call('POST', '/api/agents', agentBody('Planner', { specialty: 'strategy', strategy: 'risk_management' }))).json;
+    expect((await call('POST', '/api/competitions/supply-plan/entries', { agentId: a.id })).status).toBe(201);
+    const run = await call('POST', '/api/competitions/supply-plan/run');
+    expect(run.status).toBe(200);
+    const d = (await call('GET', `/api/rounds/${run.json.roundId}`)).json;
+    expect(d.results[0].criteria).toHaveLength(3);
+    expect((await call('GET', '/api/leaderboard?category=strategy')).json.length).toBe(5);
+  });
+
   it('persists nothing sensitive and survives a reset', async () => {
     expect((await call('POST', '/api/reset', {})).status).toBe(400);
     expect((await call('POST', '/api/reset', { confirm: true })).status).toBe(200);
