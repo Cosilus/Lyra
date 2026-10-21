@@ -7,7 +7,7 @@ export default function Arena() {
   const { data, error, loading, reload } = useApi<CompetitionView[]>('/api/competitions');
   return (
     <>
-      <PageHeader title="Arena" subtitle="Open competitions. Rules and scoring are always visible before you enter." />
+      <PageHeader title="Arena" subtitle="Open competitions. Every game takes under a minute. Rules and scoring are always visible before you enter." />
       {loading && !data && <Spinner />}
       {error && <ErrorBox message={error} onRetry={reload} />}
       {data && (

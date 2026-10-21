@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Play } from 'lucide-react';
+import { Play, Zap } from 'lucide-react';
 import type { AgentView, CompetitionView } from '../../shared/api.ts';
 import { Avatar, Badge, Button, Empty, EngineBadge, ErrorBox, Notice, PageHeader, Spinner } from '../components/ui.tsx';
 import { useToast } from '../components/Toast.tsx';
@@ -15,12 +15,20 @@ export default function CompetitionDetail() {
   const agents = useApi<AgentView[]>('/api/agents');
   const [busy, setBusy] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!running) return setElapsed(0);
+    const t0 = Date.now();
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 250);
+    return () => clearInterval(t);
+  }, [running]);
 
   if ((comp.loading && !comp.data) || (agents.loading && !agents.data)) return <Spinner />;
   if (comp.error || !comp.data) return <ErrorBox message={comp.error ?? 'Competition not found.'} onRetry={comp.reload} />;
   const { info, currentRound, pastRounds, eligibility } = comp.data;
   const mine = agents.data ?? [];
   const experimental = info.status === 'experimental';
+  const canQuick = eligibility.some((e) => e.eligible && !e.entered);
   const myEntered = mine.filter((a) => eligibility.find((e) => e.agentId === a.id)?.entered);
 
   const toggle = async (agentId: string, entered: boolean) => {
@@ -32,9 +40,12 @@ export default function CompetitionDetail() {
       toast(entered ? 'Agent withdrawn.' : 'Agent entered.');
     } catch (e: any) { toast(e.message, true); } finally { setBusy(null); }
   };
-  const run = async () => {
+  const run = async (enterAll = false) => {
     setRunning(true);
     try {
+      if (enterAll) {
+        for (const e of eligibility) if (e.eligible && !e.entered) await api('POST', `/api/competitions/${info.id}/entries`, { agentId: e.agentId });
+      }
       const { roundId } = await api<{ roundId: string }>('POST', `/api/competitions/${info.id}/run`);
       toast('Round complete. Results are in.');
       nav(`/rounds/${roundId}`);
@@ -119,12 +130,17 @@ export default function CompetitionDetail() {
                   ))}
                 </div>
                 <div className="mt-5 border-t border-line pt-5">
-                  <Button variant="primary" className="w-full" disabled={myEntered.length === 0} loading={running} onClick={run}><Play size={15} />{running ? 'Running agents…' : 'Run round'}</Button>
-                  {myEntered.length === 0 && <p className="mt-2 text-center text-xs text-muted">Enter at least one of your agents to start.</p>}
-                  {running && <p className="mt-2 text-center text-xs text-muted">Agents run one after another. Live models can take up to a minute.</p>}
+                  {myEntered.length === 0 && canQuick ? (
+                    <Button variant="primary" className="w-full" loading={running} onClick={() => run(true)}><Zap size={15} />{running ? 'Running…' : 'Quick play'}</Button>
+                  ) : (
+                    <Button variant="primary" className="w-full" disabled={myEntered.length === 0} loading={running} onClick={() => run()}><Play size={15} />{running ? 'Running agents…' : 'Run round'}</Button>
+                  )}
+                  {myEntered.length === 0 && !canQuick && <p className="mt-2 text-center text-xs text-muted">Enter at least one of your agents to start.</p>}
+                  {myEntered.length === 0 && canQuick && <p className="mt-2 text-center text-xs text-muted">Enters your eligible agents and runs the round in one click.</p>}
+                  {running && <p className="mt-2 text-center text-xs tabular-nums text-muted">{elapsed}s / {Math.round(info.limits.roundDeadlineMs / 1000)}s maximum</p>}
                 </div>
               </section>
-              <Notice>Runs are sequential in this prototype. Time and token limits per task are already defined ({info.limits.maxTokensPerTask} tokens, {info.limits.timeoutMsPerTask / 1000}s) and apply identically to every live agent. See <Link to="/profile" className="text-accent">Profile</Link> for which engines are available.</Notice>
+              <Notice>Agents run in parallel. A round lasts at most {Math.round(info.limits.roundDeadlineMs / 1000)}s, and every live agent gets the same limits ({info.limits.maxTokensPerTask} tokens and {info.limits.timeoutMsPerTask / 1000}s per task). See <Link to="/profile" className="text-accent">Profile</Link> for which engines are available.</Notice>
             </>
           )}
         </div>

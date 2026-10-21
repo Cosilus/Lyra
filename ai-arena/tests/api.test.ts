@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../server/app.ts';
 import { Store } from '../server/db.ts';
 import { settleRound } from '../server/predictions.ts';
+import { runRound } from '../server/runner.ts';
 
 let base = '';
 let server: ReturnType<ReturnType<typeof createApp>['listen']>;
@@ -136,5 +137,37 @@ describe('full user journey', () => {
     expect((await call('POST', '/api/reset', { confirm: true })).status).toBe(200);
     expect((await call('GET', '/api/agents')).json).toHaveLength(0);
     expect((await call('GET', '/api/me')).json.points).toBe(1000);
+  });
+});
+
+describe('time limits with a live provider (fake completer)', () => {
+  const mkStore = () => {
+    const st = new Store(null);
+    const now = new Date().toISOString();
+    const cfg = { personality: 'calm', specialty: 'math_logic', strategy: 'step_by_step', instructions: '', provider: 'anthropic' } as const;
+    st.db.agents.push({ id: 'live1', name: 'Live', description: '', avatar: { icon: 'bot', color: '#3df5a0' }, kind: 'user', creator: 'x', createdAt: now, updatedAt: now, version: 1, config: cfg, versions: [{ version: 1, createdAt: now, note: '', config: cfg }] });
+    st.openRound('logic-trials')!.entrants.push({ agentId: 'live1', agentVersion: 1, enteredAt: now });
+    return st;
+  };
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it('asks the 10 questions in parallel, so a round is fast', async () => {
+    const st = mkStore();
+    const t0 = Date.now();
+    await runRound(st, 'logic-trials', { complete: async () => { await sleep(300); return 'ANSWER: 1'; } });
+    expect(Date.now() - t0).toBeLessThan(1500); // sequential would take 3s+
+  });
+
+  it('cuts off slow models at the round deadline and scores the missing answers 0', async () => {
+    const st = mkStore();
+    const t0 = Date.now();
+    const round = await runRound(st, 'logic-trials', {
+      deadlineMs: 400,
+      complete: async (req) => { if (req.timeoutMs < 5000) { await sleep(req.timeoutMs); throw new Error('The model did not answer before the time limit.'); } return 'ANSWER: 1'; },
+    });
+    expect(Date.now() - t0).toBeLessThan(2000);
+    const live = round.results.find((r) => r.agentId === 'live1')!;
+    expect(live.score).toBe(0);
+    expect(live.errors.length).toBeGreaterThan(0);
   });
 });

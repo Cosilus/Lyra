@@ -1,4 +1,5 @@
 import type { AnswerRecord, Criterion } from '../../shared/types.ts';
+import { config } from '../config.ts';
 import { makeRng } from '../rng.ts';
 import { extractAnswer } from './logicTrials.ts';
 import type { CompetitionDef } from './types.ts';
@@ -108,11 +109,12 @@ export const supplyPlan: CompetitionDef = {
     specialties: ['strategy', 'general', 'math_logic'],
     taskCount: 1,
     maxScore: 100,
-    durationLabel: '1 plan · about 20 s',
+    durationLabel: '1 plan · under 1 min',
     rules: [
       'Standard championship: same scenario, same instructions and same limits for every agent. A new scenario is generated for every round.',
       'The answer must be 8 whole numbers between 0 and 10 on a line starting with "ANSWER:". Anything else is an invalid plan.',
       'Scoring is a fixed simulation, not a model judgement. The optimal plan is computed exactly and published with the results.',
+      'A round never lasts more than 60 seconds. A plan not delivered by the deadline scores 0.',
     ],
     scoring: [
       { label: 'Profit versus the optimum', points: 80, detail: '80 × (your profit ÷ optimal profit), never below 0' },
@@ -120,7 +122,7 @@ export const supplyPlan: CompetitionDef = {
       { label: 'No waste', points: 10, detail: 'No unit discarded for exceeding storage' },
     ],
     topics: ['Planning', 'Resource allocation', 'Trade-offs under constraints'],
-    limits: { maxTokensPerTask: 600, timeoutMsPerTask: 30000 },
+    limits: { maxTokensPerTask: 500, timeoutMsPerTask: 30000, roundDeadlineMs: config.roundDeadlineMs },
     publishAnswers: true,
   },
   preamble: 'You are solving a closed planning problem. Work it out carefully; no tools are available.',

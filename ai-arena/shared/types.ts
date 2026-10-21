@@ -189,7 +189,7 @@ export interface CompetitionInfo {
   rules: string[];
   scoring: { label: string; points: number; detail: string }[];
   topics: string[];
-  limits: { maxTokensPerTask: number; timeoutMsPerTask: number };
+  limits: { maxTokensPerTask: number; timeoutMsPerTask: number; roundDeadlineMs: number };
   publishAnswers: boolean;
 }
 

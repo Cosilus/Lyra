@@ -6,7 +6,7 @@ import { config } from './config.ts';
 import type { Store } from './db.ts';
 import { HttpError } from './errors.ts';
 import { settleRound } from './predictions.ts';
-import { anthropicAvailable, anthropicComplete } from './providers/anthropic.ts';
+import { anthropicAvailable, anthropicComplete, type CompleteRequest } from './providers/anthropic.ts';
 import { makeRng } from './rng.ts';
 
 const running = new Set<string>();
@@ -18,7 +18,9 @@ function engineFor(agent: Agent, version: number): EngineInfo {
 }
 
 /** Runs one agent through one competition. Tasks run sequentially with identical limits. */
-async function runAgent(def: CompetitionDef, agent: Agent, version: number, round: Round): Promise<RunResult> {
+type Completer = (req: CompleteRequest) => Promise<string>;
+
+async function runAgent(def: CompetitionDef, agent: Agent, version: number, round: Round, complete: Completer, deadline: number): Promise<RunResult> {
   const cfg = agent.versions.find((v) => v.version === version)?.config ?? agent.config;
   const systemPrompt = buildSystemPrompt(agent.name, cfg);
   const engine = engineFor(agent, version);
@@ -30,19 +32,26 @@ async function runAgent(def: CompetitionDef, agent: Agent, version: number, roun
     const rng = makeRng(`${agent.id}:${version}:${def.info.id}:${round.number}`);
     Object.assign(responses, def.simulate(round.number, agent.kind === 'house' ? agent.skill ?? 0.5 : config.demoSkill, rng));
   } else {
-    for (const task of def.tasks(round.number)) {
+    // Tasks run in parallel and share the round deadline, so a round stays short and every agent faces the same limits.
+    await Promise.all(def.tasks(round.number).map(async (task) => {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        errors[task.id] = 'Round time limit reached before the call started.';
+        responses[task.id] = '';
+        return;
+      }
       try {
-        responses[task.id] = await anthropicComplete({
+        responses[task.id] = await complete({
           system: `${systemPrompt}\n\n${def.preamble}`,
           user: task.prompt,
           maxTokens: def.info.limits.maxTokensPerTask,
-          timeoutMs: def.info.limits.timeoutMsPerTask,
+          timeoutMs: Math.min(def.info.limits.timeoutMsPerTask, remaining),
         });
       } catch (e: any) {
         errors[task.id] = e?.message ?? 'Unknown error';
         responses[task.id] = '';
       }
-    }
+    }));
   }
 
   const grade = def.grade(round.number, responses, errors);
@@ -63,7 +72,7 @@ export function rankResults(results: RunResult[]): RunResult[] {
   return sorted;
 }
 
-export async function runRound(store: Store, competitionId: string): Promise<Round> {
+export async function runRound(store: Store, competitionId: string, opts: { complete?: Completer; deadlineMs?: number } = {}): Promise<Round> {
   const def = getCompetition(competitionId);
   if (!def) throw new HttpError(404, 'Competition not found or not playable yet.');
   const round = store.openRound(competitionId);
@@ -74,14 +83,15 @@ export async function runRound(store: Store, competitionId: string): Promise<Rou
   }
   const entrants = round.entrants.map((e) => ({ e, agent: store.agent(e.agentId)! }));
   const needsKey = entrants.find(({ e, agent }) => engineFor(agent, e.agentVersion).kind === 'live');
-  if (needsKey && !anthropicAvailable()) {
+  if (needsKey && !opts.complete && !anthropicAvailable()) {
     throw new HttpError(400, `${needsKey.agent.name} uses a live model but ANTHROPIC_API_KEY is not set on the server.`);
   }
 
   running.add(round.id);
   try {
-    const results: RunResult[] = [];
-    for (const { e, agent } of entrants) results.push(await runAgent(def, agent, e.agentVersion, round));
+    const deadline = Date.now() + (opts.deadlineMs ?? def.info.limits.roundDeadlineMs);
+    const complete = opts.complete ?? anthropicComplete;
+    const results = await Promise.all(entrants.map(({ e, agent }) => runAgent(def, agent, e.agentVersion, round, complete, deadline)));
     round.results = rankResults(results);
     round.status = 'completed';
     round.completedAt = new Date().toISOString();

@@ -1,4 +1,5 @@
 import type { Criterion, CriterionItem } from '../../shared/types.ts';
+import { config } from '../config.ts';
 import type { CompetitionDef } from './types.ts';
 
 // The dossier is entirely fictional. "NovaLend" does not exist.
@@ -81,11 +82,12 @@ export const researchArena: CompetitionDef = {
     specialties: ['research', 'crypto', 'general'],
     taskCount: 1,
     maxScore: 100,
-    durationLabel: '1 report · about 30 s',
+    durationLabel: '1 report · under 1 min',
     rules: [
       'Standard championship: same dossier, same instructions and same limits for every agent.',
       'The dossier is fictional. Agents must not use outside knowledge and must only cite sources S1 to S5.',
       'Scoring uses a fixed rubric of keyword and structure checks. It is reproducible but imperfect: it detects whether an idea is present, not how well it is argued. No AI model is used as a judge.',
+      'A round never lasts more than 60 seconds. A report not delivered by the deadline scores 0.',
       'The rubric and the scored items are published with the results.',
     ],
     scoring: [
@@ -96,7 +98,7 @@ export const researchArena: CompetitionDef = {
       { label: 'Reasoning structure', points: 10, detail: 'Severity ratings (5) and a concrete recommendation (5), heuristic' },
     ],
     topics: ['Fact extraction', 'Risk identification', 'Source citation', 'Following instructions'],
-    limits: { maxTokensPerTask: 1000, timeoutMsPerTask: 45000 },
+    limits: { maxTokensPerTask: 800, timeoutMsPerTask: 45000, roundDeadlineMs: config.roundDeadlineMs },
     publishAnswers: true,
   },
   preamble: 'You are analysing a closed dossier. Use only the information it contains.',

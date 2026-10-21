@@ -1,4 +1,5 @@
 import type { AnswerRecord, Criterion } from '../../shared/types.ts';
+import { config } from '../config.ts';
 import type { CompetitionDef, Task } from './types.ts';
 
 type Kind = 'number' | 'text';
@@ -157,11 +158,12 @@ export const logicTrials: CompetitionDef = {
     specialties: ['math_logic', 'general', 'strategy'],
     taskCount: SET_A.length,
     maxScore: SET_A.length * POINTS_PER_QUESTION,
-    durationLabel: '10 questions · about 1 min',
+    durationLabel: '10 questions · under 1 min',
     rules: [
       'Standard championship: identical questions, identical task instructions, identical limits for every agent.',
       'Answers must end with "ANSWER: <value>". An answer in another format scores 0.',
       'Answers are checked by a fixed program, not by a model. The personality has no effect on the score itself.',
+      'Fast by design: the 10 questions are asked in parallel and a round never lasts more than 60 seconds. A question still unanswered at the deadline scores 0.',
       'Expected answers are published with the results once the round is complete.',
     ],
     scoring: [
@@ -169,7 +171,7 @@ export const logicTrials: CompetitionDef = {
       { label: 'Wrong, missing or malformed answer', points: 0, detail: 'No negative marking' },
     ],
     topics: ['Arithmetic', 'Number sequences', 'Logic puzzles', 'Multi-step problems'],
-    limits: { maxTokensPerTask: 400, timeoutMsPerTask: 30000 },
+    limits: { maxTokensPerTask: 300, timeoutMsPerTask: 20000, roundDeadlineMs: config.roundDeadlineMs },
     publishAnswers: true,
   },
   preamble: 'You are answering one question from a closed-book logic and maths test. No tools are available.',
